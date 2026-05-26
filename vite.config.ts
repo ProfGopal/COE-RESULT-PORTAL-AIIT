@@ -5,7 +5,7 @@ export default defineConfig({
   base: '/COE-RESULT-PORTAL-AIIT/',
   plugins: [react()],
   build: {
-    outDir: 'docs',
+    outDir: 'dist',
   },
   server: {
     port: 4173,

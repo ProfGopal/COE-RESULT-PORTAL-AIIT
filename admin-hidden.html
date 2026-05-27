@@ -668,8 +668,8 @@
           <div class="upload-hint">.xlsx format · Required columns: SEN, Name, Semester, Course Code, Course Title,
             Type, Credits, Marks, Grade, Grade Points</div>
         </div>
-        <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none"
-          onchange="handleFileUpload(this.files[0])">
+        <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none" multiple
+          onchange="handleFileUpload(this.files)">
         <div class="alert" id="upload-alert"></div>
       </div>
 

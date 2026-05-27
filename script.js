@@ -412,13 +412,14 @@ function renderStudentDash(student) {
   });
   document.getElementById('dash-nc').textContent = validCourses.length;
 
-  // Build semester tabs
+  // Build semester tabs dynamically
   var sems = [];
   var seen = {};
   validCourses.forEach(function (c) {
-    if (c.semester && c.semester !== 'nan' && !seen[c.semester]) {
-      sems.push(c.semester);
-      seen[c.semester] = true;
+    var sVal = String(c.sem || c.semester || '').trim();
+    if (sVal && sVal !== 'nan' && !seen[sVal]) {
+      sems.push(sVal);
+      seen[sVal] = true;
     }
   });
   sems.sort();
@@ -426,39 +427,48 @@ function renderStudentDash(student) {
   var tabsEl = document.getElementById('sem-tabs');
   tabsEl.innerHTML = '';
 
-  function makeTab(label, courses, key) {
+  function makeTab(label, key) {
     var btn = document.createElement('button');
     btn.className = 'tab' + (key === 'all' ? ' active' : '');
     btn.textContent = label;
     btn.onclick = function () {
       document.querySelectorAll('.tab').forEach(function (t) { t.classList.remove('active'); });
       btn.classList.add('active');
-      renderCourses(courses, label);
+      renderCourses(validCourses, label, key);
     };
     return btn;
   }
 
-  tabsEl.appendChild(makeTab('All Semesters', validCourses, 'all'));
+  tabsEl.appendChild(makeTab('All Semesters', 'all'));
   sems.forEach(function (s) {
     var label = SEM_MAP[s] || ('Sem ' + s);
-    var filtered = validCourses.filter(function (c) { return c.semester === s; });
-    tabsEl.appendChild(makeTab(label, filtered, s));
+    tabsEl.appendChild(makeTab(label, s));
   });
 
-  renderCourses(validCourses, 'All Semesters');
+  renderCourses(validCourses, 'All Semesters', 'all');
 }
 
-function renderCourses(courses, title) {
+function renderCourses(courses, title, semesterFilter) {
   var valid = (courses || []).filter(function (c) {
     return c && c.code && c.code !== 'nan' && c.code.trim() !== '';
   });
+
+  var filteredCourses;
+  if (!semesterFilter || semesterFilter === 'all' || semesterFilter === 'All' || semesterFilter === 'All Semesters') {
+    filteredCourses = valid;
+  } else {
+    filteredCourses = valid.filter(function (c) {
+      return String(c.sem || c.semester || '').trim() === semesterFilter;
+    });
+  }
+
   document.getElementById('tbl-title').textContent = title;
-  document.getElementById('tbl-badge').textContent = valid.length + ' course' + (valid.length !== 1 ? 's' : '');
+  document.getElementById('tbl-badge').textContent = filteredCourses.length + ' course' + (filteredCourses.length !== 1 ? 's' : '');
 
   var tbody = document.getElementById('courses-tbody');
   tbody.innerHTML = '';
 
-  if (!valid.length) {
+  if (!filteredCourses.length) {
     var tr = document.createElement('tr');
     var td = document.createElement('td');
     td.colSpan = 8; td.style.textAlign = 'center';
@@ -468,7 +478,7 @@ function renderCourses(courses, title) {
     return;
   }
 
-  valid.forEach(function (c) {
+  filteredCourses.forEach(function (c) {
     var grade = String(c.grade !== undefined && c.grade !== null && c.grade !== '' ? c.grade : '-').trim();
     var credits = String(c.credits !== undefined && c.credits !== null && c.credits !== '' ? c.credits : '-').trim();
     var gradePoints = String(c.gradePoints !== undefined && c.gradePoints !== null && c.gradePoints !== '' ? c.gradePoints : '-').trim();
@@ -711,12 +721,13 @@ function handleFileDrop(e) {
   e.preventDefault();
   var zone = document.getElementById('upload-zone');
   if (zone) zone.classList.remove('drag');
-  var file = e.dataTransfer.files[0];
-  if (file) handleFileUpload(file);
+  var files = e.dataTransfer.files;
+  if (files && files.length > 0) handleFileUpload(files);
 }
 
-async function handleFileUpload(file) {
-  if (!file) return;
+async function handleFileUpload(files) {
+  if (!files || files.length === 0) return;
+  var fileList = Array.from(files);
   var alertEl = document.getElementById('upload-alert');
 
   function setAlert(type, msg) {
@@ -726,35 +737,79 @@ async function handleFileUpload(file) {
     alertEl.style.display = 'block';
   }
 
-  var gasUrl = GAS_URL;
+  setAlert('info', '<span class="spinner"></span>Reading ' + fileList.length + ' Excel file(s)…');
 
-  setAlert('info', '<span class="spinner"></span>Reading Excel file…');
+  var consolidatedMap = {};
 
-  var arrayBuffer;
-  try { arrayBuffer = await file.arrayBuffer(); } catch (e) {
-    setAlert('err', '✗ Could not read file: ' + e.message); return;
-  }
-
-  var students;
   try {
-    students = parseExcelToStudents(arrayBuffer, function (msg) {
-      setAlert('info', '<span class="spinner"></span>' + msg);
-    });
-  } catch (parseErr) {
-    setAlert('err', '✗ Excel parse error: ' + parseErr.message); return;
-  }
+    for (var f = 0; f < fileList.length; f++) {
+      var file = fileList[f];
+      setAlert('info', '<span class="spinner"></span>[' + (f + 1) + '/' + fileList.length + '] Reading ' + esc(file.name) + '…');
 
-  if (!students || students.length === 0) {
-    setAlert('warn', '⚠ No student records detected. Check that column headers match: SEN, Name, Semester, Course Code, Course Title, Type, Credits, Marks, Grade, Grade Points.');
+      var arrayBuffer = await file.arrayBuffer();
+      
+      var studentsArray = parseExcelToStudents(arrayBuffer, function (msg) {
+        setAlert('info', '<span class="spinner"></span>[' + (f + 1) + '/' + fileList.length + '] ' + esc(file.name) + ': ' + msg);
+      });
+
+      studentsArray.forEach(function (s) {
+        var sen = s.sen;
+        if (!consolidatedMap[sen]) {
+          consolidatedMap[sen] = {
+            sen: sen,
+            name: s.name,
+            program: s.program,
+            school: s.school,
+            cgpa: s.cgpa || 0,
+            totalCredits: s.totalCredits || 0,
+            totalCreditEarned: s.totalCreditEarned || 0,
+            courses: []
+          };
+        }
+        var target = consolidatedMap[sen];
+        if (s.name) target.name = s.name;
+        if (s.program) target.program = s.program;
+        if (s.school) target.school = s.school;
+        if (s.cgpa) target.cgpa = s.cgpa;
+        if (s.totalCredits > target.totalCredits) {
+          target.totalCredits = s.totalCredits;
+          target.totalCreditEarned = s.totalCredits;
+        }
+
+        s.courses.forEach(function (c) {
+          var semKey = String(c.semester || c.sem || '').trim();
+          var codeKey = String(c.code || '').trim().toLowerCase();
+          
+          var isDuplicate = target.courses.some(function (existC) {
+            var existSem = String(existC.semester || existC.sem || '').trim();
+            var existCode = String(existC.code || '').trim().toLowerCase();
+            return existSem === semKey && existCode === codeKey;
+          });
+
+          if (!isDuplicate) {
+            target.courses.push(c);
+          }
+        });
+      });
+    }
+  } catch (err) {
+    setAlert('err', '✗ Excel parse error: ' + err.message);
     return;
   }
 
-  setAlert('info', '<span class="spinner"></span>Sending ' + students.length + ' students to backend…');
+  var finalStudentsList = Object.values(consolidatedMap);
+
+  if (finalStudentsList.length === 0) {
+    setAlert('warn', '⚠ No student records detected. Check that column headers match.');
+    return;
+  }
+
+  setAlert('info', '<span class="spinner"></span>Consolidated ' + finalStudentsList.length + ' students. Sending to backend…');
 
   try {
     var adminPassword = sessionStorage.getItem(ADMIN_SESSION) || '';
-    await gasPost({ action: 'upsert', students: students, adminPassword: adminPassword });
-    setAlert('ok', '✓ ' + students.length + ' students sent to the backend (upsert). The backend will insert new records and update existing ones while preserving passwords. Refresh to see updated data.');
+    await gasPost({ action: 'upsert', students: finalStudentsList, adminPassword: adminPassword });
+    setAlert('ok', '✓ Consolidated ' + finalStudentsList.length + ' student record(s) from ' + fileList.length + ' file(s) sent to the backend (upsert). Refresh to see updated data.');
     setTimeout(loadAdminData, 2000);
   } catch (postErr) {
     setAlert('warn', '⚠ Data sent (no-cors mode — cannot confirm receipt). Backend should have processed it. Refresh to verify.');
@@ -942,6 +997,7 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
 
             s.courses.push({
               semester: sem,
+              sem: sem,
               code: code,
               title: kCT ? String(row[kCT] || '').trim() : '',
               type: kTy ? String(row[kTy] || '').trim() : '',
@@ -971,6 +1027,7 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
 
             s.courses.push({
               semester: sem,
+              sem: sem,
               code: code,
               title: kCT ? String(row[kCT] || '').trim() : '',
               type: kTy ? String(row[kTy] || '').trim() : '',

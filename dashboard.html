@@ -687,7 +687,7 @@
       _activeSem = sem;
       var filtered = (sem === '__all__')
         ? _allCourses
-        : _allCourses.filter(function (c) { return String(c.semester || '').trim() === sem; });
+        : _allCourses.filter(function (c) { return String(c.sem || c.semester || '').trim() === sem; });
 
       var label = (sem === '__all__') ? 'All Semesters' : sem;
       updateTableCard(filtered, label);

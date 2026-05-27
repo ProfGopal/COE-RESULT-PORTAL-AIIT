@@ -242,21 +242,6 @@ tbody td{padding:0.8rem 1rem;font-size:0.86rem}
 
   <div class="admin-body">
 
-    <!-- GAS Backend URL -->
-    <div class="gas-section" style="margin-bottom:1.5rem">
-      <div class="gas-section-label">🌐 Google Apps Script Backend URL</div>
-      <div style="font-size:0.8rem;color:var(--sub);margin-bottom:0.6rem">
-        Deploy <code style="font-family:var(--mono);color:var(--accent)">backend.gs</code> as a Web App (Anyone access) and paste the URL here.
-        <a href="https://script.google.com/home" target="_blank" style="color:var(--accent)">Open Apps Script</a>
-      </div>
-      <div class="gas-url-row">
-        <input id="gas-url-input" type="url"
-               placeholder="https://script.google.com/macros/s/AKfycby0xTAEjyfcN-IrEVaEzQuFFAfCQD1wWhpTJ5dlv9S7jBIT48RY8PxH76mW2Mci0rCGCw/exec"
-               oninput="saveGasUrl(this.value)">
-        <button class="btn-sm primary" id="btn-test-gas" onclick="testGasConnection()">Test</button>
-      </div>
-      <div id="gas-url-status" style="font-size:0.75rem;color:var(--sub);margin-top:0.4rem"></div>
-    </div>
 
     <!-- Upload Section -->
     <div style="margin-bottom:2rem">
@@ -333,13 +318,6 @@ tbody td{padding:0.8rem 1rem;font-size:0.86rem}
 <script src="script.js"></script>
 <script>
 // ── Admin-page-specific boot ─────────────────────────────────────────────────
-// script.js is shared; adminPageInit() is called here after it loads.
-document.addEventListener('DOMContentLoaded', function() {
-  // Restore GAS URL from localStorage
-  var saved = localStorage.getItem('coe_gas_url') || '';
-  var inp = document.getElementById('gas-url-input');
-  if (inp && saved) inp.value = saved;
-});
 </script>
 </body>
 </html>

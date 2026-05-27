@@ -39,12 +39,8 @@ var lightThemeTimer  = null;
 // ═══════════════════════════════════════════════════════════════════════════════
 //  GAS URL HELPERS
 // ═══════════════════════════════════════════════════════════════════════════════
-function getGasUrl() { return (localStorage.getItem(GAS_URL_KEY) || '').trim(); }
-function saveGasUrl(url) {
-  localStorage.setItem(GAS_URL_KEY, url.trim());
-  var inp = document.getElementById('gas-url-input');
-  if (inp) inp.value = url.trim();
-}
+function getGasUrl() { return 'https://script.google.com/macros/s/AKfycby0xTAEjyfcN-IrEVaEzQuFFAfCQD1wWhpTJ5dlv9S7jBIT48RY8PxH76mW2Mci0rCGCw/exec'; }
+function saveGasUrl(url) {}
 
 /**
  * gasJsonp — cross-origin GET via <script> tag injection.
@@ -528,8 +524,12 @@ async function adminLogin() {
   }
 
   try {
-    var url = gasUrl + '?action=verifyadmin&adminPassword=' + encodeURIComponent(pass);
-    var data = await gasJsonp(url, 15000);
+    var response = await fetch(gasUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'verifyadmin', password: pass })
+    });
+    var data = await response.json();
     
     if (data && data.success) {
       clearAttempts('admin');
@@ -1066,18 +1066,9 @@ async function clearAllRecords() {
     var adminPassword = sessionStorage.getItem(ADMIN_SESSION) || '';
     await gasPost({ action: 'deleteall', adminPassword: adminPassword });
 
-    // ── Flush ALL local caches so ghost data cannot reappear ──────────────
-    // Remove the student data cache key specifically
-    localStorage.removeItem(LOCAL_STU_KEY);
-    // Remove any other student-related keys (scan for coe_ prefix)
-    var toRemove = [];
-    for (var li = 0; li < localStorage.length; li++) {
-      var lk = localStorage.key(li);
-      if (lk && lk.startsWith('coe_') && lk !== GAS_URL_KEY) toRemove.push(lk);
-    }
-    toRemove.forEach(function(k) { localStorage.removeItem(k); });
-    // Clear sessionStorage student data too
-    sessionStorage.removeItem(LOCAL_STU_KEY);
+    // Aggressively wipe all local storage and session storage caches
+    localStorage.clear();
+    sessionStorage.clear();
 
     _allStudents = [];
     renderAdminTable([]);

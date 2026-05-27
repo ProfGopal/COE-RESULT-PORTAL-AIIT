@@ -190,6 +190,16 @@ tbody td{padding:0.8rem 1rem;font-size:0.86rem}
 }
 .btn-danger:hover{background:rgba(239,68,68,0.12);border-color:var(--red)}
 .btn-danger:disabled{opacity:0.4;cursor:not-allowed}
+.danger-zone{
+  background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.3);
+  border-radius:10px;padding:1rem 1.25rem;
+}
+.danger-zone-title{
+  font-family:var(--mono);font-size:0.72rem;color:var(--red);
+  text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.4rem;
+  display:flex;align-items:center;gap:0.4rem;
+}
+.danger-zone-desc{font-size:0.8rem;color:var(--sub);margin-bottom:0.75rem;line-height:1.5}
 
 @media(max-width:600px){.admin-body{padding:1rem}}
 </style>
@@ -273,6 +283,26 @@ tbody td{padding:0.8rem 1rem;font-size:0.86rem}
         <button class="btn-danger" id="btn-reset-pwd" onclick="clearPassword()">✕ Clear Password</button>
       </div>
       <div id="reset-status" style="font-size:0.78rem;color:var(--sub);margin-top:0.5rem;font-family:var(--mono)"></div>
+    </div>
+
+    <!-- Clear All Records Danger Zone -->
+    <div style="margin-bottom:2rem">
+      <div class="section-label">Danger Zone</div>
+      <div class="danger-zone">
+        <div class="danger-zone-title">⚠ Clear All Records</div>
+        <div class="danger-zone-desc">
+          Permanently deletes <strong>every student record</strong> from the database, including all course data and passwords.
+          The sheet header row is preserved. Use this only when starting a completely fresh upload.
+          <strong>This action cannot be undone.</strong>
+        </div>
+        <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+          <button class="btn-danger" id="btn-clear-all" onclick="clearAllRecords()"
+                  style="padding:0.5rem 1.2rem;font-size:0.82rem">
+            🗑 Clear All Records
+          </button>
+          <span id="clear-all-status" style="font-size:0.78rem;color:var(--sub);font-family:var(--mono)"></span>
+        </div>
+      </div>
     </div>
 
     <!-- Students Table -->

@@ -249,10 +249,22 @@ function resetStudentLoginUI() {
   isNewUser = false;
 }
 
-// Called on every SEN keypress to clear stale errors
+// Called on every SEN keystroke — clears stale alerts and resets
+// the password-creation sub-form ONLY.  Must NOT clear the SEN field itself.
 function onSenInput() {
   hideAlerts('student');
-  resetStudentLoginUI();
+  // Reset password fields and button state (but leave s-sen value intact)
+  var pf = document.getElementById('s-pass-field');
+  if (pf) pf.style.display = 'block';
+  var nf = document.getElementById('s-newpass-fields');
+  if (nf) nf.style.display = 'none';
+  ['s-pass','s-newpass','s-confirmpass'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  var btn = document.getElementById('s-login-btn');
+  if (btn) { btn.textContent = 'Sign In →'; btn.disabled = false; }
+  isNewUser = false;
 }
 
 /**
@@ -752,12 +764,21 @@ async function handleFileUpload(file) {
  *
  * Returns: Array of student objects (see backend.gs for shape)
  */
+/**
+ * parseExcelToStudents — STRICT MAPPING (v2).
+ *
+ * Reads the .xlsx file using SheetJS and maps every column value LITERALLY
+ * to the JSON object.  NO calculations are performed — CGPA, total credits,
+ * and grade points are read directly from the sheet columns.
+ * The Excel file is the absolute source of truth.
+ */
 function parseExcelToStudents(arrayBuffer, progressCb) {
   if (!window.XLSX) throw new Error('SheetJS library not loaded.');
 
   if (progressCb) progressCb('Parsing workbook…');
 
-  var wb = XLSX.read(arrayBuffer, { type: 'array', cellDates: true });
+  // raw:true ensures numbers stay as numbers, not strings
+  var wb = XLSX.read(arrayBuffer, { type: 'array', cellDates: false, raw: false });
 
   // Gather rows from all sheets
   var allRows = [];
@@ -771,13 +792,14 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
 
   if (progressCb) progressCb('Mapping ' + allRows.length + ' rows…');
 
-  // Flexible column-name resolver
+  // Flexible column-name resolver (case-insensitive, ignores punctuation)
   function findKey(obj, candidates) {
     var keys = Object.keys(obj);
     for (var i = 0; i < candidates.length; i++) {
-      var cand = candidates[i].toLowerCase();
+      var cand = candidates[i].toLowerCase().replace(/[^a-z0-9]/g,'');
       for (var j = 0; j < keys.length; j++) {
-        if (keys[j].toLowerCase().replace(/[^a-z0-9]/g,'').includes(cand.replace(/[^a-z0-9]/g,''))) {
+        var norm = keys[j].toLowerCase().replace(/[^a-z0-9]/g,'');
+        if (norm === cand || norm.includes(cand)) {
           return keys[j];
         }
       }
@@ -787,7 +809,7 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
 
   // Detect column keys from the first non-empty row
   var sample   = allRows[0];
-  var kSen     = findKey(sample, ['sen','enrollment','studentid','id']);
+  var kSen     = findKey(sample, ['sen','enrollment','enrollmentno','studentid']);
   var kName    = findKey(sample, ['name','studentname']);
   var kSem     = findKey(sample, ['semester','sem']);
   var kCode    = findKey(sample, ['coursecode','code','subjectcode']);
@@ -797,9 +819,12 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
   var kMarks   = findKey(sample, ['marks','score','totalmarks','total']);
   var kGrade   = findKey(sample, ['grade']);
   var kGP      = findKey(sample, ['gradepoints','gradepoint','gp','points']);
-  var kProgram = findKey(sample, ['program','programme','course','branch']);
+  var kCE      = findKey(sample, ['creditearned','earnedcredit','creditsearned']);
+  // Student-level summary columns — read DIRECTLY from the sheet, no calculation
+  var kCgpa    = findKey(sample, ['cgpa','cumulativegpa','gpa']);
+  var kTotCred = findKey(sample, ['totalcreditsearned','totalcredit','totalcreditearned','totcred']);
+  var kProgram = findKey(sample, ['program','programme','branch']);
   var kSchool  = findKey(sample, ['school','college','department','dept']);
-  var kCE      = findKey(sample, ['creditearned','earnedcredit','cearnedcred']);
 
   if (!kSen) throw new Error('Could not find SEN / Enrollment column. Check headers.');
 
@@ -812,11 +837,12 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
     if (!map[sen]) {
       map[sen] = {
         sen              : sen,
-        name             : kName   ? String(row[kName]    || '').trim() : '',
+        name             : kName    ? String(row[kName]    || '').trim() : '',
         program          : kProgram ? String(row[kProgram] || '').trim() : '',
         school           : kSchool  ? String(row[kSchool]  || '').trim() : '',
-        totalCreditEarned: 0,
-        cgpa             : null,
+        // Read CGPA and total credits DIRECTLY from the sheet — NO calculation
+        cgpa             : kCgpa    ? row[kCgpa]    : '',
+        totalCreditEarned: kTotCred ? row[kTotCred] : '',
         courses          : []
       };
     }
@@ -851,20 +877,44 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
     }
   });
 
-  // Calculate CGPA and total credits for each student
-  var students = Object.values(map);
-  students.forEach(function(s) {
-    var totalGP = 0, totalCr = 0, earnedCr = 0;
-    s.courses.forEach(function(c) {
-      totalGP += (c.gradePoints || 0) * (c.credits || 0);
-      totalCr += (c.credits || 0);
-      earnedCr += (c.creditEarned || 0);
-    });
-    s.cgpa             = totalCr > 0 ? Math.round((totalGP / totalCr) * 100) / 100 : 0;
-    s.totalCreditEarned = earnedCr;
-  });
+  // Return students as-is — NO CALCULATIONS.
+  // Every numeric value (cgpa, totalCreditEarned, gradePoints, creditEarned)
+  // is the literal value read from the Excel sheet.
+  return Object.values(map);
+}
 
-  return students;
+// ═══════════════════════════════════════════════════════════════════════════════
+//  ADMIN — CLEAR ALL RECORDS
+// ═══════════════════════════════════════════════════════════════════════════════
+async function clearAllRecords() {
+  var statusEl = document.getElementById('clear-all-status');
+  var btn      = document.getElementById('btn-clear-all');
+
+  // Double-confirmation: first native confirm, then typed confirmation
+  if (!confirm('⚠️ WARNING: This will permanently delete ALL student records from the database.\n\nPasswords will also be wiped. This cannot be undone.\n\nAre you sure you want to continue?')) return;
+  if (!confirm('FINAL WARNING: Click OK to delete every student record now.')) return;
+
+  if (btn) btn.disabled = true;
+  if (statusEl) statusEl.textContent = '⏳ Sending delete request to backend…';
+
+  var gasUrl = getGasUrl();
+  if (!gasUrl) {
+    if (statusEl) statusEl.textContent = '⚠ No GAS URL configured.';
+    if (btn) btn.disabled = false;
+    return;
+  }
+
+  try {
+    var adminKey = await hashPwd(ADMIN_PASSWORD);
+    await gasPost({ action: 'deleteall', adminKey: adminKey });
+    _allStudents = [];
+    renderAdminTable([]);
+    if (statusEl) statusEl.textContent = '✓ All records deleted. The database sheet now contains only the header row.';
+  } catch (err) {
+    if (statusEl) statusEl.textContent = '✗ Error: ' + err.message;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

@@ -398,9 +398,14 @@ function renderStudentDash(student) {
   document.getElementById('dash-school').textContent = student.school ? ' · ' + student.school : '';
   document.getElementById('dash-avatar').textContent = (student.name || 'S').charAt(0);
 
-  var cgpa = student.cgpa ? parseFloat(student.cgpa).toFixed(2) : '—';
+  var cgpaVal = parseFloat(student.cgpa);
+  var cgpa = (!isNaN(cgpaVal) && cgpaVal !== 0) ? cgpaVal.toFixed(2) : "N/A";
+  
+  var creditsVal = parseFloat(student.totalCredits || student.totalCreditEarned);
+  var credits = !isNaN(creditsVal) ? String(creditsVal) : "N/A";
+
   document.getElementById('dash-cgpa').textContent = cgpa;
-  document.getElementById('dash-ce').textContent = student.totalCreditEarned || '—';
+  document.getElementById('dash-ce').textContent = credits;
 
   var validCourses = (student.courses || []).filter(function (c) {
     return c && c.code && c.code !== 'nan' && c.code.trim() !== '';
@@ -464,21 +469,32 @@ function renderCourses(courses, title) {
   }
 
   valid.forEach(function (c) {
-    var grade = (c.grade || '—').trim();
-    var marks = c.marks ? parseFloat(c.marks).toFixed(1) : '—';
-    var pct = c.marks ? Math.min(100, Math.round(parseFloat(c.marks))) : 0;
+    var grade = String(c.grade !== undefined && c.grade !== null && c.grade !== '' ? c.grade : '-').trim();
+    var credits = String(c.credits !== undefined && c.credits !== null && c.credits !== '' ? c.credits : '-').trim();
+    var gradePoints = String(c.gradePoints !== undefined && c.gradePoints !== null && c.gradePoints !== '' ? c.gradePoints : '-').trim();
+    var creditEarned = String(c.creditEarned !== undefined && c.creditEarned !== null && c.creditEarned !== '' ? c.creditEarned : '-').trim();
+    var marks = String(c.marks !== undefined && c.marks !== null && c.marks !== '' ? c.marks : '-').trim();
+
+    var marksNum = parseFloat(marks);
+    var marksDisplay = !isNaN(marksNum) ? marksNum.toFixed(1) : '-';
+    var pct = !isNaN(marksNum) ? Math.min(100, Math.round(marksNum)) : 0;
     var gc = ['S', 'A', 'B', 'C', 'D', 'E', 'F'].includes(grade) ? 'g-' + grade : 'g-D';
+
+    var marksCell = (marksDisplay !== '-')
+      ? '<div class="bar-wrap"><span class="bar-num">' + esc(marksDisplay) + '</span>' +
+        '<div class="bar-bg"><div class="bar-fill" style="width:' + pct + '%"></div></div></div>'
+      : '<span style="color:var(--muted);font-size:0.78rem;font-family:var(--mono)">-</span>';
+
     var row = document.createElement('tr');
     row.innerHTML = [
       '<td class="td-code">' + esc(c.code) + '</td>',
-      '<td class="td-title">' + esc(c.title || '—') + '</td>',
-      '<td><span class="type-chip">' + esc(c.type || '—') + '</span></td>',
-      '<td style="font-family:var(--mono);font-size:0.8rem">' + esc(c.credits || '—') + '</td>',
-      '<td><div class="bar-wrap"><span class="bar-num">' + esc(marks) + '</span>' +
-      '<div class="bar-bg"><div class="bar-fill" style="width:' + pct + '%"></div></div></div></td>',
+      '<td class="td-title">' + esc(c.title || '-') + '</td>',
+      '<td><span class="type-chip">' + esc(c.type || '-') + '</span></td>',
+      '<td style="font-family:var(--mono);font-size:0.8rem">' + esc(credits) + '</td>',
+      '<td>' + marksCell + '</td>',
       '<td><span class="grade ' + esc(gc) + '">' + esc(grade) + '</span></td>',
-      '<td style="font-family:var(--mono);font-size:0.8rem">' + esc(c.gradePoints || '—') + '</td>',
-      '<td style="font-family:var(--mono);font-size:0.8rem">' + esc(c.creditEarned || '—') + '</td>'
+      '<td style="font-family:var(--mono);font-size:0.8rem">' + esc(gradePoints) + '</td>',
+      '<td style="font-family:var(--mono);font-size:0.8rem">' + esc(creditEarned) + '</td>'
     ].join('');
     tbody.appendChild(row);
   });
@@ -749,23 +765,6 @@ async function handleFileUpload(file) {
   if (fi) fi.value = '';
 }
 
-/**
- * parseExcelToStudents — STRICT MAPPING v3 (Horizontal Course Columns)
- *
- * Handles the AIIT Excel format where each row represents ONE STUDENT and
- * courses are stored horizontally:
- *   SEN | Name | SEM | CGPA | 1-Course Code | 1-Course Title | 1-Final Grade |
- *   1- Credit | 1- Credit Earned | 2-Course Code | 2-Course Title | ...
- *
- * Rules (per v3 blueprint):
- *   · Group by SEN (one row = one student in the horizontal format).
- *   · Loop i = 1..MAX_COURSES, extract `${i}-Course Code`, `${i}-Course Title`,
- *     `${i}-Final Grade`, `${i}- Credit`, `${i}- Credit Earned` per course.
- *   · Also supports the older vertical format (one row = one course) as fallback.
- *   · CGPA is read DIRECTLY from the 'CGPA' column — never calculated.
- *   · SEM column is read literally (e.g. "Fall Semester 2025-26").
- *   · NO mathematical operations are performed anywhere in this function.
- */
 function parseExcelToStudents(arrayBuffer, progressCb) {
   if (!window.XLSX) throw new Error('SheetJS library not loaded.');
   if (progressCb) progressCb('Parsing workbook…');
@@ -782,191 +781,167 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
   if (!allRows.length) return [];
   if (progressCb) progressCb('Mapping ' + allRows.length + ' rows…');
 
-  // ── Exact-match key finder (case-insensitive, strips spaces & punctuation) ─
   var sampleKeys = Object.keys(allRows[0]);
 
-  function exactKey(rawKeys, target) {
-    var t = target.toLowerCase().replace(/\s+/g, ' ').trim();
-    for (var k = 0; k < rawKeys.length; k++) {
-      if (rawKeys[k].toLowerCase().replace(/\s+/g, ' ').trim() === t) return rawKeys[k];
-    }
-    // Fallback: normalised (no spaces/punct)
-    var tn = t.replace(/[^a-z0-9]/g, '');
-    for (var k2 = 0; k2 < rawKeys.length; k2++) {
-      if (rawKeys[k2].toLowerCase().replace(/[^a-z0-9]/g, '') === tn) return rawKeys[k2];
-    }
-    return null;
+  // Helper to collapse key spaces, hyphens, and uppercase characters
+  function collapseKey(k) {
+    return String(k || '').toLowerCase().replace(/[\s\-]+/g, '').trim();
   }
 
-  // Flexible finder — tries a list of candidate names in order
-  function findKey(rawKeys, candidates) {
-    for (var i = 0; i < candidates.length; i++) {
-      var found = exactKey(rawKeys, candidates[i]);
-      if (found) return found;
-    }
-    // Last-resort: substring match
-    var firstNorm = candidates[0].toLowerCase().replace(/[^a-z0-9]/g, '');
-    for (var j = 0; j < rawKeys.length; j++) {
-      if (rawKeys[j].toLowerCase().replace(/[^a-z0-9]/g, '').includes(firstNorm)) return rawKeys[j];
-    }
-    return null;
+  // Helper to fuzzy match key collapsing spaces and hyphens
+  function fuzzyFindKey(rowKeys, target) {
+    var t1 = collapseKey(target);
+    // Try exact collapsed match first
+    var found = rowKeys.find(function(k) {
+      return collapseKey(k) === t1;
+    });
+    if (found) return found;
+    // Try substring match second
+    found = rowKeys.find(function(k) {
+      return collapseKey(k).includes(t1);
+    });
+    return found || null;
   }
 
-  // ── Detect whether format is HORIZONTAL or VERTICAL ───────────────────────
-  // Horizontal: sheet has columns like '1-Course Code', '2-Course Code', etc.
+  // Horizontal check: sheet has columns like '1-Course Code', '2-Course Code', etc.
   var isHorizontal = sampleKeys.some(function (k) {
-    return /^1[- ]course\s*code/i.test(k.trim());
+    return collapseKey(k).includes('1coursecode');
   });
-
-  // ── Detect fixed column keys ───────────────────────────────────────────────
-  var kSen = findKey(sampleKeys, ['SEN', 'Enrollment No', 'Enrollment', 'Student ID', 'Enrollment Number']);
-  var kName = findKey(sampleKeys, ['Name', 'Student Name', 'Full Name']);
-  var kSem = findKey(sampleKeys, ['SEM', 'Semester', 'Sem']);
-  var kProgram = findKey(sampleKeys, ['Program', 'Programme', 'Branch', 'Course']);
-  var kSchool = findKey(sampleKeys, ['School', 'College', 'Department', 'Dept']);
-
-  // CGPA — strict name match first, then fallbacks
-  var kCgpa = exactKey(sampleKeys, 'CGPA') ||
-    findKey(sampleKeys, ['CGPA', 'Cumulative GPA', 'GPA']);
-
-  // Total credits earned — look for '1- Credit Earned' aggregate or similar
-  var kTotCred = findKey(sampleKeys, [
-    'Total Credit Earned', 'Total Credits Earned', 'Total Credit',
-    'Total Credits', 'Credits Earned', 'Credit Earned'
-  ]);
-
-  if (!kSen) throw new Error(
-    'SEN / Enrollment column not found. Column headers detected: ' +
-    sampleKeys.slice(0, 10).join(', ')
-  );
 
   var map = {}; // { SEN → studentObject }
 
   if (isHorizontal) {
     // ════════════════════════════════════════════════════════════════════════
     //  HORIZONTAL FORMAT  (one row = one student, courses spread rightward)
-    //  Column names: 1-Course Code, 1-Course Title, 1-Final Grade,
-    //                1- Credit, 1- Credit Earned  (note space after dash)
     // ════════════════════════════════════════════════════════════════════════
     var MAX_COURSES = 15; // scan up to 15 course slots per row
 
     allRows.forEach(function (row) {
       var rowKeys = Object.keys(row);
-      var sen = String(row[kSen] || '').toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
+      
+      // 1. Extract SEN
+      var kSen = fuzzyFindKey(rowKeys, 'sen') || fuzzyFindKey(rowKeys, 'rollno') || fuzzyFindKey(rowKeys, 'enrollment') || fuzzyFindKey(rowKeys, 'enrollmentno');
+      var sen = kSen ? String(row[kSen] || '').toUpperCase().replace(/[^A-Z0-9]/g, '').trim() : '';
       if (!sen || sen.length < 5) return;
 
-      var sem = kSem ? String(row[kSem] || '').trim() : '';
-      var cgpa = kCgpa ? row[kCgpa] : '';
-      // Try to update CGPA if the cell has a real value
-      if (cgpa === '' || cgpa === null || cgpa === undefined) cgpa = '';
-
+      // 2. Initialize students[SEN] if not existing
       if (!map[sen]) {
+        var kName = fuzzyFindKey(rowKeys, 'name') || fuzzyFindKey(rowKeys, 'studentname');
+        var kProgram = fuzzyFindKey(rowKeys, 'program') || fuzzyFindKey(rowKeys, 'programme');
+        var kSchool = fuzzyFindKey(rowKeys, 'school') || fuzzyFindKey(rowKeys, 'institute');
         map[sen] = {
           sen: sen,
           name: kName ? String(row[kName] || '').trim() : '',
           program: kProgram ? String(row[kProgram] || '').trim() : '',
           school: kSchool ? String(row[kSchool] || '').trim() : '',
-          cgpa: cgpa,  // literal from sheet
-          totalCreditEarned: kTotCred ? row[kTotCred] : '',
+          cgpa: 0,
+          totalCredits: 0,
+          totalCreditEarned: 0,
           courses: []
         };
       }
-
       var s = map[sen];
-      // Update summary fields if we get a non-empty value on a later row
-      if (kName && !s.name && row[kName]) s.name = String(row[kName]).trim();
-      if (kProgram && !s.program && row[kProgram]) s.program = String(row[kProgram]).trim();
-      if (kSchool && !s.school && row[kSchool]) s.school = String(row[kSchool]).trim();
-      if (kCgpa && (s.cgpa === '' || s.cgpa === null) && row[kCgpa] !== '') {
-        s.cgpa = row[kCgpa];
+
+      // Update student fields if blank
+      if (!s.name) {
+        var kName = fuzzyFindKey(rowKeys, 'name') || fuzzyFindKey(rowKeys, 'studentname');
+        if (kName && row[kName]) s.name = String(row[kName]).trim();
       }
-      if (kTotCred && (s.totalCreditEarned === '' || s.totalCreditEarned === null) && row[kTotCred] !== '') {
-        s.totalCreditEarned = row[kTotCred];
+      if (!s.program) {
+        var kProgram = fuzzyFindKey(rowKeys, 'program') || fuzzyFindKey(rowKeys, 'programme');
+        if (kProgram && row[kProgram]) s.program = String(row[kProgram]).trim();
+      }
+      if (!s.school) {
+        var kSchool = fuzzyFindKey(rowKeys, 'school') || fuzzyFindKey(rowKeys, 'institute');
+        if (kSchool && row[kSchool]) s.school = String(row[kSchool]).trim();
       }
 
-      // Extract courses from horizontal columns: 1-Course Code … N-Course Code
-      for (var i = 1; i <= MAX_COURSES; i++) {
-        // Try both '1-Course Code' and '1- Course Code' (with space after dash)
-        var prefix = i + '-';
-        var prefixSp = i + '- ';
+      var kSem = fuzzyFindKey(rowKeys, 'sem') || fuzzyFindKey(rowKeys, 'semester');
+      var sem = kSem ? String(row[kSem] || '').trim() : '';
 
-        // Course Code
-        var kCC = exactKey(rowKeys, prefix + 'Course Code') ||
-          exactKey(rowKeys, prefixSp + 'Course Code') ||
-          exactKey(rowKeys, prefix + 'CourseCode');
-        if (!kCC) break; // no more numbered slots
+      // 3. Detect Summary Row: if "1-Course Code" is blank, this is a Summary Row
+      var kCourseCode1 = fuzzyFindKey(rowKeys, '1coursecode');
+      var courseCode1Val = kCourseCode1 ? String(row[kCourseCode1] || '').trim() : '';
+      var isSummaryRow = (!kCourseCode1 || courseCode1Val === '' || courseCode1Val.toLowerCase() === 'nan');
 
-        var code = String(row[kCC] || '').trim();
-        if (!code || code.toLowerCase() === 'nan') continue;
+      // 4. Extract Globals (CGPA and Total Credits)
+      var kCgpa = fuzzyFindKey(rowKeys, 'cgpa');
+      if (kCgpa && row[kCgpa] !== '' && row[kCgpa] !== undefined && row[kCgpa] !== null) {
+        var cgpaVal = parseFloat(row[kCgpa]);
+        if (!isNaN(cgpaVal) && cgpaVal > 0) {
+          if (isSummaryRow || !s.cgpa) {
+            s.cgpa = cgpaVal;
+          }
+        }
+      }
 
-        // Course Title
-        var kCT = exactKey(rowKeys, prefix + 'Course Title') ||
-          exactKey(rowKeys, prefixSp + 'Course Title') ||
-          exactKey(rowKeys, prefix + 'CourseTitle');
+      var kTotCred = fuzzyFindKey(rowKeys, '1creditearned') || fuzzyFindKey(rowKeys, 'creditearned') || fuzzyFindKey(rowKeys, 'totalcredits') || fuzzyFindKey(rowKeys, 'totalcreditearned') || fuzzyFindKey(rowKeys, 'totalcredit');
+      if (kTotCred && row[kTotCred] !== '' && row[kTotCred] !== undefined && row[kTotCred] !== null) {
+        var credVal = parseFloat(row[kTotCred]);
+        if (!isNaN(credVal)) {
+          if (isSummaryRow || credVal > s.totalCredits) {
+            s.totalCredits = credVal;
+            s.totalCreditEarned = credVal; // Synchronize both totalCredits and totalCreditEarned
+          }
+        }
+      }
 
-        // Final Grade
-        var kFG = exactKey(rowKeys, prefix + 'Final Grade') ||
-          exactKey(rowKeys, prefixSp + 'Final Grade') ||
-          exactKey(rowKeys, prefix + 'Grade') ||
-          exactKey(rowKeys, prefixSp + 'Grade');
+      // 5. Extract numbered Course slots if NOT a summary row
+      if (!isSummaryRow) {
+        for (var i = 1; i <= MAX_COURSES; i++) {
+          var kCC = fuzzyFindKey(rowKeys, i + 'coursecode');
+          if (!kCC) continue;
 
-        // Credits (allocated)
-        var kCr = exactKey(rowKeys, prefix + 'Credit') ||
-          exactKey(rowKeys, prefixSp + 'Credit') ||
-          exactKey(rowKeys, prefix + 'Credits') ||
-          exactKey(rowKeys, prefixSp + 'Credits');
+          var code = String(row[kCC] || '').trim();
+          if (!code || code.toLowerCase() === 'nan') continue;
 
-        // Credit Earned
-        var kCe = exactKey(rowKeys, prefix + 'Credit Earned') ||
-          exactKey(rowKeys, prefixSp + 'Credit Earned') ||
-          exactKey(rowKeys, prefix + 'CreditEarned');
+          var kCT = fuzzyFindKey(rowKeys, i + 'coursetitle') || fuzzyFindKey(rowKeys, i + 'title') || fuzzyFindKey(rowKeys, i + 'subject');
+          var kCr = fuzzyFindKey(rowKeys, i + 'creditregistered') || fuzzyFindKey(rowKeys, i + 'credit') || fuzzyFindKey(rowKeys, i + 'credits');
+          var kFG = fuzzyFindKey(rowKeys, i + 'finalgrade') || fuzzyFindKey(rowKeys, i + 'grade');
+          var kGp = fuzzyFindKey(rowKeys, i + 'totalcreditpoints') || fuzzyFindKey(rowKeys, i + 'gradepoints') || fuzzyFindKey(rowKeys, i + 'gp') || fuzzyFindKey(rowKeys, i + 'points');
+          var kMk = fuzzyFindKey(rowKeys, i + 'totalmarks') || fuzzyFindKey(rowKeys, i + 'marks') || fuzzyFindKey(rowKeys, i + 'score');
+          var kCe = fuzzyFindKey(rowKeys, i + 'creditearned');
+          var kTy = fuzzyFindKey(rowKeys, i + 'type') || fuzzyFindKey(rowKeys, i + 'coursetype');
 
-        // Grade Points
-        var kGp = exactKey(rowKeys, prefix + 'Grade Points') ||
-          exactKey(rowKeys, prefixSp + 'Grade Points') ||
-          exactKey(rowKeys, prefix + 'GradePoints');
-
-        // Marks
-        var kMk = exactKey(rowKeys, prefix + 'Marks') ||
-          exactKey(rowKeys, prefixSp + 'Marks') ||
-          exactKey(rowKeys, prefix + 'Score');
-
-        // Course Type
-        var kTy = exactKey(rowKeys, prefix + 'Type') ||
-          exactKey(rowKeys, prefixSp + 'Type') ||
-          exactKey(rowKeys, prefix + 'Course Type');
-
-        s.courses.push({
-          semester: sem,
-          code: code,
-          title: kCT ? String(row[kCT] || '').trim() : '',
-          type: kTy ? String(row[kTy] || '').trim() : '',
-          credits: kCr ? row[kCr] : '',   // literal from sheet
-          marks: kMk ? row[kMk] : '',
-          grade: kFG ? String(row[kFG] || '').trim() : '',
-          gradePoints: kGp ? row[kGp] : '',
-          creditEarned: kCe ? row[kCe] : ''
-        });
+          s.courses.push({
+            semester: sem,
+            code: code,
+            title: kCT ? String(row[kCT] || '').trim() : '',
+            type: kTy ? String(row[kTy] || '').trim() : '',
+            credits: kCr ? row[kCr] : '',
+            marks: kMk ? row[kMk] : '',
+            grade: kFG ? String(row[kFG] || '').trim() : '',
+            gradePoints: kGp ? row[kGp] : '',
+            creditEarned: kCe ? row[kCe] : ''
+          });
+        }
       }
     });
 
   } else {
     // ════════════════════════════════════════════════════════════════════════
     //  VERTICAL FORMAT  (one row = one course)
-    //  Column names: Course Code, Course Title, Grade, Credits, etc.
     // ════════════════════════════════════════════════════════════════════════
-    var kCode = findKey(sampleKeys, ['Course Code', 'Code', 'Subject Code', 'CourseCode']);
-    var kTitle = findKey(sampleKeys, ['Course Title', 'Title', 'Subject', 'Course Name']);
-    var kType = findKey(sampleKeys, ['Type', 'Course Type', 'Category']);
-    var kCred = findKey(sampleKeys, ['Credits', 'Credit', 'Credit Points']);
-    var kMarks = findKey(sampleKeys, ['Marks', 'Score', 'Total Marks', 'Total']);
-    var kGrade = findKey(sampleKeys, ['Grade', 'Final Grade']);
-    var kGP = findKey(sampleKeys, ['Grade Points', 'GradePoints', 'GP', 'Points']);
-    var kCE = findKey(sampleKeys, ['Credit Earned', 'Credits Earned', 'CreditEarned']);
+    var kSen = fuzzyFindKey(sampleKeys, 'sen') || fuzzyFindKey(sampleKeys, 'rollno') || fuzzyFindKey(sampleKeys, 'enrollment') || fuzzyFindKey(sampleKeys, 'enrollmentno');
+    var kName = fuzzyFindKey(sampleKeys, 'name') || fuzzyFindKey(sampleKeys, 'studentname');
+    var kProgram = fuzzyFindKey(sampleKeys, 'program') || fuzzyFindKey(sampleKeys, 'programme');
+    var kSchool = fuzzyFindKey(sampleKeys, 'school') || fuzzyFindKey(sampleKeys, 'institute');
+    var kCgpa = fuzzyFindKey(sampleKeys, 'cgpa');
+    var kTotCred = fuzzyFindKey(sampleKeys, 'totalcredits') || fuzzyFindKey(sampleKeys, 'totalcreditearned') || fuzzyFindKey(sampleKeys, 'creditearned') || fuzzyFindKey(sampleKeys, 'totalcredit');
+    var kSem = fuzzyFindKey(sampleKeys, 'sem') || fuzzyFindKey(sampleKeys, 'semester');
+
+    var kCode = fuzzyFindKey(sampleKeys, 'coursecode') || fuzzyFindKey(sampleKeys, 'code') || fuzzyFindKey(sampleKeys, 'subjectcode');
+    var kTitle = fuzzyFindKey(sampleKeys, 'coursetitle') || fuzzyFindKey(sampleKeys, 'title') || fuzzyFindKey(sampleKeys, 'subject');
+    var kType = fuzzyFindKey(sampleKeys, 'type') || fuzzyFindKey(sampleKeys, 'coursetype') || fuzzyFindKey(sampleKeys, 'category');
+    var kCred = fuzzyFindKey(sampleKeys, 'credits') || fuzzyFindKey(sampleKeys, 'credit');
+    var kMarks = fuzzyFindKey(sampleKeys, 'marks') || fuzzyFindKey(sampleKeys, 'score') || fuzzyFindKey(sampleKeys, 'totalmarks');
+    var kGrade = fuzzyFindKey(sampleKeys, 'grade') || fuzzyFindKey(sampleKeys, 'finalgrade');
+    var kGP = fuzzyFindKey(sampleKeys, 'gradepoints') || fuzzyFindKey(sampleKeys, 'gp') || fuzzyFindKey(sampleKeys, 'points');
+    var kCE = fuzzyFindKey(sampleKeys, 'creditearned');
 
     allRows.forEach(function (row) {
       var rowKeys = Object.keys(row);
-      var sen = String(row[kSen] || '').toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
+      var sen = kSen ? String(row[kSen] || '').toUpperCase().replace(/[^A-Z0-9]/g, '').trim() : '';
       if (!sen || sen.length < 5) return;
 
       var cgpa = kCgpa ? row[kCgpa] : '';
@@ -979,6 +954,7 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
           program: kProgram ? String(row[kProgram] || '').trim() : '',
           school: kSchool ? String(row[kSchool] || '').trim() : '',
           cgpa: cgpa,
+          totalCredits: kTotCred ? row[kTotCred] : '',
           totalCreditEarned: kTotCred ? row[kTotCred] : '',
           courses: []
         };
@@ -988,8 +964,10 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
       if (kName && !s.name && row[kName]) s.name = String(row[kName]).trim();
       if (kProgram && !s.program && row[kProgram]) s.program = String(row[kProgram]).trim();
       if (kSchool && !s.school && row[kSchool]) s.school = String(row[kSchool]).trim();
-      if (kCgpa && (s.cgpa === '' || s.cgpa === null) && row[kCgpa] !== '') s.cgpa = row[kCgpa];
-      if (kTotCred && (s.totalCreditEarned === '' || s.totalCreditEarned === null) && row[kTotCred] !== '') {
+      
+      if (kCgpa && (s.cgpa === '' || s.cgpa === null || s.cgpa === 0) && row[kCgpa] !== '') s.cgpa = row[kCgpa];
+      if (kTotCred && (s.totalCredits === '' || s.totalCredits === null || s.totalCredits === 0) && row[kTotCred] !== '') {
+        s.totalCredits = row[kTotCred];
         s.totalCreditEarned = row[kTotCred];
       }
 
@@ -1010,7 +988,7 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
     });
   }
 
-  // Return students as-is — NO CALCULATIONS.
+  // Return students mapped directly
   return Object.values(map);
 }
 

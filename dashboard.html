@@ -619,16 +619,19 @@
     // ── Profile + stat chips ──────────────────────────────────────────────────────
     function buildProfileCard(student) {
       var initial = (student.name || 'S').charAt(0).toUpperCase();
-      var cgpa = (student.cgpa !== '' && student.cgpa !== null && student.cgpa !== undefined)
-        ? student.cgpa : '—';
-      var credits = (student.totalCreditEarned !== '' && student.totalCreditEarned !== null)
-        ? student.totalCreditEarned : '—';
+      
+      var cgpaVal = parseFloat(student.cgpa);
+      var cgpa = (!isNaN(cgpaVal) && student.cgpa !== '' && student.cgpa !== null && student.cgpa !== undefined) ? cgpaVal.toFixed(2) : "N/A";
+      
+      var creditsVal = parseFloat(student.totalCredits || student.totalCreditEarned);
+      var credits = (!isNaN(creditsVal) && (student.totalCredits || student.totalCreditEarned)) ? String(creditsVal) : "N/A";
+      
       var count = _allCourses.length;
 
       return '<div class="profile-card">' +
         '<div class="avatar">' + esc(initial) + '</div>' +
         '<div style="flex:1;min-width:0">' +
-        '<div class="pinfo-name">' + esc(student.name || '—') + '</div>' +
+        '<div class="pinfo-name">' + esc(student.name || '-') + '</div>' +
         '<div class="pinfo-meta">' +
         esc(student.sen) +
         (student.program ? ' &nbsp;·&nbsp; ' + esc(student.program) : '') +
@@ -740,27 +743,20 @@
         return '<tr class="empty-row"><td colspan="7">No courses found for this semester.</td></tr>';
       }
       return courses.map(function (c) {
-        var grade = String(c.grade || '—').trim();
+        var grade = String(c.grade !== undefined && c.grade !== null && c.grade !== '' ? c.grade : '-').trim();
+        var credits = String(c.credits !== undefined && c.credits !== null && c.credits !== '' ? c.credits : '-').trim();
+        var gradePoints = String(c.gradePoints !== undefined && c.gradePoints !== null && c.gradePoints !== '' ? c.gradePoints : '-').trim();
+        var creditEarned = String(c.creditEarned !== undefined && c.creditEarned !== null && c.creditEarned !== '' ? c.creditEarned : '-').trim();
         var gc = ['S', 'A', 'B', 'C', 'D', 'E', 'F'].indexOf(grade) >= 0 ? 'g-' + grade : 'g-D';
-        var marksVal = (c.marks !== '' && c.marks !== null && c.marks !== undefined)
-          ? String(c.marks) : '—';
-        var pct = (c.marks !== '' && parseFloat(c.marks) > 0)
-          ? Math.min(100, Math.round(parseFloat(c.marks))) : 0;
-
-        // Marks bar (only shown if marks column has data)
-        var marksCell = (marksVal !== '—')
-          ? '<div class="bar-wrap"><span class="bar-num">' + esc(marksVal) + '</span>' +
-          '<div class="bar-bg"><div class="bar-fill" style="width:' + pct + '%"></div></div></div>'
-          : '<span style="color:var(--muted);font-size:0.78rem;font-family:var(--mono)">—</span>';
 
         return '<tr>' +
           '<td class="td-code">' + esc(c.code) + '</td>' +
-          '<td style="font-weight:500;max-width:260px">' + esc(c.title || '—') + '</td>' +
-          '<td><span class="type-chip">' + esc(c.type || '—') + '</span></td>' +
-          '<td style="font-family:var(--mono);font-size:0.8rem">' + esc(String(c.credits !== '' ? c.credits : '—')) + '</td>' +
+          '<td style="font-weight:500;max-width:260px">' + esc(c.title || '-') + '</td>' +
+          '<td><span class="type-chip">' + esc(c.type || '-') + '</span></td>' +
+          '<td style="font-family:var(--mono);font-size:0.8rem">' + esc(credits) + '</td>' +
           '<td><span class="grade ' + gc + '">' + esc(grade) + '</span></td>' +
-          '<td style="font-family:var(--mono);font-size:0.8rem">' + esc(String(c.gradePoints !== '' ? c.gradePoints : '—')) + '</td>' +
-          '<td style="font-family:var(--mono);font-size:0.8rem;color:var(--green)">' + esc(String(c.creditEarned !== '' ? c.creditEarned : '—')) + '</td>' +
+          '<td style="font-family:var(--mono);font-size:0.8rem">' + esc(gradePoints) + '</td>' +
+          '<td style="font-family:var(--mono);font-size:0.8rem;color:var(--green)">' + esc(creditEarned) + '</td>' +
           '</tr>';
       }).join('');
     }

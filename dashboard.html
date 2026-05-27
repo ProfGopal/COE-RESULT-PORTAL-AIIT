@@ -621,10 +621,10 @@
       var initial = (student.name || 'S').charAt(0).toUpperCase();
       
       var cgpaVal = parseFloat(student.cgpa);
-      var cgpa = (!isNaN(cgpaVal) && student.cgpa !== '' && student.cgpa !== null && student.cgpa !== undefined) ? cgpaVal.toFixed(2) : "N/A";
+      var cgpa = (!isNaN(cgpaVal) && cgpaVal !== 0 && student.cgpa !== '' && student.cgpa !== null && student.cgpa !== undefined) ? cgpaVal.toFixed(2) : "N/A";
       
       var creditsVal = parseFloat(student.totalCredits || student.totalCreditEarned);
-      var credits = (!isNaN(creditsVal) && (student.totalCredits || student.totalCreditEarned)) ? String(creditsVal) : "N/A";
+      var credits = (!isNaN(creditsVal) && creditsVal !== 0 && (student.totalCredits || student.totalCreditEarned) !== '' && (student.totalCredits || student.totalCreditEarned) !== null && (student.totalCredits || student.totalCreditEarned) !== undefined) ? String(creditsVal) : "N/A";
       
       var count = _allCourses.length;
 

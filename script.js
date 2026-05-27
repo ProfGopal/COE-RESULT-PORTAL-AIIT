@@ -15,41 +15,39 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 //  CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════════
-var GAS_URL_KEY      = 'coe_gas_url';
-var LOCAL_STU_KEY    = 'coe_students_v2';
-var ADMIN_SESSION    = 'coe_admin_auth';
+const GAS_URL = "https://script.google.com/macros/s/AKfycby0xTAEjyfcN-IrEVaEzQuFFAfCQD1wWhpTJ5dlv9S7jBIT48RY8PxH76mW2Mci0rCGCw/exec";
+var LOCAL_STU_KEY = 'coe_students_v2';
+var ADMIN_SESSION = 'coe_admin_auth';
 
 var SEM_MAP = {
-  '1':'Semester I','2':'Semester II','3':'Semester III','4':'Semester IV',
-  '5':'Semester V','6':'Semester VI','7':'Semester VII','8':'Semester VIII',
-  'I':'Semester I','II':'Semester II','III':'Semester III','IV':'Semester IV',
-  'V':'Semester V','VI':'Semester VI','VII':'Semester VII','VIII':'Semester VIII'
+  '1': 'Semester I', '2': 'Semester II', '3': 'Semester III', '4': 'Semester IV',
+  '5': 'Semester V', '6': 'Semester VI', '7': 'Semester VII', '8': 'Semester VIII',
+  'I': 'Semester I', 'II': 'Semester II', 'III': 'Semester III', 'IV': 'Semester IV',
+  'V': 'Semester V', 'VI': 'Semester VI', 'VII': 'Semester VII', 'VIII': 'Semester VIII'
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════════════════════════════════════════
-var currentStudent   = null;
-var isNewUser        = false;
-var loginAttempts    = {};
-var MAX_ATTEMPTS     = 5;
-var LOCKOUT_MS       = 15 * 60 * 1000;
-var lightThemeTimer  = null;
+var currentStudent = null;
+var isNewUser = false;
+var loginAttempts = {};
+var MAX_ATTEMPTS = 5;
+var LOCKOUT_MS = 15 * 60 * 1000;
+var lightThemeTimer = null;
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  GAS URL HELPERS
+//  GAS URL CONSTANT
 // ═══════════════════════════════════════════════════════════════════════════════
-function getGasUrl() { return 'https://script.google.com/macros/s/AKfycby0xTAEjyfcN-IrEVaEzQuFFAfCQD1wWhpTJ5dlv9S7jBIT48RY8PxH76mW2Mci0rCGCw/exec'; }
-function saveGasUrl(url) {}
 
 /**
  * gasJsonp — cross-origin GET via <script> tag injection.
  * GAS must wrap its JSON response in the callback: callback({...})
  */
 function gasJsonp(url, timeoutMs) {
-  return new Promise(function(resolve, reject) {
+  return new Promise(function (resolve, reject) {
     var cbName = '_gasCb_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-    var timer = setTimeout(function() {
+    var timer = setTimeout(function () {
       cleanup();
       reject(new Error('GAS timeout'));
     }, timeoutMs || 12000);
@@ -61,12 +59,12 @@ function gasJsonp(url, timeoutMs) {
       if (old) old.remove();
     }
 
-    window[cbName] = function(data) { cleanup(); resolve(data); };
+    window[cbName] = function (data) { cleanup(); resolve(data); };
 
     var script = document.createElement('script');
     script.id = cbName;
     script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cbName;
-    script.onerror = function() { cleanup(); reject(new Error('Script load error')); };
+    script.onerror = function () { cleanup(); reject(new Error('Script load error')); };
     document.head.appendChild(script);
   });
 }
@@ -78,9 +76,7 @@ function gasJsonp(url, timeoutMs) {
  * NOTE: For security-sensitive POSTs we encode action+data in the body.
  */
 function gasPost(payload) {
-  var url = getGasUrl();
-  if (!url) return Promise.reject(new Error('No GAS URL configured.'));
-  return fetch(url, {
+  return fetch(GAS_URL, {
     method: 'POST',
     mode: 'no-cors',
     headers: { 'Content-Type': 'text/plain' },
@@ -93,7 +89,7 @@ function gasPost(payload) {
 // ═══════════════════════════════════════════════════════════════════════════════
 async function hashPwd(str) {
   var buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-  return Array.from(new Uint8Array(buf)).map(function(b) {
+  return Array.from(new Uint8Array(buf)).map(function (b) {
     return b.toString(16).padStart(2, '0');
   }).join('');
 }
@@ -105,7 +101,7 @@ function sanitize(str) {
   return String(str).replace(/[<>"'`;\\&\/]/g, '').trim().substring(0, 200);
 }
 function esc(str) {
-  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -144,21 +140,21 @@ function showErr(id, msg, inputIds) {
   // Light theme flash on error
   document.body.classList.add('light-theme');
   if (lightThemeTimer) clearTimeout(lightThemeTimer);
-  lightThemeTimer = setTimeout(function() {
+  lightThemeTimer = setTimeout(function () {
     document.body.classList.remove('light-theme');
   }, 4000);
 
   el.classList.remove('shake');
   void el.offsetWidth;
   el.classList.add('shake');
-  setTimeout(function() { el.classList.remove('shake'); }, 500);
+  setTimeout(function () { el.classList.remove('shake'); }, 500);
 
   if (inputIds) {
-    inputIds.forEach(function(iid) {
+    inputIds.forEach(function (iid) {
       var inp = document.getElementById(iid);
       if (!inp) return;
       inp.classList.add('input-error');
-      setTimeout(function() { inp.classList.remove('input-error'); }, 2500);
+      setTimeout(function () { inp.classList.remove('input-error'); }, 2500);
     });
   }
 }
@@ -182,7 +178,7 @@ function showInfo(id, msg) {
 }
 
 function hideAlerts(prefix) {
-  ['err','ok','info'].forEach(function(s) {
+  ['err', 'ok', 'info'].forEach(function (s) {
     var el = document.getElementById(prefix + '-' + s);
     if (el) el.style.display = 'none';
   });
@@ -200,7 +196,7 @@ function syncBar(msg, visible) {
 //  PAGE ROUTING  (index.html)
 // ═══════════════════════════════════════════════════════════════════════════════
 function showPage(id) {
-  document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
+  document.querySelectorAll('.page').forEach(function (p) { p.classList.remove('active'); });
   var target = document.getElementById(id);
   if (target) target.classList.add('active');
   window.scrollTo(0, 0);
@@ -209,7 +205,7 @@ function showPage(id) {
 function showStudentLogin() {
   resetStudentLoginUI();
   showPage('student-login');
-  setTimeout(function() {
+  setTimeout(function () {
     var el = document.getElementById('s-sen');
     if (el) el.focus();
   }, 150);
@@ -229,8 +225,8 @@ function logout() {
 //  STUDENT LOGIN FLOW
 // ═══════════════════════════════════════════════════════════════════════════════
 function resetStudentLoginUI() {
-  var fields = ['s-sen','s-pass','s-newpass','s-confirmpass'];
-  fields.forEach(function(id) {
+  var fields = ['s-sen', 's-pass', 's-newpass', 's-confirmpass'];
+  fields.forEach(function (id) {
     var el = document.getElementById(id);
     if (el) el.value = '';
   });
@@ -253,7 +249,7 @@ function onSenInput() {
   if (pf) pf.style.display = 'block';
   var nf = document.getElementById('s-newpass-fields');
   if (nf) nf.style.display = 'none';
-  ['s-pass','s-newpass','s-confirmpass'].forEach(function(id) {
+  ['s-pass', 's-newpass', 's-confirmpass'].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) el.value = '';
   });
@@ -273,7 +269,7 @@ function onSenInput() {
  */
 async function studentLoginStep() {
   var rawSen = document.getElementById('s-sen').value;
-  var sen    = sanitize(rawSen).toUpperCase();
+  var sen = sanitize(rawSen).toUpperCase();
   hideAlerts('student');
 
   if (!sen) { showErr('student-err', 'Please enter your SEN number.', ['s-sen']); return; }
@@ -281,11 +277,7 @@ async function studentLoginStep() {
   var limitMsg = checkRateLimit('stu_' + sen);
   if (limitMsg) { showErr('student-err', limitMsg, ['s-sen', 's-pass']); return; }
 
-  var gasUrl = getGasUrl();
-  if (!gasUrl) {
-    showErr('student-err', '⚠ Portal not fully configured. Please contact the administrator.');
-    return;
-  }
+  var gasUrl = GAS_URL;
 
   var btn = document.getElementById('s-login-btn');
   if (btn) btn.disabled = true;
@@ -314,9 +306,9 @@ async function studentLoginStep() {
         if (nf) nf.style.display = 'block';
         if (btn) btn.textContent = 'Create Password & Login →';
         showOk('student-ok', 'First-time login detected. Please create your password below.');
-        setTimeout(function() {
+        setTimeout(function () {
           var np = document.getElementById('s-newpass');
-          if (np) { np.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(function() { np.focus(); }, 150); }
+          if (np) { np.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(function () { np.focus(); }, 150); }
         }, 100);
         return;
       }
@@ -410,7 +402,7 @@ function renderStudentDash(student) {
   document.getElementById('dash-cgpa').textContent = cgpa;
   document.getElementById('dash-ce').textContent = student.totalCreditEarned || '—';
 
-  var validCourses = (student.courses || []).filter(function(c) {
+  var validCourses = (student.courses || []).filter(function (c) {
     return c && c.code && c.code !== 'nan' && c.code.trim() !== '';
   });
   document.getElementById('dash-nc').textContent = validCourses.length;
@@ -418,7 +410,7 @@ function renderStudentDash(student) {
   // Build semester tabs
   var sems = [];
   var seen = {};
-  validCourses.forEach(function(c) {
+  validCourses.forEach(function (c) {
     if (c.semester && c.semester !== 'nan' && !seen[c.semester]) {
       sems.push(c.semester);
       seen[c.semester] = true;
@@ -433,8 +425,8 @@ function renderStudentDash(student) {
     var btn = document.createElement('button');
     btn.className = 'tab' + (key === 'all' ? ' active' : '');
     btn.textContent = label;
-    btn.onclick = function() {
-      document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+    btn.onclick = function () {
+      document.querySelectorAll('.tab').forEach(function (t) { t.classList.remove('active'); });
       btn.classList.add('active');
       renderCourses(courses, label);
     };
@@ -442,9 +434,9 @@ function renderStudentDash(student) {
   }
 
   tabsEl.appendChild(makeTab('All Semesters', validCourses, 'all'));
-  sems.forEach(function(s) {
+  sems.forEach(function (s) {
     var label = SEM_MAP[s] || ('Sem ' + s);
-    var filtered = validCourses.filter(function(c) { return c.semester === s; });
+    var filtered = validCourses.filter(function (c) { return c.semester === s; });
     tabsEl.appendChild(makeTab(label, filtered, s));
   });
 
@@ -452,7 +444,7 @@ function renderStudentDash(student) {
 }
 
 function renderCourses(courses, title) {
-  var valid = (courses || []).filter(function(c) {
+  var valid = (courses || []).filter(function (c) {
     return c && c.code && c.code !== 'nan' && c.code.trim() !== '';
   });
   document.getElementById('tbl-title').textContent = title;
@@ -471,19 +463,19 @@ function renderCourses(courses, title) {
     return;
   }
 
-  valid.forEach(function(c) {
-    var grade  = (c.grade || '—').trim();
-    var marks  = c.marks ? parseFloat(c.marks).toFixed(1) : '—';
-    var pct    = c.marks ? Math.min(100, Math.round(parseFloat(c.marks))) : 0;
-    var gc     = ['S','A','B','C','D','E','F'].includes(grade) ? 'g-' + grade : 'g-D';
-    var row    = document.createElement('tr');
+  valid.forEach(function (c) {
+    var grade = (c.grade || '—').trim();
+    var marks = c.marks ? parseFloat(c.marks).toFixed(1) : '—';
+    var pct = c.marks ? Math.min(100, Math.round(parseFloat(c.marks))) : 0;
+    var gc = ['S', 'A', 'B', 'C', 'D', 'E', 'F'].includes(grade) ? 'g-' + grade : 'g-D';
+    var row = document.createElement('tr');
     row.innerHTML = [
-      '<td class="td-code">'   + esc(c.code)                + '</td>',
-      '<td class="td-title">'  + esc(c.title || '—')        + '</td>',
-      '<td><span class="type-chip">' + esc(c.type || '—')   + '</span></td>',
+      '<td class="td-code">' + esc(c.code) + '</td>',
+      '<td class="td-title">' + esc(c.title || '—') + '</td>',
+      '<td><span class="type-chip">' + esc(c.type || '—') + '</span></td>',
       '<td style="font-family:var(--mono);font-size:0.8rem">' + esc(c.credits || '—') + '</td>',
       '<td><div class="bar-wrap"><span class="bar-num">' + esc(marks) + '</span>' +
-        '<div class="bar-bg"><div class="bar-fill" style="width:' + pct + '%"></div></div></div></td>',
+      '<div class="bar-bg"><div class="bar-fill" style="width:' + pct + '%"></div></div></div></td>',
       '<td><span class="grade ' + esc(gc) + '">' + esc(grade) + '</span></td>',
       '<td style="font-family:var(--mono);font-size:0.8rem">' + esc(c.gradePoints || '—') + '</td>',
       '<td style="font-family:var(--mono);font-size:0.8rem">' + esc(c.creditEarned || '—') + '</td>'
@@ -513,15 +505,7 @@ async function adminLogin() {
     errEl.style.display = 'block';
   }
 
-  var gasUrl = getGasUrl();
-  if (!gasUrl) {
-    if (errEl) {
-      errEl.textContent = '⚠ Please configure the GAS backend URL first.';
-      errEl.className = 'alert err';
-    }
-    if (loginBtn) loginBtn.disabled = false;
-    return;
-  }
+  var gasUrl = GAS_URL;
 
   try {
     var response = await fetch(gasUrl, {
@@ -530,8 +514,8 @@ async function adminLogin() {
       body: JSON.stringify({ action: 'verifyadmin', password: pass })
     });
     var data = await response.json();
-    
-    if (data && data.success) {
+
+    if (data && data.status === 'success') {
       clearAttempts('admin');
       sessionStorage.setItem(ADMIN_SESSION, pass); // Store raw password dynamically in session cache
       showPage('admin-dash');
@@ -568,7 +552,7 @@ function adminLogout() {
   if (document.getElementById('admin-login') && document.getElementById('admin-dash')) {
     if (!sessionStorage.getItem(ADMIN_SESSION)) {
       showPage('admin-login');
-      setTimeout(function() {
+      setTimeout(function () {
         var p = document.getElementById('a-pass');
         if (p) p.focus();
       }, 150);
@@ -589,11 +573,7 @@ async function loadAdminData() {
   if (!tbody) return;
   tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--muted)"><span class="spinner"></span> Loading from backend…</td></tr>';
 
-  var gasUrl = getGasUrl();
-  if (!gasUrl) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--muted)">⚠ No GAS URL configured. Paste your backend URL above.</td></tr>';
-    return;
-  }
+  var gasUrl = GAS_URL;
 
   try {
     var adminPassword = sessionStorage.getItem(ADMIN_SESSION) || '';
@@ -619,8 +599,8 @@ function renderAdminTable(students) {
     return;
   }
 
-  students.forEach(function(s, i) {
-    var courses = (s.courses || []).filter(function(c) {
+  students.forEach(function (s, i) {
+    var courses = (s.courses || []).filter(function (c) {
       return c && c.code && c.code !== 'nan';
     });
     var tr = document.createElement('tr');
@@ -632,11 +612,11 @@ function renderAdminTable(students) {
       '<td style="font-family:var(--mono);font-size:0.88rem;color:var(--gold)">' + (s.cgpa ? parseFloat(s.cgpa).toFixed(2) : '—') + '</td>',
       '<td style="font-family:var(--mono);font-size:0.8rem;color:var(--green)">' + esc(String(s.totalCreditEarned || '—')) + '</td>',
       '<td>' +
-        '<span style="font-size:0.75rem;font-family:var(--mono);color:var(--muted)">Managed on server</span>' +
-        ' <button onclick="quickClearPwd(\'' + esc(s.sen) + '\')" ' +
-        'style="margin-left:0.4rem;font-family:var(--mono);font-size:0.62rem;padding:0.2rem 0.5rem;' +
-        'border-radius:4px;border:1px solid rgba(239,68,68,0.4);background:transparent;color:#f87171;cursor:pointer"' +
-        ' title="Clear password">✕</button>' +
+      '<span style="font-size:0.75rem;font-family:var(--mono);color:var(--muted)">Managed on server</span>' +
+      ' <button onclick="quickClearPwd(\'' + esc(s.sen) + '\')" ' +
+      'style="margin-left:0.4rem;font-family:var(--mono);font-size:0.62rem;padding:0.2rem 0.5rem;' +
+      'border-radius:4px;border:1px solid rgba(239,68,68,0.4);background:transparent;color:#f87171;cursor:pointer"' +
+      ' title="Clear password">✕</button>' +
       '</td>'
     ].join('');
     tbody.appendChild(tr);
@@ -645,7 +625,7 @@ function renderAdminTable(students) {
 
 function filterStudents(query) {
   var lq = query.toLowerCase();
-  var filtered = _allStudents.filter(function(s) {
+  var filtered = _allStudents.filter(function (s) {
     return s.name.toLowerCase().includes(lq) || s.sen.toLowerCase().includes(lq);
   });
   renderAdminTable(filtered);
@@ -660,10 +640,7 @@ function quickClearPwd(sen) {
 //  ADMIN — GAS CONNECTION TEST
 // ═══════════════════════════════════════════════════════════════════════════════
 async function testGasConnection() {
-  var url = getGasUrl();
-  var statusEl = document.getElementById('gas-url-status');
-  var btn      = document.getElementById('btn-test-gas');
-  if (!url) { if (statusEl) statusEl.textContent = '⚠ Please enter the GAS URL first.'; return; }
+  var url = GAS_URL;
   if (statusEl) statusEl.textContent = '⏳ Testing…';
   if (btn) btn.disabled = true;
   try {
@@ -685,10 +662,10 @@ async function testGasConnection() {
 //  ADMIN — CLEAR STUDENT PASSWORD
 // ═══════════════════════════════════════════════════════════════════════════════
 async function clearPassword() {
-  var senRaw  = document.getElementById('reset-sen-input').value;
-  var sen     = sanitize(senRaw).toUpperCase();
+  var senRaw = document.getElementById('reset-sen-input').value;
+  var sen = sanitize(senRaw).toUpperCase();
   var statusEl = document.getElementById('reset-status');
-  var btn     = document.getElementById('btn-reset-pwd');
+  var btn = document.getElementById('btn-reset-pwd');
 
   if (!sen) { if (statusEl) statusEl.textContent = '⚠ Please enter a SEN.'; return; }
 
@@ -733,22 +710,18 @@ async function handleFileUpload(file) {
     alertEl.style.display = 'block';
   }
 
-  var gasUrl = getGasUrl();
-  if (!gasUrl) {
-    setAlert('err', '✗ Please configure the GAS backend URL first.');
-    return;
-  }
+  var gasUrl = GAS_URL;
 
   setAlert('info', '<span class="spinner"></span>Reading Excel file…');
 
   var arrayBuffer;
-  try { arrayBuffer = await file.arrayBuffer(); } catch(e) {
+  try { arrayBuffer = await file.arrayBuffer(); } catch (e) {
     setAlert('err', '✗ Could not read file: ' + e.message); return;
   }
 
   var students;
   try {
-    students = parseExcelToStudents(arrayBuffer, function(msg) {
+    students = parseExcelToStudents(arrayBuffer, function (msg) {
       setAlert('info', '<span class="spinner"></span>' + msg);
     });
   } catch (parseErr) {
@@ -801,10 +774,10 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
 
   // ── Collect all rows from every sheet ──────────────────────────────────────
   var allRows = [];
-  wb.SheetNames.forEach(function(sheetName) {
-    var ws   = wb.Sheets[sheetName];
+  wb.SheetNames.forEach(function (sheetName) {
+    var ws = wb.Sheets[sheetName];
     var rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
-    rows.forEach(function(r) { r.__sheet = sheetName; allRows.push(r); });
+    rows.forEach(function (r) { r.__sheet = sheetName; allRows.push(r); });
   });
   if (!allRows.length) return [];
   if (progressCb) progressCb('Mapping ' + allRows.length + ' rows…');
@@ -813,14 +786,14 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
   var sampleKeys = Object.keys(allRows[0]);
 
   function exactKey(rawKeys, target) {
-    var t = target.toLowerCase().replace(/\s+/g,' ').trim();
+    var t = target.toLowerCase().replace(/\s+/g, ' ').trim();
     for (var k = 0; k < rawKeys.length; k++) {
-      if (rawKeys[k].toLowerCase().replace(/\s+/g,' ').trim() === t) return rawKeys[k];
+      if (rawKeys[k].toLowerCase().replace(/\s+/g, ' ').trim() === t) return rawKeys[k];
     }
     // Fallback: normalised (no spaces/punct)
-    var tn = t.replace(/[^a-z0-9]/g,'');
+    var tn = t.replace(/[^a-z0-9]/g, '');
     for (var k2 = 0; k2 < rawKeys.length; k2++) {
-      if (rawKeys[k2].toLowerCase().replace(/[^a-z0-9]/g,'') === tn) return rawKeys[k2];
+      if (rawKeys[k2].toLowerCase().replace(/[^a-z0-9]/g, '') === tn) return rawKeys[k2];
     }
     return null;
   }
@@ -832,39 +805,39 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
       if (found) return found;
     }
     // Last-resort: substring match
-    var firstNorm = candidates[0].toLowerCase().replace(/[^a-z0-9]/g,'');
+    var firstNorm = candidates[0].toLowerCase().replace(/[^a-z0-9]/g, '');
     for (var j = 0; j < rawKeys.length; j++) {
-      if (rawKeys[j].toLowerCase().replace(/[^a-z0-9]/g,'').includes(firstNorm)) return rawKeys[j];
+      if (rawKeys[j].toLowerCase().replace(/[^a-z0-9]/g, '').includes(firstNorm)) return rawKeys[j];
     }
     return null;
   }
 
   // ── Detect whether format is HORIZONTAL or VERTICAL ───────────────────────
   // Horizontal: sheet has columns like '1-Course Code', '2-Course Code', etc.
-  var isHorizontal = sampleKeys.some(function(k) {
+  var isHorizontal = sampleKeys.some(function (k) {
     return /^1[- ]course\s*code/i.test(k.trim());
   });
 
   // ── Detect fixed column keys ───────────────────────────────────────────────
-  var kSen     = findKey(sampleKeys, ['SEN','Enrollment No','Enrollment','Student ID','Enrollment Number']);
-  var kName    = findKey(sampleKeys, ['Name','Student Name','Full Name']);
-  var kSem     = findKey(sampleKeys, ['SEM','Semester','Sem']);
-  var kProgram = findKey(sampleKeys, ['Program','Programme','Branch','Course']);
-  var kSchool  = findKey(sampleKeys, ['School','College','Department','Dept']);
+  var kSen = findKey(sampleKeys, ['SEN', 'Enrollment No', 'Enrollment', 'Student ID', 'Enrollment Number']);
+  var kName = findKey(sampleKeys, ['Name', 'Student Name', 'Full Name']);
+  var kSem = findKey(sampleKeys, ['SEM', 'Semester', 'Sem']);
+  var kProgram = findKey(sampleKeys, ['Program', 'Programme', 'Branch', 'Course']);
+  var kSchool = findKey(sampleKeys, ['School', 'College', 'Department', 'Dept']);
 
   // CGPA — strict name match first, then fallbacks
-  var kCgpa    = exactKey(sampleKeys, 'CGPA') ||
-                 findKey(sampleKeys, ['CGPA','Cumulative GPA','GPA']);
+  var kCgpa = exactKey(sampleKeys, 'CGPA') ||
+    findKey(sampleKeys, ['CGPA', 'Cumulative GPA', 'GPA']);
 
   // Total credits earned — look for '1- Credit Earned' aggregate or similar
   var kTotCred = findKey(sampleKeys, [
-    'Total Credit Earned','Total Credits Earned','Total Credit',
-    'Total Credits','Credits Earned','Credit Earned'
+    'Total Credit Earned', 'Total Credits Earned', 'Total Credit',
+    'Total Credits', 'Credits Earned', 'Credit Earned'
   ]);
 
   if (!kSen) throw new Error(
     'SEN / Enrollment column not found. Column headers detected: ' +
-    sampleKeys.slice(0,10).join(', ')
+    sampleKeys.slice(0, 10).join(', ')
   );
 
   var map = {}; // { SEN → studentObject }
@@ -877,33 +850,33 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
     // ════════════════════════════════════════════════════════════════════════
     var MAX_COURSES = 15; // scan up to 15 course slots per row
 
-    allRows.forEach(function(row) {
+    allRows.forEach(function (row) {
       var rowKeys = Object.keys(row);
-      var sen = String(row[kSen] || '').toUpperCase().replace(/[^A-Z0-9]/g,'').trim();
+      var sen = String(row[kSen] || '').toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
       if (!sen || sen.length < 5) return;
 
-      var sem  = kSem  ? String(row[kSem]  || '').trim() : '';
+      var sem = kSem ? String(row[kSem] || '').trim() : '';
       var cgpa = kCgpa ? row[kCgpa] : '';
       // Try to update CGPA if the cell has a real value
       if (cgpa === '' || cgpa === null || cgpa === undefined) cgpa = '';
 
       if (!map[sen]) {
         map[sen] = {
-          sen              : sen,
-          name             : kName    ? String(row[kName]    || '').trim() : '',
-          program          : kProgram ? String(row[kProgram] || '').trim() : '',
-          school           : kSchool  ? String(row[kSchool]  || '').trim() : '',
-          cgpa             : cgpa,  // literal from sheet
+          sen: sen,
+          name: kName ? String(row[kName] || '').trim() : '',
+          program: kProgram ? String(row[kProgram] || '').trim() : '',
+          school: kSchool ? String(row[kSchool] || '').trim() : '',
+          cgpa: cgpa,  // literal from sheet
           totalCreditEarned: kTotCred ? row[kTotCred] : '',
-          courses          : []
+          courses: []
         };
       }
 
       var s = map[sen];
       // Update summary fields if we get a non-empty value on a later row
-      if (kName    && !s.name    && row[kName])    s.name    = String(row[kName]).trim();
+      if (kName && !s.name && row[kName]) s.name = String(row[kName]).trim();
       if (kProgram && !s.program && row[kProgram]) s.program = String(row[kProgram]).trim();
-      if (kSchool  && !s.school  && row[kSchool])  s.school  = String(row[kSchool]).trim();
+      if (kSchool && !s.school && row[kSchool]) s.school = String(row[kSchool]).trim();
       if (kCgpa && (s.cgpa === '' || s.cgpa === null) && row[kCgpa] !== '') {
         s.cgpa = row[kCgpa];
       }
@@ -919,8 +892,8 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
 
         // Course Code
         var kCC = exactKey(rowKeys, prefix + 'Course Code') ||
-                  exactKey(rowKeys, prefixSp + 'Course Code') ||
-                  exactKey(rowKeys, prefix + 'CourseCode');
+          exactKey(rowKeys, prefixSp + 'Course Code') ||
+          exactKey(rowKeys, prefix + 'CourseCode');
         if (!kCC) break; // no more numbered slots
 
         var code = String(row[kCC] || '').trim();
@@ -928,50 +901,50 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
 
         // Course Title
         var kCT = exactKey(rowKeys, prefix + 'Course Title') ||
-                  exactKey(rowKeys, prefixSp + 'Course Title') ||
-                  exactKey(rowKeys, prefix + 'CourseTitle');
+          exactKey(rowKeys, prefixSp + 'Course Title') ||
+          exactKey(rowKeys, prefix + 'CourseTitle');
 
         // Final Grade
         var kFG = exactKey(rowKeys, prefix + 'Final Grade') ||
-                  exactKey(rowKeys, prefixSp + 'Final Grade') ||
-                  exactKey(rowKeys, prefix + 'Grade') ||
-                  exactKey(rowKeys, prefixSp + 'Grade');
+          exactKey(rowKeys, prefixSp + 'Final Grade') ||
+          exactKey(rowKeys, prefix + 'Grade') ||
+          exactKey(rowKeys, prefixSp + 'Grade');
 
         // Credits (allocated)
         var kCr = exactKey(rowKeys, prefix + 'Credit') ||
-                  exactKey(rowKeys, prefixSp + 'Credit') ||
-                  exactKey(rowKeys, prefix + 'Credits') ||
-                  exactKey(rowKeys, prefixSp + 'Credits');
+          exactKey(rowKeys, prefixSp + 'Credit') ||
+          exactKey(rowKeys, prefix + 'Credits') ||
+          exactKey(rowKeys, prefixSp + 'Credits');
 
         // Credit Earned
         var kCe = exactKey(rowKeys, prefix + 'Credit Earned') ||
-                  exactKey(rowKeys, prefixSp + 'Credit Earned') ||
-                  exactKey(rowKeys, prefix + 'CreditEarned');
+          exactKey(rowKeys, prefixSp + 'Credit Earned') ||
+          exactKey(rowKeys, prefix + 'CreditEarned');
 
         // Grade Points
         var kGp = exactKey(rowKeys, prefix + 'Grade Points') ||
-                  exactKey(rowKeys, prefixSp + 'Grade Points') ||
-                  exactKey(rowKeys, prefix + 'GradePoints');
+          exactKey(rowKeys, prefixSp + 'Grade Points') ||
+          exactKey(rowKeys, prefix + 'GradePoints');
 
         // Marks
         var kMk = exactKey(rowKeys, prefix + 'Marks') ||
-                  exactKey(rowKeys, prefixSp + 'Marks') ||
-                  exactKey(rowKeys, prefix + 'Score');
+          exactKey(rowKeys, prefixSp + 'Marks') ||
+          exactKey(rowKeys, prefix + 'Score');
 
         // Course Type
         var kTy = exactKey(rowKeys, prefix + 'Type') ||
-                  exactKey(rowKeys, prefixSp + 'Type') ||
-                  exactKey(rowKeys, prefix + 'Course Type');
+          exactKey(rowKeys, prefixSp + 'Type') ||
+          exactKey(rowKeys, prefix + 'Course Type');
 
         s.courses.push({
-          semester    : sem,
-          code        : code,
-          title       : kCT ? String(row[kCT] || '').trim() : '',
-          type        : kTy ? String(row[kTy] || '').trim() : '',
-          credits     : kCr ? row[kCr] : '',   // literal from sheet
-          marks       : kMk ? row[kMk] : '',
-          grade       : kFG ? String(row[kFG] || '').trim() : '',
-          gradePoints : kGp ? row[kGp] : '',
+          semester: sem,
+          code: code,
+          title: kCT ? String(row[kCT] || '').trim() : '',
+          type: kTy ? String(row[kTy] || '').trim() : '',
+          credits: kCr ? row[kCr] : '',   // literal from sheet
+          marks: kMk ? row[kMk] : '',
+          grade: kFG ? String(row[kFG] || '').trim() : '',
+          gradePoints: kGp ? row[kGp] : '',
           creditEarned: kCe ? row[kCe] : ''
         });
       }
@@ -982,39 +955,39 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
     //  VERTICAL FORMAT  (one row = one course)
     //  Column names: Course Code, Course Title, Grade, Credits, etc.
     // ════════════════════════════════════════════════════════════════════════
-    var kCode  = findKey(sampleKeys, ['Course Code','Code','Subject Code','CourseCode']);
-    var kTitle = findKey(sampleKeys, ['Course Title','Title','Subject','Course Name']);
-    var kType  = findKey(sampleKeys, ['Type','Course Type','Category']);
-    var kCred  = findKey(sampleKeys, ['Credits','Credit','Credit Points']);
-    var kMarks = findKey(sampleKeys, ['Marks','Score','Total Marks','Total']);
-    var kGrade = findKey(sampleKeys, ['Grade','Final Grade']);
-    var kGP    = findKey(sampleKeys, ['Grade Points','GradePoints','GP','Points']);
-    var kCE    = findKey(sampleKeys, ['Credit Earned','Credits Earned','CreditEarned']);
+    var kCode = findKey(sampleKeys, ['Course Code', 'Code', 'Subject Code', 'CourseCode']);
+    var kTitle = findKey(sampleKeys, ['Course Title', 'Title', 'Subject', 'Course Name']);
+    var kType = findKey(sampleKeys, ['Type', 'Course Type', 'Category']);
+    var kCred = findKey(sampleKeys, ['Credits', 'Credit', 'Credit Points']);
+    var kMarks = findKey(sampleKeys, ['Marks', 'Score', 'Total Marks', 'Total']);
+    var kGrade = findKey(sampleKeys, ['Grade', 'Final Grade']);
+    var kGP = findKey(sampleKeys, ['Grade Points', 'GradePoints', 'GP', 'Points']);
+    var kCE = findKey(sampleKeys, ['Credit Earned', 'Credits Earned', 'CreditEarned']);
 
-    allRows.forEach(function(row) {
+    allRows.forEach(function (row) {
       var rowKeys = Object.keys(row);
-      var sen = String(row[kSen] || '').toUpperCase().replace(/[^A-Z0-9]/g,'').trim();
+      var sen = String(row[kSen] || '').toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
       if (!sen || sen.length < 5) return;
 
       var cgpa = kCgpa ? row[kCgpa] : '';
-      var sem  = kSem  ? String(row[kSem] || '').trim() : '';
+      var sem = kSem ? String(row[kSem] || '').trim() : '';
 
       if (!map[sen]) {
         map[sen] = {
-          sen              : sen,
-          name             : kName    ? String(row[kName]    || '').trim() : '',
-          program          : kProgram ? String(row[kProgram] || '').trim() : '',
-          school           : kSchool  ? String(row[kSchool]  || '').trim() : '',
-          cgpa             : cgpa,
+          sen: sen,
+          name: kName ? String(row[kName] || '').trim() : '',
+          program: kProgram ? String(row[kProgram] || '').trim() : '',
+          school: kSchool ? String(row[kSchool] || '').trim() : '',
+          cgpa: cgpa,
           totalCreditEarned: kTotCred ? row[kTotCred] : '',
-          courses          : []
+          courses: []
         };
       }
 
       var s = map[sen];
-      if (kName    && !s.name    && row[kName])    s.name    = String(row[kName]).trim();
+      if (kName && !s.name && row[kName]) s.name = String(row[kName]).trim();
       if (kProgram && !s.program && row[kProgram]) s.program = String(row[kProgram]).trim();
-      if (kSchool  && !s.school  && row[kSchool])  s.school  = String(row[kSchool]).trim();
+      if (kSchool && !s.school && row[kSchool]) s.school = String(row[kSchool]).trim();
       if (kCgpa && (s.cgpa === '' || s.cgpa === null) && row[kCgpa] !== '') s.cgpa = row[kCgpa];
       if (kTotCred && (s.totalCreditEarned === '' || s.totalCreditEarned === null) && row[kTotCred] !== '') {
         s.totalCreditEarned = row[kTotCred];
@@ -1024,15 +997,15 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
       if (!code || code.toLowerCase() === 'nan') return;
 
       s.courses.push({
-        semester    : sem,
-        code        : code,
-        title       : kTitle ? String(row[kTitle] || '').trim() : '',
-        type        : kType  ? String(row[kType]  || '').trim() : '',
-        credits     : kCred  ? row[kCred]  : '',
-        marks       : kMarks ? row[kMarks] : '',
-        grade       : kGrade ? String(row[kGrade] || '').trim() : '',
-        gradePoints : kGP    ? row[kGP]    : '',
-        creditEarned: kCE    ? row[kCE]    : ''
+        semester: sem,
+        code: code,
+        title: kTitle ? String(row[kTitle] || '').trim() : '',
+        type: kType ? String(row[kType] || '').trim() : '',
+        credits: kCred ? row[kCred] : '',
+        marks: kMarks ? row[kMarks] : '',
+        grade: kGrade ? String(row[kGrade] || '').trim() : '',
+        gradePoints: kGP ? row[kGP] : '',
+        creditEarned: kCE ? row[kCE] : ''
       });
     });
   }
@@ -1046,7 +1019,7 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
 // ═══════════════════════════════════════════════════════════════════════════════
 async function clearAllRecords() {
   var statusEl = document.getElementById('clear-all-status');
-  var btn      = document.getElementById('btn-clear-all');
+  var btn = document.getElementById('btn-clear-all');
 
   // Double-confirmation
   if (!confirm('⚠️ WARNING: This will permanently delete ALL student records from the database.\n\nPasswords will also be wiped. This cannot be undone.\n\nAre you sure you want to continue?')) return;
@@ -1055,12 +1028,7 @@ async function clearAllRecords() {
   if (btn) btn.disabled = true;
   if (statusEl) statusEl.textContent = '⏳ Sending delete request to backend…';
 
-  var gasUrl = getGasUrl();
-  if (!gasUrl) {
-    if (statusEl) statusEl.textContent = '⚠ No GAS URL configured.';
-    if (btn) btn.disabled = false;
-    return;
-  }
+  var gasUrl = GAS_URL;
 
   try {
     var adminPassword = sessionStorage.getItem(ADMIN_SESSION) || '';
@@ -1087,20 +1055,20 @@ async function clearAllRecords() {
   // Only run on index.html (landing page)
   if (!document.getElementById('landing')) return;
 
-  var gasUrl = getGasUrl();
-  var hint   = document.getElementById('sync-hint');
+  var gasUrl = GAS_URL;
+  var hint = document.getElementById('sync-hint');
 
   if (gasUrl) {
     if (hint) hint.textContent = '⏳ Connecting to portal backend…';
     gasJsonp(gasUrl + '?action=ping', 8000)
-      .then(function(data) {
+      .then(function (data) {
         if (data && (data.status === 'pong' || data.status === 'ok')) {
           if (hint) hint.textContent = '🟢 Portal is live and connected.';
         } else {
           if (hint) hint.textContent = '⚠ Backend responded but may be misconfigured.';
         }
       })
-      .catch(function() {
+      .catch(function () {
         if (hint) hint.textContent = '🔴 Backend unreachable. Contact administrator.';
       });
   } else {

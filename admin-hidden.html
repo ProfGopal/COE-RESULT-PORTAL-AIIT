@@ -1,323 +1,747 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="AIIT COE Admin Portal — Upload result sheets and manage student data.">
-<title>Admin Panel · COE Result Portal</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<style>
-:root {
-  --bg: #060b14;
-  --s1: #0d1626;
-  --s2: #112036;
-  --s3: #162845;
-  --border: #1c3050;
-  --border2: #234060;
-  --accent: #0ea5e9;
-  --accent2: #38bdf8;
-  --gold: #f59e0b;
-  --green: #22c55e;
-  --red: #ef4444;
-  --orange: #f97316;
-  --text: #e2e8f0;
-  --sub: #94a3b8;
-  --muted: #4a6080;
-  --sans: 'DM Sans', sans-serif;
-  --display: 'Syne', sans-serif;
-  --mono: 'DM Mono', monospace;
-}
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
-body::before{
-  content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
-  background:radial-gradient(ellipse 80% 50% at 50% -10%,rgba(14,165,233,0.12),transparent),
-             radial-gradient(ellipse 60% 40% at 100% 100%,rgba(56,189,248,0.06),transparent);
-}
-.page{display:none;position:relative;z-index:1;animation:fadeIn 0.25s ease}
-.page.active{display:block}
-@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-@keyframes shake{0%,100%{transform:translateX(0)}15%{transform:translateX(-7px)}30%{transform:translateX(7px)}45%{transform:translateX(-5px)}60%{transform:translateX(5px)}75%{transform:translateX(-3px)}90%{transform:translateX(3px)}}
-.shake{animation:shake 0.45s ease}
-.input-error{border-color:var(--red)!important;box-shadow:0 0 0 3px rgba(239,68,68,0.15)}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AIIT COE Admin Portal — Upload result sheets and manage student data.">
+  <title>Admin Panel · COE Result Portal</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --bg: #060b14;
+      --s1: #0d1626;
+      --s2: #112036;
+      --s3: #162845;
+      --border: #1c3050;
+      --border2: #234060;
+      --accent: #0ea5e9;
+      --accent2: #38bdf8;
+      --gold: #f59e0b;
+      --green: #22c55e;
+      --red: #ef4444;
+      --orange: #f97316;
+      --text: #e2e8f0;
+      --sub: #94a3b8;
+      --muted: #4a6080;
+      --sans: 'DM Sans', sans-serif;
+      --display: 'Syne', sans-serif;
+      --mono: 'DM Mono', monospace;
+    }
 
-/* TOPBAR */
-.topbar{
-  position:sticky;top:0;z-index:200;
-  background:rgba(6,11,20,0.85);backdrop-filter:blur(16px);
-  border-bottom:1px solid var(--border);
-  padding:0 2rem;height:56px;
-  display:flex;align-items:center;justify-content:space-between;
-}
-.topbar-brand{
-  font-family:var(--display);font-size:1rem;font-weight:700;
-  background:linear-gradient(90deg,var(--accent),var(--accent2));
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-}
-.topbar-right{display:flex;align-items:center;gap:0.75rem;font-size:0.82rem;color:var(--sub)}
-.btn-sm{
-  font-family:var(--mono);font-size:0.72rem;padding:0.3rem 0.75rem;
-  border-radius:5px;border:1px solid var(--border2);background:transparent;
-  color:var(--sub);cursor:pointer;transition:all 0.15s;
-}
-.btn-sm:hover{border-color:var(--red);color:var(--red)}
-.btn-sm.primary{border-color:var(--accent);color:var(--accent)}
-.btn-sm.primary:hover{background:var(--accent);color:#fff}
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0
+    }
 
-/* LOGIN */
-.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem}
-.login-box{
-  background:var(--s1);border:1px solid var(--border);
-  border-radius:20px;padding:2.5rem;width:100%;max-width:440px;
-}
-.back-btn{
-  font-family:var(--mono);font-size:0.72rem;color:var(--muted);
-  cursor:pointer;margin-bottom:2rem;display:inline-flex;align-items:center;gap:0.4rem;
-  background:none;border:none;padding:0;transition:color 0.15s;text-decoration:none;
-}
-.back-btn:hover{color:var(--accent)}
-.login-title{font-family:var(--display);font-size:1.6rem;font-weight:800;margin-bottom:0.4rem}
-.login-sub{font-size:0.83rem;color:var(--sub);margin-bottom:2rem;line-height:1.6}
-.field{margin-bottom:1.1rem}
-.field label{
-  display:block;font-family:var(--mono);font-size:0.68rem;
-  color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.45rem;
-}
-.field input,.field select{
-  width:100%;padding:0.75rem 1rem;background:var(--s2);
-  border:1px solid var(--border);border-radius:10px;color:var(--text);
-  font-family:var(--sans);font-size:0.9rem;outline:none;transition:border-color 0.15s;
-}
-.field input:focus,.field select:focus{border-color:var(--accent)}
-.field input::placeholder{color:var(--muted)}
-.btn-primary{
-  width:100%;padding:0.9rem;background:linear-gradient(135deg,var(--accent),#0284c7);
-  border:none;border-radius:10px;color:#fff;font-weight:600;font-size:0.95rem;
-  cursor:pointer;transition:all 0.15s;font-family:var(--sans);
-}
-.btn-primary:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(14,165,233,0.35)}
-.btn-primary:disabled{opacity:0.5;cursor:not-allowed;transform:none}
-.alert{padding:0.7rem 1rem;border-radius:8px;font-size:0.84rem;margin-bottom:1rem;display:none}
-.alert.err{background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#fca5a5}
-.alert.ok{background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);color:#86efac}
-.alert.info{background:rgba(14,165,233,0.1);border:1px solid rgba(14,165,233,0.3);color:#7dd3fc}
-.alert.warn{background:rgba(249,115,22,0.1);border:1px solid rgba(249,115,22,0.3);color:#fdba74}
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden
+    }
 
-/* ADMIN BODY */
-.admin-body{padding:2rem;max-width:960px;margin:0 auto}
-.section-label{
-  font-family:var(--mono);font-size:0.68rem;color:var(--accent);
-  text-transform:uppercase;letter-spacing:0.12em;margin-bottom:0.9rem;
-  display:flex;align-items:center;gap:0.5rem;
-}
-.section-label::after{content:'';flex:1;height:1px;background:var(--border)}
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(14, 165, 233, 0.12), transparent),
+        radial-gradient(ellipse 60% 40% at 100% 100%, rgba(56, 189, 248, 0.06), transparent);
+    }
 
-/* UPLOAD ZONE */
-.upload-zone{
-  border:2px dashed var(--border2);border-radius:14px;padding:2.5rem;
-  text-align:center;cursor:pointer;transition:all 0.2s;background:var(--s1);
-  margin-bottom:1rem;
-}
-.upload-zone:hover,.upload-zone.drag{border-color:var(--accent);background:rgba(14,165,233,0.04)}
-.upload-icon{font-size:2.2rem;margin-bottom:0.75rem}
-.upload-text{font-weight:500;margin-bottom:0.3rem}
-.upload-hint{font-size:0.8rem;color:var(--sub)}
+    .page {
+      display: none;
+      position: relative;
+      z-index: 1;
+      animation: fadeIn 0.25s ease
+    }
 
-/* STUDENT TABLE */
-.card{background:var(--s1);border:1px solid var(--border);border-radius:14px;overflow:hidden}
-.tbl-wrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse}
-thead th{
-  padding:0.7rem 1rem;text-align:left;
-  font-family:var(--mono);font-size:0.65rem;letter-spacing:0.1em;
-  text-transform:uppercase;color:var(--muted);
-  border-bottom:1px solid var(--border);background:var(--s2);
-}
-tbody tr{border-bottom:1px solid rgba(28,48,80,0.5);transition:background 0.1s}
-tbody tr:last-child{border-bottom:none}
-tbody tr:hover{background:rgba(14,165,233,0.03)}
-tbody td{padding:0.8rem 1rem;font-size:0.86rem}
-.td-code{font-family:var(--mono);color:var(--accent2);font-size:0.78rem}
-.search-input{
-  width:100%;padding:0.65rem 1rem;background:var(--s1);
-  border:1px solid var(--border);border-radius:8px;color:var(--text);
-  font-family:var(--sans);font-size:0.85rem;outline:none;transition:border-color 0.15s;
-  margin-bottom:1rem;
-}
-.search-input:focus{border-color:var(--accent)}
-.empty{padding:3rem;text-align:center;color:var(--muted);font-size:0.88rem}
-.badge{
-  font-family:var(--mono);font-size:0.7rem;color:var(--sub);
-  background:var(--s2);border:1px solid var(--border);
-  padding:0.18rem 0.6rem;border-radius:20px;
-}
-.spinner{display:inline-block;width:18px;height:18px;border:2px solid rgba(255,255,255,0.2);border-top-color:#fff;border-radius:50%;animation:spin 0.6s linear infinite;vertical-align:middle;margin-right:0.5rem}
-@keyframes spin{to{transform:rotate(360deg)}}
+    .page.active {
+      display: block
+    }
 
-/* GAS URL section */
-.gas-section{
-  margin-bottom:1.5rem;padding:1rem;border-radius:10px;
-  background:var(--s2);border:1px solid var(--border);
-}
-.gas-section-label{
-  font-family:var(--mono);font-size:0.68rem;color:var(--muted);
-  text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.6rem;
-}
-.gas-url-row{display:flex;gap:0.5rem;align-items:center}
-.gas-url-row input{
-  flex:1;padding:0.5rem 0.75rem;background:var(--s1);
-  border:1px solid var(--border);border-radius:8px;color:var(--text);
-  font-size:0.82rem;font-family:var(--mono);outline:none;
-}
-.gas-url-row input:focus{border-color:var(--accent)}
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(8px)
+      }
 
-/* RESET PASSWORD UTILITY */
-.reset-box{
-  background:var(--s2);border:1px solid var(--border);border-radius:10px;
-  padding:1rem 1.25rem;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;
-}
-.reset-box input{
-  flex:1;min-width:160px;padding:0.5rem 0.75rem;background:var(--s1);
-  border:1px solid var(--border);border-radius:8px;color:var(--text);
-  font-family:var(--mono);font-size:0.88rem;outline:none;
-}
-.reset-box input:focus{border-color:var(--red)}
-.btn-danger{
-  font-family:var(--mono);font-size:0.78rem;padding:0.45rem 1rem;
-  border-radius:6px;border:1px solid rgba(239,68,68,0.5);
-  background:transparent;color:#f87171;cursor:pointer;transition:all 0.15s;white-space:nowrap;
-}
-.btn-danger:hover{background:rgba(239,68,68,0.12);border-color:var(--red)}
-.btn-danger:disabled{opacity:0.4;cursor:not-allowed}
-.danger-zone{
-  background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.3);
-  border-radius:10px;padding:1rem 1.25rem;
-}
-.danger-zone-title{
-  font-family:var(--mono);font-size:0.72rem;color:var(--red);
-  text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.4rem;
-  display:flex;align-items:center;gap:0.4rem;
-}
-.danger-zone-desc{font-size:0.8rem;color:var(--sub);margin-bottom:0.75rem;line-height:1.5}
+      to {
+        opacity: 1;
+        transform: none
+      }
+    }
 
-@media(max-width:600px){.admin-body{padding:1rem}}
-</style>
+    @keyframes shake {
+
+      0%,
+      100% {
+        transform: translateX(0)
+      }
+
+      15% {
+        transform: translateX(-7px)
+      }
+
+      30% {
+        transform: translateX(7px)
+      }
+
+      45% {
+        transform: translateX(-5px)
+      }
+
+      60% {
+        transform: translateX(5px)
+      }
+
+      75% {
+        transform: translateX(-3px)
+      }
+
+      90% {
+        transform: translateX(3px)
+      }
+    }
+
+    .shake {
+      animation: shake 0.45s ease
+    }
+
+    .input-error {
+      border-color: var(--red) !important;
+      box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15)
+    }
+
+    /* TOPBAR */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      background: rgba(6, 11, 20, 0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .topbar-brand {
+      font-family: var(--display);
+      font-size: 1rem;
+      font-weight: 700;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.82rem;
+      color: var(--sub)
+    }
+
+    .btn-sm {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      padding: 0.3rem 0.75rem;
+      border-radius: 5px;
+      border: 1px solid var(--border2);
+      background: transparent;
+      color: var(--sub);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-sm:hover {
+      border-color: var(--red);
+      color: var(--red)
+    }
+
+    .btn-sm.primary {
+      border-color: var(--accent);
+      color: var(--accent)
+    }
+
+    .btn-sm.primary:hover {
+      background: var(--accent);
+      color: #fff
+    }
+
+    /* LOGIN */
+    .login-wrap {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem
+    }
+
+    .login-box {
+      background: var(--s1);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 2.5rem;
+      width: 100%;
+      max-width: 440px;
+    }
+
+    .back-btn {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--muted);
+      cursor: pointer;
+      margin-bottom: 2rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: none;
+      border: none;
+      padding: 0;
+      transition: color 0.15s;
+      text-decoration: none;
+    }
+
+    .back-btn:hover {
+      color: var(--accent)
+    }
+
+    .login-title {
+      font-family: var(--display);
+      font-size: 1.6rem;
+      font-weight: 800;
+      margin-bottom: 0.4rem
+    }
+
+    .login-sub {
+      font-size: 0.83rem;
+      color: var(--sub);
+      margin-bottom: 2rem;
+      line-height: 1.6
+    }
+
+    .field {
+      margin-bottom: 1.1rem
+    }
+
+    .field label {
+      display: block;
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.45rem;
+    }
+
+    .field input,
+    .field select {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background: var(--s2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .field input:focus,
+    .field select:focus {
+      border-color: var(--accent)
+    }
+
+    .field input::placeholder {
+      color: var(--muted)
+    }
+
+    .btn-primary {
+      width: 100%;
+      padding: 0.9rem;
+      background: linear-gradient(135deg, var(--accent), #0284c7);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: var(--sans);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 20px rgba(14, 165, 233, 0.35)
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none
+    }
+
+    .alert {
+      padding: 0.7rem 1rem;
+      border-radius: 8px;
+      font-size: 0.84rem;
+      margin-bottom: 1rem;
+      display: none
+    }
+
+    .alert.err {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #fca5a5
+    }
+
+    .alert.ok {
+      background: rgba(34, 197, 94, 0.1);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      color: #86efac
+    }
+
+    .alert.info {
+      background: rgba(14, 165, 233, 0.1);
+      border: 1px solid rgba(14, 165, 233, 0.3);
+      color: #7dd3fc
+    }
+
+    .alert.warn {
+      background: rgba(249, 115, 22, 0.1);
+      border: 1px solid rgba(249, 115, 22, 0.3);
+      color: #fdba74
+    }
+
+    /* ADMIN BODY */
+    .admin-body {
+      padding: 2rem;
+      max-width: 960px;
+      margin: 0 auto
+    }
+
+    .section-label {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border)
+    }
+
+    /* UPLOAD ZONE */
+    .upload-zone {
+      border: 2px dashed var(--border2);
+      border-radius: 14px;
+      padding: 2.5rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: var(--s1);
+      margin-bottom: 1rem;
+    }
+
+    .upload-zone:hover,
+    .upload-zone.drag {
+      border-color: var(--accent);
+      background: rgba(14, 165, 233, 0.04)
+    }
+
+    .upload-icon {
+      font-size: 2.2rem;
+      margin-bottom: 0.75rem
+    }
+
+    .upload-text {
+      font-weight: 500;
+      margin-bottom: 0.3rem
+    }
+
+    .upload-hint {
+      font-size: 0.8rem;
+      color: var(--sub)
+    }
+
+    /* STUDENT TABLE */
+    .card {
+      background: var(--s1);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden
+    }
+
+    .tbl-wrap {
+      overflow-x: auto
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse
+    }
+
+    thead th {
+      padding: 0.7rem 1rem;
+      text-align: left;
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--s2);
+    }
+
+    tbody tr {
+      border-bottom: 1px solid rgba(28, 48, 80, 0.5);
+      transition: background 0.1s
+    }
+
+    tbody tr:last-child {
+      border-bottom: none
+    }
+
+    tbody tr:hover {
+      background: rgba(14, 165, 233, 0.03)
+    }
+
+    tbody td {
+      padding: 0.8rem 1rem;
+      font-size: 0.86rem
+    }
+
+    .td-code {
+      font-family: var(--mono);
+      color: var(--accent2);
+      font-size: 0.78rem
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 0.65rem 1rem;
+      background: var(--s1);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 0.85rem;
+      outline: none;
+      transition: border-color 0.15s;
+      margin-bottom: 1rem;
+    }
+
+    .search-input:focus {
+      border-color: var(--accent)
+    }
+
+    .empty {
+      padding: 3rem;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.88rem
+    }
+
+    .badge {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--sub);
+      background: var(--s2);
+      border: 1px solid var(--border);
+      padding: 0.18rem 0.6rem;
+      border-radius: 20px;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+      margin-right: 0.5rem
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg)
+      }
+    }
+
+    /* GAS URL section */
+    .gas-section {
+      margin-bottom: 1.5rem;
+      padding: 1rem;
+      border-radius: 10px;
+      background: var(--s2);
+      border: 1px solid var(--border);
+    }
+
+    .gas-section-label {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.6rem;
+    }
+
+    .gas-url-row {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center
+    }
+
+    .gas-url-row input {
+      flex: 1;
+      padding: 0.5rem 0.75rem;
+      background: var(--s1);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 0.82rem;
+      font-family: var(--mono);
+      outline: none;
+    }
+
+    .gas-url-row input:focus {
+      border-color: var(--accent)
+    }
+
+    /* RESET PASSWORD UTILITY */
+    .reset-box {
+      background: var(--s2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .reset-box input {
+      flex: 1;
+      min-width: 160px;
+      padding: 0.5rem 0.75rem;
+      background: var(--s1);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 0.88rem;
+      outline: none;
+    }
+
+    .reset-box input:focus {
+      border-color: var(--red)
+    }
+
+    .btn-danger {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      padding: 0.45rem 1rem;
+      border-radius: 6px;
+      border: 1px solid rgba(239, 68, 68, 0.5);
+      background: transparent;
+      color: #f87171;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.12);
+      border-color: var(--red)
+    }
+
+    .btn-danger:disabled {
+      opacity: 0.4;
+      cursor: not-allowed
+    }
+
+    .danger-zone {
+      background: rgba(239, 68, 68, 0.05);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+    }
+
+    .danger-zone-title {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--red);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.4rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .danger-zone-desc {
+      font-size: 0.8rem;
+      color: var(--sub);
+      margin-bottom: 0.75rem;
+      line-height: 1.5
+    }
+
+    @media(max-width:600px) {
+      .admin-body {
+        padding: 1rem
+      }
+    }
+  </style>
 </head>
+
 <body>
 
-<!-- DEVELOPER CREDIT -->
-<div style="position:fixed;top:0;right:0;z-index:300;padding:0.35rem 1rem;font-size:0.68rem;color:var(--muted);pointer-events:none;font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-left-radius:6px;">
-  Developed by <strong style="color:var(--accent2)">Dr. GOPAL RAJENDRAN</strong>
-</div>
-
-<!-- ADMIN LOGIN -->
-<div id="admin-login" class="page active">
-  <div class="login-wrap">
-    <div class="login-box">
-      <a class="back-btn" href="index.html">← Back to Portal</a>
-      <h2 class="login-title">Admin Login</h2>
-      <p class="login-sub">Faculty / COE administrator access only.</p>
-      <div class="alert err" id="admin-err"></div>
-      <div class="field">
-        <label for="a-pass">Admin Password</label>
-        <input type="password" id="a-pass" placeholder="Enter admin password"
-               onkeydown="if(event.key==='Enter')adminLogin()">
-      </div>
-      <button class="btn-primary" id="admin-login-btn" onclick="adminLogin()">Login →</button>
-    </div>
+  <!-- DEVELOPER CREDIT -->
+  <div
+    style="position:fixed;top:0;right:0;z-index:300;padding:0.35rem 1rem;font-size:0.68rem;color:var(--muted);pointer-events:none;font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-left-radius:6px;">
+    Developed by <strong style="color:var(--accent2)">Dr. GOPAL RAJENDRAN</strong>
   </div>
-</div>
 
-<!-- ADMIN DASHBOARD -->
-<div id="admin-dash" class="page">
-  <div class="topbar">
-    <div class="topbar-brand">COE · Admin Panel</div>
-    <div class="topbar-right">
-      <span style="font-size:0.72rem;color:var(--muted)">Developed by <strong style="color:var(--sub)">Dr. GOPAL RAJENDRAN</strong></span>
-      <span>Administrator</span>
-      <button class="btn-sm" onclick="adminLogout()">Logout</button>
+  <!-- ADMIN LOGIN -->
+  <div id="admin-login" class="page active">
+    <div class="login-wrap">
+      <div class="login-box">
+        <a class="back-btn" href="index.html">← Back to Portal</a>
+        <h2 class="login-title">Admin Login</h2>
+        <p class="login-sub">Faculty / COE administrator access only.</p>
+        <div class="alert err" id="admin-err"></div>
+        <div class="field">
+          <label for="a-pass">Admin Password</label>
+          <input type="password" id="a-pass" placeholder="Enter admin password"
+            onkeydown="if(event.key==='Enter')adminLogin()">
+        </div>
+        <button class="btn-primary" id="admin-login-btn" onclick="adminLogin()">Login →</button>
+      </div>
     </div>
   </div>
 
-  <div class="admin-body">
-
-
-    <!-- Upload Section -->
-    <div style="margin-bottom:2rem">
-      <div class="section-label">Upload Result Excel</div>
-      <div class="upload-zone" id="upload-zone"
-           onclick="document.getElementById('fileInput').click()"
-           ondragover="event.preventDefault();this.classList.add('drag')"
-           ondragleave="this.classList.remove('drag')"
-           ondrop="handleFileDrop(event)">
-        <div class="upload-icon">📊</div>
-        <div class="upload-text">Click or drag &amp; drop Excel file</div>
-        <div class="upload-hint">.xlsx format · Required columns: SEN, Name, Semester, Course Code, Course Title, Type, Credits, Marks, Grade, Grade Points</div>
+  <!-- ADMIN DASHBOARD -->
+  <div id="admin-dash" class="page">
+    <div class="topbar">
+      <div class="topbar-brand">COE · Admin Panel</div>
+      <div class="topbar-right">
+        <span style="font-size:0.72rem;color:var(--muted)">Developed by <strong style="color:var(--sub)">Dr. GOPAL
+            RAJENDRAN</strong></span>
+        <span>Administrator</span>
+        <button class="btn-sm" onclick="adminLogout()">Logout</button>
       </div>
-      <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none" onchange="handleFileUpload(this.files[0])">
-      <div class="alert" id="upload-alert"></div>
     </div>
 
-    <!-- Password Reset Utility -->
-    <div style="margin-bottom:2rem">
-      <div class="section-label">Reset Student Password</div>
-      <div class="reset-box">
-        <input type="text" id="reset-sen-input" placeholder="Enter SEN (e.g. A869145024001)"
-               onkeydown="if(event.key==='Enter')clearPassword()">
-        <button class="btn-danger" id="btn-reset-pwd" onclick="clearPassword()">✕ Clear Password</button>
-      </div>
-      <div id="reset-status" style="font-size:0.78rem;color:var(--sub);margin-top:0.5rem;font-family:var(--mono)"></div>
-    </div>
+    <div class="admin-body">
 
-    <!-- Clear All Records Danger Zone -->
-    <div style="margin-bottom:2rem">
-      <div class="section-label">Danger Zone</div>
-      <div class="danger-zone">
-        <div class="danger-zone-title">⚠ Clear All Records</div>
-        <div class="danger-zone-desc">
-          Permanently deletes <strong>every student record</strong> from the database, including all course data and passwords.
-          The sheet header row is preserved. Use this only when starting a completely fresh upload.
-          <strong>This action cannot be undone.</strong>
+
+      <!-- Upload Section -->
+      <div style="margin-bottom:2rem">
+        <div class="section-label">Upload Result Excel</div>
+        <div class="upload-zone" id="upload-zone" onclick="document.getElementById('fileInput').click()"
+          ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')"
+          ondrop="handleFileDrop(event)">
+          <div class="upload-icon">📊</div>
+          <div class="upload-text">Click or drag &amp; drop Excel file</div>
+          <div class="upload-hint">.xlsx format · Required columns: SEN, Name, Semester, Course Code, Course Title,
+            Type, Credits, Marks, Grade, Grade Points</div>
         </div>
-        <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
-          <button class="btn-danger" id="btn-clear-all" onclick="clearAllRecords()"
-                  style="padding:0.5rem 1.2rem;font-size:0.82rem">
-            🗑 Clear All Records
-          </button>
-          <span id="clear-all-status" style="font-size:0.78rem;color:var(--sub);font-family:var(--mono)"></span>
+        <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none"
+          onchange="handleFileUpload(this.files[0])">
+        <div class="alert" id="upload-alert"></div>
+      </div>
+
+      <!-- Password Reset Utility -->
+      <div style="margin-bottom:2rem">
+        <div class="section-label">Reset Student Password</div>
+        <div class="reset-box">
+          <input type="text" id="reset-sen-input" placeholder="Enter SEN (e.g. A869145024001)"
+            onkeydown="if(event.key==='Enter')clearPassword()">
+          <button class="btn-danger" id="btn-reset-pwd" onclick="clearPassword()">✕ Clear Password</button>
+        </div>
+        <div id="reset-status" style="font-size:0.78rem;color:var(--sub);margin-top:0.5rem;font-family:var(--mono)">
         </div>
       </div>
-    </div>
 
-    <!-- Students Table -->
-    <div>
-      <div class="section-label">Enrolled Students (<span id="total-stu">0</span>)</div>
-      <input type="text" class="search-input" id="stu-search"
-             placeholder="Search by name or SEN..." oninput="filterStudents(this.value)">
-      <div class="card">
-        <div class="tbl-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>#</th><th>SEN</th><th>Name</th>
-                <th>Courses</th><th>CGPA</th><th>Cr. Earned</th><th>Password</th>
-              </tr>
-            </thead>
-            <tbody id="admin-tbody">
-              <tr><td colspan="7" class="empty">Loading from backend…</td></tr>
-            </tbody>
-          </table>
+      <!-- Clear All Records Danger Zone -->
+      <div style="margin-bottom:2rem">
+        <div class="section-label">Danger Zone</div>
+        <div class="danger-zone">
+          <div class="danger-zone-title">⚠ Clear All Records</div>
+          <div class="danger-zone-desc">
+            Permanently deletes <strong>every student record</strong> from the database, including all course data and
+            passwords.
+            The sheet header row is preserved. Use this only when starting a completely fresh upload.
+            <strong>This action cannot be undone.</strong>
+          </div>
+          <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+            <button class="btn-danger" id="btn-clear-all" onclick="clearAllRecords()"
+              style="padding:0.5rem 1.2rem;font-size:0.82rem">
+              🗑 Clear All Records
+            </button>
+            <span id="clear-all-status" style="font-size:0.78rem;color:var(--sub);font-family:var(--mono)"></span>
+          </div>
         </div>
       </div>
-    </div>
 
-  </div><!-- /admin-body -->
-</div><!-- /admin-dash -->
+      <!-- Students Table -->
+      <div>
+        <div class="section-label">Enrolled Students (<span id="total-stu">0</span>)</div>
+        <input type="text" class="search-input" id="stu-search" placeholder="Search by name or SEN..."
+          oninput="filterStudents(this.value)">
+        <div class="card">
+          <div class="tbl-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>SEN</th>
+                  <th>Name</th>
+                  <th>Courses</th>
+                  <th>CGPA</th>
+                  <th>Cr. Earned</th>
+                  <th>Password</th>
+                </tr>
+              </thead>
+              <tbody id="admin-tbody">
+                <tr>
+                  <td colspan="7" class="empty">Loading from backend…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
 
-<script src="script.js"></script>
-<script>
-// ── Admin-page-specific boot ─────────────────────────────────────────────────
-</script>
+    </div><!-- /admin-body -->
+  </div><!-- /admin-dash -->
+
+  <script src="script.js"></script>
+  <script>
+    // ── Admin-page-specific boot ─────────────────────────────────────────────────
+  </script>
 </body>
+
 </html>

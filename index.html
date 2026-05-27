@@ -1,366 +1,960 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="AIIT Result Portal — Amity Institute of Information Technology. Students can securely view their semester results, CGPA, and course grades.">
-<title>Amity University · AIIT Result Portal</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<style>
-:root {
-  --bg: #060b14;
-  --s1: #0d1626;
-  --s2: #112036;
-  --s3: #162845;
-  --border: #1c3050;
-  --border2: #234060;
-  --accent: #0ea5e9;
-  --accent2: #38bdf8;
-  --gold: #f59e0b;
-  --green: #22c55e;
-  --red: #ef4444;
-  --orange: #f97316;
-  --text: #e2e8f0;
-  --sub: #94a3b8;
-  --muted: #4a6080;
-  --sans: 'DM Sans', sans-serif;
-  --display: 'Syne', sans-serif;
-  --mono: 'DM Mono', monospace;
-}
-body.light-theme{--bg:#f0f4f8;--s1:#ffffff;--s2:#e8eef5;--s3:#dce5ef;--border:#c8d8e8;--border2:#aabfcf;--accent:#0284c7;--accent2:#0ea5e9;--gold:#d97706;--green:#16a34a;--red:#dc2626;--text:#0f172a;--sub:#475569;--muted:#94a3b8}
-body.light-theme::before{background:radial-gradient(ellipse 80% 50% at 50% -10%,rgba(2,132,199,0.07),transparent),radial-gradient(ellipse 60% 40% at 100% 100%,rgba(14,165,233,0.04),transparent)}
-body.light-theme .topbar{background:rgba(240,244,248,0.92)}
-body,body *{transition:background-color 0.4s,color 0.3s,border-color 0.3s}
-@keyframes shake{0%,100%{transform:translateX(0)}15%{transform:translateX(-7px)}30%{transform:translateX(7px)}45%{transform:translateX(-5px)}60%{transform:translateX(5px)}75%{transform:translateX(-3px)}90%{transform:translateX(3px)}}
-.shake{animation:shake 0.45s ease}
-.input-error{border-color:var(--red)!important;box-shadow:0 0 0 3px rgba(239,68,68,0.15)}
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
-body::before{
-  content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
-  background:radial-gradient(ellipse 80% 50% at 50% -10%,rgba(14,165,233,0.12),transparent),
-             radial-gradient(ellipse 60% 40% at 100% 100%,rgba(56,189,248,0.06),transparent);
-}
-.page{display:none;position:relative;z-index:1;animation:fadeIn 0.25s ease}
-.page.active{display:block}
-@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description"
+    content="AIIT Result Portal — Amity Institute of Information Technology. Students can securely view their semester results, CGPA, and course grades.">
+  <title>Amity University · AIIT Result Portal</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --bg: #060b14;
+      --s1: #0d1626;
+      --s2: #112036;
+      --s3: #162845;
+      --border: #1c3050;
+      --border2: #234060;
+      --accent: #0ea5e9;
+      --accent2: #38bdf8;
+      --gold: #f59e0b;
+      --green: #22c55e;
+      --red: #ef4444;
+      --orange: #f97316;
+      --text: #e2e8f0;
+      --sub: #94a3b8;
+      --muted: #4a6080;
+      --sans: 'DM Sans', sans-serif;
+      --display: 'Syne', sans-serif;
+      --mono: 'DM Mono', monospace;
+    }
 
-/* TOPBAR */
-.topbar{
-  position:sticky;top:0;z-index:200;
-  background:rgba(6,11,20,0.85);backdrop-filter:blur(16px);
-  border-bottom:1px solid var(--border);
-  padding:0 2rem;height:56px;
-  display:flex;align-items:center;justify-content:space-between;
-}
-.topbar-brand{
-  font-family:var(--display);font-size:1rem;font-weight:700;
-  background:linear-gradient(90deg,var(--accent),var(--accent2));
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-  letter-spacing:-0.01em;
-}
-.topbar-right{display:flex;align-items:center;gap:0.75rem;font-size:0.82rem;color:var(--sub)}
-.topbar-right strong{color:var(--text);font-weight:500}
-.btn-sm{
-  font-family:var(--mono);font-size:0.72rem;padding:0.3rem 0.75rem;
-  border-radius:5px;border:1px solid var(--border2);background:transparent;
-  color:var(--sub);cursor:pointer;transition:all 0.15s;
-}
-.btn-sm:hover{border-color:var(--red);color:var(--red)}
-.btn-sm.primary{border-color:var(--accent);color:var(--accent)}
-.btn-sm.primary:hover{background:var(--accent);color:#fff}
+    body.light-theme {
+      --bg: #f0f4f8;
+      --s1: #ffffff;
+      --s2: #e8eef5;
+      --s3: #dce5ef;
+      --border: #c8d8e8;
+      --border2: #aabfcf;
+      --accent: #0284c7;
+      --accent2: #0ea5e9;
+      --gold: #d97706;
+      --green: #16a34a;
+      --red: #dc2626;
+      --text: #0f172a;
+      --sub: #475569;
+      --muted: #94a3b8
+    }
 
-/* LANDING */
-#landing{
-  min-height:100vh;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;padding:2rem;text-align:center;
-}
-.land-eyebrow{
-  font-family:var(--mono);font-size:0.72rem;letter-spacing:0.18em;
-  color:var(--accent);text-transform:uppercase;margin-bottom:1.5rem;
-  border:1px solid rgba(14,165,233,0.3);padding:0.3rem 1rem;
-  border-radius:20px;display:inline-block;
-  background:rgba(14,165,233,0.06);
-}
-.land-title{
-  font-family:var(--display);font-size:clamp(2.2rem,6vw,4rem);
-  font-weight:800;line-height:1.05;margin-bottom:1rem;
-  background:linear-gradient(160deg,#fff 0%,#94a3b8 100%);
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-}
-.land-sub{font-size:1rem;color:var(--sub);margin-bottom:3.5rem;font-weight:300;max-width:420px}
-.land-cards{display:flex;gap:1.25rem;flex-wrap:wrap;justify-content:center}
-.role-card{
-  width:240px;background:var(--s1);border:1px solid var(--border);
-  border-radius:16px;padding:2rem 1.5rem;cursor:pointer;
-  transition:all 0.2s;text-align:center;position:relative;overflow:hidden;
-}
-.role-card::after{
-  content:'';position:absolute;inset:0;opacity:0;transition:opacity 0.2s;
-  background:linear-gradient(135deg,rgba(14,165,233,0.08),rgba(56,189,248,0.03));
-}
-.role-card:hover{border-color:var(--accent);transform:translateY(-3px);box-shadow:0 20px 40px rgba(14,165,233,0.12)}
-.role-card:hover::after{opacity:1}
-.role-icon{font-size:2.5rem;margin-bottom:1rem;display:block}
-.role-name{font-family:var(--display);font-size:1.05rem;font-weight:700;margin-bottom:0.4rem}
-.role-desc{font-size:0.8rem;color:var(--sub);line-height:1.5}
+    body.light-theme::before {
+      background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(2, 132, 199, 0.07), transparent), radial-gradient(ellipse 60% 40% at 100% 100%, rgba(14, 165, 233, 0.04), transparent)
+    }
 
-/* LOGIN BOXES */
-.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem}
-.login-box{
-  background:var(--s1);border:1px solid var(--border);
-  border-radius:20px;padding:2.5rem;width:100%;max-width:440px;
-}
-.back-btn{
-  font-family:var(--mono);font-size:0.72rem;color:var(--muted);
-  cursor:pointer;margin-bottom:2rem;display:inline-flex;align-items:center;gap:0.4rem;
-  background:none;border:none;padding:0;transition:color 0.15s;
-}
-.back-btn:hover{color:var(--accent)}
-.login-title{font-family:var(--display);font-size:1.6rem;font-weight:800;margin-bottom:0.4rem}
-.login-sub{font-size:0.83rem;color:var(--sub);margin-bottom:2rem;line-height:1.6}
-.field{margin-bottom:1.1rem}
-.field label{
-  display:block;font-family:var(--mono);font-size:0.68rem;
-  color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.45rem;
-}
-.field input{
-  width:100%;padding:0.75rem 1rem;background:var(--s2);
-  border:1px solid var(--border);border-radius:10px;color:var(--text);
-  font-family:var(--sans);font-size:0.9rem;outline:none;transition:border-color 0.15s;
-  position:relative;z-index:2;pointer-events:auto;user-select:text;cursor:text;
-}
-.field input:focus{border-color:var(--accent)}
-.field input::placeholder{color:var(--muted)}
-.btn-primary{
-  width:100%;padding:0.9rem;background:linear-gradient(135deg,var(--accent),#0284c7);
-  border:none;border-radius:10px;color:#fff;font-weight:600;font-size:0.95rem;
-  cursor:pointer;transition:all 0.15s;font-family:var(--sans);letter-spacing:0.01em;
-}
-.btn-primary:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(14,165,233,0.35)}
-.btn-primary:disabled{opacity:0.5;cursor:not-allowed;transform:none}
-.alert{
-  padding:0.7rem 1rem;border-radius:8px;font-size:0.84rem;margin-bottom:1rem;display:none;
-}
-.alert.err{background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#fca5a5}
-.alert.ok{background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);color:#86efac}
-.alert.info{background:rgba(14,165,233,0.1);border:1px solid rgba(14,165,233,0.3);color:#7dd3fc}
-.divider{display:flex;align-items:center;gap:0.75rem;margin:1.2rem 0;color:var(--muted);font-size:0.8rem}
-.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border)}
+    body.light-theme .topbar {
+      background: rgba(240, 244, 248, 0.92)
+    }
 
-/* STUDENT DASH */
-.dash-body{padding:2rem;max-width:1100px;margin:0 auto}
-.profile-card{
-  background:var(--s1);border:1px solid var(--border);border-radius:16px;
-  padding:1.5rem 2rem;margin-bottom:2rem;
-  display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;
-}
-.avatar{
-  width:56px;height:56px;border-radius:50%;flex-shrink:0;
-  background:linear-gradient(135deg,var(--accent),#0ea5e9 50%,var(--accent2));
-  display:flex;align-items:center;justify-content:center;
-  font-family:var(--display);font-size:1.3rem;font-weight:800;color:#fff;
-}
-.pinfo-name{font-family:var(--display);font-size:1.15rem;font-weight:700;margin-bottom:0.2rem}
-.pinfo-meta{font-size:0.8rem;color:var(--sub)}
-.pinfo-meta span{margin-right:0.75rem}
-.stat-row{display:flex;gap:1rem;flex-wrap:wrap;margin-left:auto}
-.stat-chip{
-  background:var(--s2);border:1px solid var(--border);border-radius:10px;
-  padding:0.7rem 1.1rem;text-align:center;
-}
-.stat-val{font-family:var(--mono);font-size:1.3rem;font-weight:500;line-height:1}
-.stat-lbl{font-size:0.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-top:0.3rem}
-.stat-val.gold{color:var(--gold)}
-.stat-val.green{color:var(--green)}
-.stat-val.blue{color:var(--accent)}
+    body,
+    body * {
+      transition: background-color 0.4s, color 0.3s, border-color 0.3s
+    }
 
-/* TABS */
-.sem-tabs{display:flex;gap:0.4rem;margin-bottom:1.5rem;flex-wrap:wrap}
-.tab{
-  font-family:var(--mono);font-size:0.73rem;padding:0.4rem 0.9rem;
-  border-radius:6px;border:1px solid var(--border);background:transparent;
-  color:var(--muted);cursor:pointer;transition:all 0.15s;
-}
-.tab:hover{border-color:var(--accent2);color:var(--accent2)}
-.tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
+    @keyframes shake {
 
-/* TABLE CARD */
-.card{background:var(--s1);border:1px solid var(--border);border-radius:14px;overflow:hidden}
-.card-head{
-  padding:1rem 1.5rem;border-bottom:1px solid var(--border);
-  display:flex;align-items:center;justify-content:space-between;
-}
-.card-title{font-family:var(--display);font-weight:700;font-size:0.95rem}
-.badge{
-  font-family:var(--mono);font-size:0.7rem;color:var(--sub);
-  background:var(--s2);border:1px solid var(--border);
-  padding:0.18rem 0.6rem;border-radius:20px;
-}
-.tbl-wrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse}
-thead th{
-  padding:0.7rem 1rem;text-align:left;
-  font-family:var(--mono);font-size:0.65rem;letter-spacing:0.1em;
-  text-transform:uppercase;color:var(--muted);
-  border-bottom:1px solid var(--border);background:var(--s2);
-}
-tbody tr{border-bottom:1px solid rgba(28,48,80,0.5);transition:background 0.1s}
-tbody tr:last-child{border-bottom:none}
-tbody tr:hover{background:rgba(14,165,233,0.03)}
-tbody td{padding:0.8rem 1rem;font-size:0.86rem}
-.td-code{font-family:var(--mono);color:var(--accent2);font-size:0.78rem}
-.td-title{font-weight:500}
-.type-chip{
-  font-family:var(--mono);font-size:0.68rem;color:var(--sub);
-  background:var(--s3);border-radius:3px;padding:0.15rem 0.45rem;display:inline-block;
-}
-.grade{font-family:var(--mono);font-size:0.8rem;font-weight:500;padding:0.2rem 0.6rem;border-radius:4px;display:inline-block}
-.g-S{background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3)}
-.g-A{background:rgba(14,165,233,0.15);color:#38bdf8;border:1px solid rgba(14,165,233,0.3)}
-.g-B{background:rgba(56,189,248,0.1);color:#7dd3fc;border:1px solid rgba(56,189,248,0.25)}
-.g-C{background:rgba(245,158,11,0.12);color:#fbbf24;border:1px solid rgba(245,158,11,0.25)}
-.g-D{background:rgba(249,115,22,0.12);color:#fb923c;border:1px solid rgba(249,115,22,0.25)}
-.g-E{background:rgba(239,68,68,0.1);color:#f87171;border:1px solid rgba(239,68,68,0.25)}
-.g-F{background:rgba(239,68,68,0.18);color:#ef4444;border:1px solid rgba(239,68,68,0.4)}
-.bar-wrap{display:flex;align-items:center;gap:0.5rem}
-.bar-num{font-family:var(--mono);font-size:0.78rem;min-width:36px}
-.bar-bg{height:4px;border-radius:2px;background:var(--s3);flex:1;min-width:45px}
-.bar-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+      0%,
+      100% {
+        transform: translateX(0)
+      }
 
-/* SPINNER */
-.spinner{display:inline-block;width:18px;height:18px;border:2px solid rgba(255,255,255,0.2);border-top-color:#fff;border-radius:50%;animation:spin 0.6s linear infinite;vertical-align:middle;margin-right:0.5rem}
-@keyframes spin{to{transform:rotate(360deg)}}
+      15% {
+        transform: translateX(-7px)
+      }
 
-/* GAS SYNC STATUS */
-.sync-bar{
-  font-family:var(--mono);font-size:0.7rem;color:var(--muted);
-  text-align:center;padding:0.4rem;
-  position:fixed;bottom:0;left:0;right:0;z-index:100;
-  background:rgba(6,11,20,0.7);border-top:1px solid var(--border);
-  backdrop-filter:blur(8px);
-  transition:opacity 0.5s;
-}
+      30% {
+        transform: translateX(7px)
+      }
 
-@media(max-width:600px){
-  .dash-body{padding:1rem}
-  .profile-card{gap:1rem;padding:1.2rem}
-  thead th:nth-child(n+6),tbody td:nth-child(n+6){display:none}
-}
-</style>
+      45% {
+        transform: translateX(-5px)
+      }
+
+      60% {
+        transform: translateX(5px)
+      }
+
+      75% {
+        transform: translateX(-3px)
+      }
+
+      90% {
+        transform: translateX(3px)
+      }
+    }
+
+    .shake {
+      animation: shake 0.45s ease
+    }
+
+    .input-error {
+      border-color: var(--red) !important;
+      box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15)
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0
+    }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(14, 165, 233, 0.12), transparent),
+        radial-gradient(ellipse 60% 40% at 100% 100%, rgba(56, 189, 248, 0.06), transparent);
+    }
+
+    .page {
+      display: none;
+      position: relative;
+      z-index: 1;
+      animation: fadeIn 0.25s ease
+    }
+
+    .page.active {
+      display: block
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(8px)
+      }
+
+      to {
+        opacity: 1;
+        transform: none
+      }
+    }
+
+    /* TOPBAR */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      background: rgba(6, 11, 20, 0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .topbar-brand {
+      font-family: var(--display);
+      font-size: 1rem;
+      font-weight: 700;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.01em;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.82rem;
+      color: var(--sub)
+    }
+
+    .topbar-right strong {
+      color: var(--text);
+      font-weight: 500
+    }
+
+    .btn-sm {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      padding: 0.3rem 0.75rem;
+      border-radius: 5px;
+      border: 1px solid var(--border2);
+      background: transparent;
+      color: var(--sub);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-sm:hover {
+      border-color: var(--red);
+      color: var(--red)
+    }
+
+    .btn-sm.primary {
+      border-color: var(--accent);
+      color: var(--accent)
+    }
+
+    .btn-sm.primary:hover {
+      background: var(--accent);
+      color: #fff
+    }
+
+    /* LANDING */
+    #landing {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    .land-eyebrow {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.18em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 1.5rem;
+      border: 1px solid rgba(14, 165, 233, 0.3);
+      padding: 0.3rem 1rem;
+      border-radius: 20px;
+      display: inline-block;
+      background: rgba(14, 165, 233, 0.06);
+    }
+
+    .land-title {
+      font-family: var(--display);
+      font-size: clamp(2.2rem, 6vw, 4rem);
+      font-weight: 800;
+      line-height: 1.05;
+      margin-bottom: 1rem;
+      background: linear-gradient(160deg, #fff 0%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .land-sub {
+      font-size: 1rem;
+      color: var(--sub);
+      margin-bottom: 3.5rem;
+      font-weight: 300;
+      max-width: 420px
+    }
+
+    .land-cards {
+      display: flex;
+      gap: 1.25rem;
+      flex-wrap: wrap;
+      justify-content: center
+    }
+
+    .role-card {
+      width: 240px;
+      background: var(--s1);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 2rem 1.5rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .role-card::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transition: opacity 0.2s;
+      background: linear-gradient(135deg, rgba(14, 165, 233, 0.08), rgba(56, 189, 248, 0.03));
+    }
+
+    .role-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-3px);
+      box-shadow: 0 20px 40px rgba(14, 165, 233, 0.12)
+    }
+
+    .role-card:hover::after {
+      opacity: 1
+    }
+
+    .role-icon {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+      display: block
+    }
+
+    .role-name {
+      font-family: var(--display);
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: 0.4rem
+    }
+
+    .role-desc {
+      font-size: 0.8rem;
+      color: var(--sub);
+      line-height: 1.5
+    }
+
+    /* LOGIN BOXES */
+    .login-wrap {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem
+    }
+
+    .login-box {
+      background: var(--s1);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 2.5rem;
+      width: 100%;
+      max-width: 440px;
+    }
+
+    .back-btn {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--muted);
+      cursor: pointer;
+      margin-bottom: 2rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: none;
+      border: none;
+      padding: 0;
+      transition: color 0.15s;
+    }
+
+    .back-btn:hover {
+      color: var(--accent)
+    }
+
+    .login-title {
+      font-family: var(--display);
+      font-size: 1.6rem;
+      font-weight: 800;
+      margin-bottom: 0.4rem
+    }
+
+    .login-sub {
+      font-size: 0.83rem;
+      color: var(--sub);
+      margin-bottom: 2rem;
+      line-height: 1.6
+    }
+
+    .field {
+      margin-bottom: 1.1rem
+    }
+
+    .field label {
+      display: block;
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.45rem;
+    }
+
+    .field input {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background: var(--s2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.15s;
+      position: relative;
+      z-index: 2;
+      pointer-events: auto;
+      user-select: text;
+      cursor: text;
+    }
+
+    .field input:focus {
+      border-color: var(--accent)
+    }
+
+    .field input::placeholder {
+      color: var(--muted)
+    }
+
+    .btn-primary {
+      width: 100%;
+      padding: 0.9rem;
+      background: linear-gradient(135deg, var(--accent), #0284c7);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: var(--sans);
+      letter-spacing: 0.01em;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 20px rgba(14, 165, 233, 0.35)
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none
+    }
+
+    .alert {
+      padding: 0.7rem 1rem;
+      border-radius: 8px;
+      font-size: 0.84rem;
+      margin-bottom: 1rem;
+      display: none;
+    }
+
+    .alert.err {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #fca5a5
+    }
+
+    .alert.ok {
+      background: rgba(34, 197, 94, 0.1);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      color: #86efac
+    }
+
+    .alert.info {
+      background: rgba(14, 165, 233, 0.1);
+      border: 1px solid rgba(14, 165, 233, 0.3);
+      color: #7dd3fc
+    }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin: 1.2rem 0;
+      color: var(--muted);
+      font-size: 0.8rem
+    }
+
+    .divider::before,
+    .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border)
+    }
+
+    /* STUDENT DASH */
+    .dash-body {
+      padding: 2rem;
+      max-width: 1100px;
+      margin: 0 auto
+    }
+
+    .profile-card {
+      background: var(--s1);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem 2rem;
+      margin-bottom: 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .avatar {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      background: linear-gradient(135deg, var(--accent), #0ea5e9 50%, var(--accent2));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--display);
+      font-size: 1.3rem;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .pinfo-name {
+      font-family: var(--display);
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 0.2rem
+    }
+
+    .pinfo-meta {
+      font-size: 0.8rem;
+      color: var(--sub)
+    }
+
+    .pinfo-meta span {
+      margin-right: 0.75rem
+    }
+
+    .stat-row {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-left: auto
+    }
+
+    .stat-chip {
+      background: var(--s2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.7rem 1.1rem;
+      text-align: center;
+    }
+
+    .stat-val {
+      font-family: var(--mono);
+      font-size: 1.3rem;
+      font-weight: 500;
+      line-height: 1
+    }
+
+    .stat-lbl {
+      font-size: 0.68rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-top: 0.3rem
+    }
+
+    .stat-val.gold {
+      color: var(--gold)
+    }
+
+    .stat-val.green {
+      color: var(--green)
+    }
+
+    .stat-val.blue {
+      color: var(--accent)
+    }
+
+    /* TABS */
+    .sem-tabs {
+      display: flex;
+      gap: 0.4rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap
+    }
+
+    .tab {
+      font-family: var(--mono);
+      font-size: 0.73rem;
+      padding: 0.4rem 0.9rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .tab:hover {
+      border-color: var(--accent2);
+      color: var(--accent2)
+    }
+
+    .tab.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff
+    }
+
+    /* TABLE CARD */
+    .card {
+      background: var(--s1);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden
+    }
+
+    .card-head {
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .card-title {
+      font-family: var(--display);
+      font-weight: 700;
+      font-size: 0.95rem
+    }
+
+    .badge {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--sub);
+      background: var(--s2);
+      border: 1px solid var(--border);
+      padding: 0.18rem 0.6rem;
+      border-radius: 20px;
+    }
+
+    .tbl-wrap {
+      overflow-x: auto
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse
+    }
+
+    thead th {
+      padding: 0.7rem 1rem;
+      text-align: left;
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--s2);
+    }
+
+    tbody tr {
+      border-bottom: 1px solid rgba(28, 48, 80, 0.5);
+      transition: background 0.1s
+    }
+
+    tbody tr:last-child {
+      border-bottom: none
+    }
+
+    tbody tr:hover {
+      background: rgba(14, 165, 233, 0.03)
+    }
+
+    tbody td {
+      padding: 0.8rem 1rem;
+      font-size: 0.86rem
+    }
+
+    .td-code {
+      font-family: var(--mono);
+      color: var(--accent2);
+      font-size: 0.78rem
+    }
+
+    .td-title {
+      font-weight: 500
+    }
+
+    .type-chip {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      color: var(--sub);
+      background: var(--s3);
+      border-radius: 3px;
+      padding: 0.15rem 0.45rem;
+      display: inline-block;
+    }
+
+    .grade {
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      font-weight: 500;
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      display: inline-block
+    }
+
+    .g-S {
+      background: rgba(34, 197, 94, 0.15);
+      color: #4ade80;
+      border: 1px solid rgba(34, 197, 94, 0.3)
+    }
+
+    .g-A {
+      background: rgba(14, 165, 233, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(14, 165, 233, 0.3)
+    }
+
+    .g-B {
+      background: rgba(56, 189, 248, 0.1);
+      color: #7dd3fc;
+      border: 1px solid rgba(56, 189, 248, 0.25)
+    }
+
+    .g-C {
+      background: rgba(245, 158, 11, 0.12);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.25)
+    }
+
+    .g-D {
+      background: rgba(249, 115, 22, 0.12);
+      color: #fb923c;
+      border: 1px solid rgba(249, 115, 22, 0.25)
+    }
+
+    .g-E {
+      background: rgba(239, 68, 68, 0.1);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.25)
+    }
+
+    .g-F {
+      background: rgba(239, 68, 68, 0.18);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.4)
+    }
+
+    .bar-wrap {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem
+    }
+
+    .bar-num {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      min-width: 36px
+    }
+
+    .bar-bg {
+      height: 4px;
+      border-radius: 2px;
+      background: var(--s3);
+      flex: 1;
+      min-width: 45px
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2))
+    }
+
+    /* SPINNER */
+    .spinner {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+      margin-right: 0.5rem
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg)
+      }
+    }
+
+    /* GAS SYNC STATUS */
+    .sync-bar {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-align: center;
+      padding: 0.4rem;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: rgba(6, 11, 20, 0.7);
+      border-top: 1px solid var(--border);
+      backdrop-filter: blur(8px);
+      transition: opacity 0.5s;
+    }
+
+    @media(max-width:600px) {
+      .dash-body {
+        padding: 1rem
+      }
+
+      .profile-card {
+        gap: 1rem;
+        padding: 1.2rem
+      }
+
+      thead th:nth-child(n+6),
+      tbody td:nth-child(n+6) {
+        display: none
+      }
+    }
+  </style>
 </head>
+
 <body>
 
-<!-- DEVELOPER CREDIT -->
-<div style="position:fixed;top:0;right:0;z-index:300;padding:0.35rem 1rem;font-size:0.68rem;color:var(--muted);pointer-events:none;font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-left-radius:6px;">
-  Developed by <strong style="color:var(--accent2)">Dr. GOPAL RAJENDRAN</strong>
-</div>
-
-<!-- LANDING -->
-<div id="landing" class="page active">
-  <div class="land-eyebrow">Controller of Examinations · COE</div>
-  <h1 class="land-title">AMITY UNIVERSITY<br>AIIT RESULT PORTAL</h1>
-  <p class="land-sub">Amity Institute of Information Technology</p>
-  <div class="land-cards">
-    <div class="role-card" id="btn-student-login" onclick="showStudentLogin()">
-      <span class="role-icon">🎓</span>
-      <div class="role-name">Student Login</div>
-      <div class="role-desc">View your personal academic results and semester grades</div>
-    </div>
-    <div class="role-card" id="btn-admin-nav" onclick="goAdmin()">
-      <span class="role-icon">🛡️</span>
-      <div class="role-name">Admin Panel</div>
-      <div class="role-desc">Upload result sheets, manage students, reset passwords</div>
-    </div>
+  <!-- DEVELOPER CREDIT -->
+  <div
+    style="position:fixed;top:0;right:0;z-index:300;padding:0.35rem 1rem;font-size:0.68rem;color:var(--muted);pointer-events:none;font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-left-radius:6px;">
+    Developed by <strong style="color:var(--accent2)">Dr. GOPAL RAJENDRAN</strong>
   </div>
-  <p style="margin-top:3rem;font-size:0.72rem;color:var(--muted);font-family:var(--mono)" id="sync-hint"></p>
-</div>
 
-<!-- STUDENT LOGIN -->
-<div id="student-login" class="page">
-  <div class="login-wrap">
-    <div class="login-box">
-      <button class="back-btn" id="back-to-landing" onclick="showPage('landing')">← Back to Home</button>
-      <h2 class="login-title">Student Login</h2>
-      <p class="login-sub" id="student-login-hint">Enter your SEN and password. First time? Use password <strong style="color:var(--accent);font-family:var(--mono)">pwd</strong> to set a new one.</p>
-      <div class="alert err" id="student-err"></div>
-      <div class="alert ok" id="student-ok"></div>
-      <div class="field">
-        <label for="s-sen">SEN Number</label>
-        <input type="text" id="s-sen" placeholder="e.g. A869145024001" autocomplete="username"
-               oninput="onSenInput()" onkeydown="if(event.key==='Enter')studentLoginStep()">
+  <!-- LANDING -->
+  <div id="landing" class="page active">
+    <div class="land-eyebrow">Controller of Examinations · COE</div>
+    <h1 class="land-title">AMITY UNIVERSITY<br>AIIT RESULT PORTAL</h1>
+    <p class="land-sub">Amity Institute of Information Technology<br><span
+        style="font-size:0.75rem;font-family:var(--mono);color:var(--muted);display:inline-block;margin-top:0.5rem">v1.0</span>
+    </p>
+    <div class="land-cards">
+      <div class="role-card" id="btn-student-login" onclick="showStudentLogin()">
+        <span class="role-icon">🎓</span>
+        <div class="role-name">Student Login</div>
+        <div class="role-desc">View your personal academic results and semester grades</div>
       </div>
-      <div class="field" id="s-pass-field">
-        <label for="s-pass">Password</label>
-        <input type="password" id="s-pass" placeholder="Your password" autocomplete="current-password"
-               onkeydown="if(event.key==='Enter')studentLoginStep()">
+      <div class="role-card" id="btn-admin-nav" onclick="goAdmin()">
+        <span class="role-icon">🛡️</span>
+        <div class="role-name">Admin Panel</div>
+        <div class="role-desc">Upload result sheets, manage students, reset passwords</div>
       </div>
-      <div id="s-newpass-fields" style="display:none">
+    </div>
+    <p style="margin-top:3rem;font-size:0.72rem;color:var(--muted);font-family:var(--mono)" id="sync-hint"></p>
+  </div>
+
+  <!-- STUDENT LOGIN -->
+  <div id="student-login" class="page">
+    <div class="login-wrap">
+      <div class="login-box">
+        <button class="back-btn" id="back-to-landing" onclick="showPage('landing')">← Back to Home</button>
+        <h2 class="login-title">Student Login</h2>
+        <p class="login-sub" id="student-login-hint">Enter your SEN and password. First time? Use password <strong
+            style="color:var(--accent);font-family:var(--mono)">pwd</strong> to set a new one.</p>
+        <div class="alert err" id="student-err"></div>
+        <div class="alert ok" id="student-ok"></div>
         <div class="field">
-          <label for="s-newpass">Create Password</label>
-          <input type="password" id="s-newpass" placeholder="Min 6 characters"
-                 onkeydown="if(event.key==='Enter')studentLoginStep()">
+          <label for="s-sen">SEN Number</label>
+          <input type="text" id="s-sen" placeholder="e.g. A869145024001" autocomplete="username" oninput="onSenInput()"
+            onkeydown="if(event.key==='Enter')studentLoginStep()">
         </div>
-        <div class="field">
-          <label for="s-confirmpass">Confirm Password</label>
-          <input type="password" id="s-confirmpass" placeholder="Repeat password"
-                 onkeydown="if(event.key==='Enter')studentLoginStep()">
+        <div class="field" id="s-pass-field">
+          <label for="s-pass">Password</label>
+          <input type="password" id="s-pass" placeholder="Your password" autocomplete="current-password"
+            onkeydown="if(event.key==='Enter')studentLoginStep()">
+        </div>
+        <div id="s-newpass-fields" style="display:none">
+          <div class="field">
+            <label for="s-newpass">Create Password</label>
+            <input type="password" id="s-newpass" placeholder="Min 6 characters"
+              onkeydown="if(event.key==='Enter')studentLoginStep()">
+          </div>
+          <div class="field">
+            <label for="s-confirmpass">Confirm Password</label>
+            <input type="password" id="s-confirmpass" placeholder="Repeat password"
+              onkeydown="if(event.key==='Enter')studentLoginStep()">
+          </div>
+        </div>
+        <button class="btn-primary" id="s-login-btn" onclick="studentLoginStep()">Sign In →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STUDENT DASHBOARD -->
+  <div id="student-dash" class="page">
+    <div class="topbar">
+      <div class="topbar-brand">COE · Result Portal</div>
+      <div class="topbar-right">
+        <span style="font-size:0.72rem;color:var(--muted)">Developed by <strong style="color:var(--sub)">Dr. GOPAL
+            RAJENDRAN</strong></span>
+        <strong id="dash-sen-label"></strong>
+        <button class="btn-sm" id="btn-logout" onclick="logout()">Logout</button>
+      </div>
+    </div>
+    <div class="dash-body">
+      <div class="profile-card">
+        <div class="avatar" id="dash-avatar"></div>
+        <div style="flex:1;min-width:0">
+          <div class="pinfo-name" id="dash-name"></div>
+          <div class="pinfo-meta"><span id="dash-program"></span><span id="dash-school"></span></div>
+        </div>
+        <div class="stat-row">
+          <div class="stat-chip">
+            <div class="stat-val gold" id="dash-cgpa">—</div>
+            <div class="stat-lbl">CGPA</div>
+          </div>
+          <div class="stat-chip">
+            <div class="stat-val green" id="dash-ce">—</div>
+            <div class="stat-lbl">Credits Earned</div>
+          </div>
+          <div class="stat-chip">
+            <div class="stat-val blue" id="dash-nc">—</div>
+            <div class="stat-lbl">Courses</div>
+          </div>
         </div>
       </div>
-      <button class="btn-primary" id="s-login-btn" onclick="studentLoginStep()">Sign In →</button>
-    </div>
-  </div>
-</div>
-
-<!-- STUDENT DASHBOARD -->
-<div id="student-dash" class="page">
-  <div class="topbar">
-    <div class="topbar-brand">COE · Result Portal</div>
-    <div class="topbar-right">
-      <span style="font-size:0.72rem;color:var(--muted)">Developed by <strong style="color:var(--sub)">Dr. GOPAL RAJENDRAN</strong></span>
-      <strong id="dash-sen-label"></strong>
-      <button class="btn-sm" id="btn-logout" onclick="logout()">Logout</button>
-    </div>
-  </div>
-  <div class="dash-body">
-    <div class="profile-card">
-      <div class="avatar" id="dash-avatar"></div>
-      <div style="flex:1;min-width:0">
-        <div class="pinfo-name" id="dash-name"></div>
-        <div class="pinfo-meta"><span id="dash-program"></span><span id="dash-school"></span></div>
-      </div>
-      <div class="stat-row">
-        <div class="stat-chip"><div class="stat-val gold" id="dash-cgpa">—</div><div class="stat-lbl">CGPA</div></div>
-        <div class="stat-chip"><div class="stat-val green" id="dash-ce">—</div><div class="stat-lbl">Credits Earned</div></div>
-        <div class="stat-chip"><div class="stat-val blue" id="dash-nc">—</div><div class="stat-lbl">Courses</div></div>
-      </div>
-    </div>
-    <div class="sem-tabs" id="sem-tabs"></div>
-    <div class="card">
-      <div class="card-head">
-        <div class="card-title" id="tbl-title">All Courses</div>
-        <div class="badge" id="tbl-badge">—</div>
-      </div>
-      <div class="tbl-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Code</th><th>Course Title</th><th>Type</th>
-              <th>Cr.</th><th>Marks /100</th><th>Grade</th>
-              <th>Gr. Pts</th><th>Cr. Earned</th>
-            </tr>
-          </thead>
-          <tbody id="courses-tbody"></tbody>
-        </table>
+      <div class="sem-tabs" id="sem-tabs"></div>
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title" id="tbl-title">All Courses</div>
+          <div class="badge" id="tbl-badge">—</div>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Course Title</th>
+                <th>Type</th>
+                <th>Cr.</th>
+                <th>Marks /100</th>
+                <th>Grade</th>
+                <th>Gr. Pts</th>
+                <th>Cr. Earned</th>
+              </tr>
+            </thead>
+            <tbody id="courses-tbody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
-</div>
 
-<!-- SYNC STATUS BAR -->
-<div class="sync-bar" id="sync-bar" style="display:none"></div>
+  <!-- SYNC STATUS BAR -->
+  <div class="sync-bar" id="sync-bar" style="display:none"></div>
 
-<script src="script.js"></script>
+  <script src="script.js"></script>
 </body>
+
 </html>

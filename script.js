@@ -18,7 +18,6 @@
 var GAS_URL_KEY      = 'coe_gas_url';
 var LOCAL_STU_KEY    = 'coe_students_v2';
 var ADMIN_SESSION    = 'coe_admin_auth';
-var ADMIN_PASSWORD   = 'Gopal@Amity';   // Only checked client-side for the admin UI gate
 
 var SEM_MAP = {
   '1':'Semester I','2':'Semester II','3':'Semester III','4':'Semester IV',
@@ -500,7 +499,7 @@ function renderCourses(courses, title) {
 // ═══════════════════════════════════════════════════════════════════════════════
 //  ADMIN LOGIN  (admin-hidden.html)
 // ═══════════════════════════════════════════════════════════════════════════════
-function adminLogin() {
+async function adminLogin() {
   var pass = sanitize(document.getElementById('a-pass').value);
   var errEl = document.getElementById('admin-err');
 
@@ -510,24 +509,53 @@ function adminLogin() {
     return;
   }
 
-  if (pass !== ADMIN_PASSWORD) {
-    recordFailedAttempt('admin');
+  var loginBtn = document.getElementById('admin-login-btn');
+  if (loginBtn) loginBtn.disabled = true;
+  if (errEl) {
+    errEl.textContent = '⏳ Authenticating with backend…';
+    errEl.className = 'alert info';
+    errEl.style.display = 'block';
+  }
+
+  var gasUrl = getGasUrl();
+  if (!gasUrl) {
     if (errEl) {
-      errEl.textContent = '⚠ Wrong admin password. Please try again.';
+      errEl.textContent = '⚠ Please configure the GAS backend URL first.';
       errEl.className = 'alert err';
-      errEl.style.display = 'block';
-      errEl.classList.remove('shake');
-      void errEl.offsetWidth;
-      errEl.classList.add('shake');
     }
-    document.getElementById('a-pass').value = '';
+    if (loginBtn) loginBtn.disabled = false;
     return;
   }
 
-  clearAttempts('admin');
-  sessionStorage.setItem(ADMIN_SESSION, '1');
-  showPage('admin-dash');
-  loadAdminData();
+  try {
+    var url = gasUrl + '?action=verifyadmin&adminPassword=' + encodeURIComponent(pass);
+    var data = await gasJsonp(url, 15000);
+    
+    if (data && data.success) {
+      clearAttempts('admin');
+      sessionStorage.setItem(ADMIN_SESSION, pass); // Store raw password dynamically in session cache
+      showPage('admin-dash');
+      loadAdminData();
+    } else {
+      recordFailedAttempt('admin');
+      if (errEl) {
+        errEl.textContent = '⚠ ' + (data.error || 'Wrong admin password. Please try again.');
+        errEl.className = 'alert err';
+        errEl.style.display = 'block';
+        errEl.classList.remove('shake');
+        void errEl.offsetWidth;
+        errEl.classList.add('shake');
+      }
+      document.getElementById('a-pass').value = '';
+    }
+  } catch (err) {
+    if (errEl) {
+      errEl.textContent = '✗ Connection error: ' + err.message;
+      errEl.className = 'alert err';
+    }
+  } finally {
+    if (loginBtn) loginBtn.disabled = false;
+  }
 }
 
 function adminLogout() {
@@ -568,7 +596,8 @@ async function loadAdminData() {
   }
 
   try {
-    var data = await gasJsonp(gasUrl + '?action=load', 15000);
+    var adminPassword = sessionStorage.getItem(ADMIN_SESSION) || '';
+    var data = await gasJsonp(gasUrl + '?action=load&adminPassword=' + encodeURIComponent(adminPassword), 15000);
     if (!Array.isArray(data)) throw new Error('Unexpected response from backend.');
     _allStudents = data;
     renderAdminTable(_allStudents);
@@ -668,10 +697,9 @@ async function clearPassword() {
   if (btn) btn.disabled = true;
   if (statusEl) statusEl.textContent = '⏳ Clearing…';
 
-  // We need to send the admin key (SHA-256 of admin password) so GAS can verify
   try {
-    var adminKey = await hashPwd(ADMIN_PASSWORD);
-    await gasPost({ action: 'clearpassword', sen: sen, adminKey: adminKey });
+    var adminPassword = sessionStorage.getItem(ADMIN_SESSION) || '';
+    await gasPost({ action: 'clearpassword', sen: sen, adminPassword: adminPassword });
     if (statusEl) statusEl.textContent = '✓ Password cleared for ' + sen + '. Student will be prompted on next login.';
     document.getElementById('reset-sen-input').value = '';
     setTimeout(loadAdminData, 1200);
@@ -735,7 +763,8 @@ async function handleFileUpload(file) {
   setAlert('info', '<span class="spinner"></span>Sending ' + students.length + ' students to backend…');
 
   try {
-    await gasPost({ action: 'upsert', students: students });
+    var adminPassword = sessionStorage.getItem(ADMIN_SESSION) || '';
+    await gasPost({ action: 'upsert', students: students, adminPassword: adminPassword });
     setAlert('ok', '✓ ' + students.length + ' students sent to the backend (upsert). The backend will insert new records and update existing ones while preserving passwords. Refresh to see updated data.');
     setTimeout(loadAdminData, 2000);
   } catch (postErr) {
@@ -748,138 +777,267 @@ async function handleFileUpload(file) {
 }
 
 /**
- * parseExcelToStudents — uses SheetJS to parse the uploaded .xlsx file.
+ * parseExcelToStudents — STRICT MAPPING v3 (Horizontal Course Columns)
  *
- * Expected Excel columns (flexible header matching):
- *   SEN / Enrollment / Student ID
- *   Name / Student Name
- *   Semester / Sem
- *   Course Code / Code
- *   Course Title / Title / Subject
- *   Type / Course Type
- *   Credits / Credit
- *   Marks / Score / Total Marks
- *   Grade
- *   Grade Points / GP / GradePoint
+ * Handles the AIIT Excel format where each row represents ONE STUDENT and
+ * courses are stored horizontally:
+ *   SEN | Name | SEM | CGPA | 1-Course Code | 1-Course Title | 1-Final Grade |
+ *   1- Credit | 1- Credit Earned | 2-Course Code | 2-Course Title | ...
  *
- * Returns: Array of student objects (see backend.gs for shape)
- */
-/**
- * parseExcelToStudents — STRICT MAPPING (v2).
- *
- * Reads the .xlsx file using SheetJS and maps every column value LITERALLY
- * to the JSON object.  NO calculations are performed — CGPA, total credits,
- * and grade points are read directly from the sheet columns.
- * The Excel file is the absolute source of truth.
+ * Rules (per v3 blueprint):
+ *   · Group by SEN (one row = one student in the horizontal format).
+ *   · Loop i = 1..MAX_COURSES, extract `${i}-Course Code`, `${i}-Course Title`,
+ *     `${i}-Final Grade`, `${i}- Credit`, `${i}- Credit Earned` per course.
+ *   · Also supports the older vertical format (one row = one course) as fallback.
+ *   · CGPA is read DIRECTLY from the 'CGPA' column — never calculated.
+ *   · SEM column is read literally (e.g. "Fall Semester 2025-26").
+ *   · NO mathematical operations are performed anywhere in this function.
  */
 function parseExcelToStudents(arrayBuffer, progressCb) {
   if (!window.XLSX) throw new Error('SheetJS library not loaded.');
-
   if (progressCb) progressCb('Parsing workbook…');
 
-  // raw:true ensures numbers stay as numbers, not strings
   var wb = XLSX.read(arrayBuffer, { type: 'array', cellDates: false, raw: false });
 
-  // Gather rows from all sheets
+  // ── Collect all rows from every sheet ──────────────────────────────────────
   var allRows = [];
   wb.SheetNames.forEach(function(sheetName) {
     var ws   = wb.Sheets[sheetName];
     var rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
-    rows.forEach(function(r) { allRows.push(r); });
+    rows.forEach(function(r) { r.__sheet = sheetName; allRows.push(r); });
   });
-
   if (!allRows.length) return [];
-
   if (progressCb) progressCb('Mapping ' + allRows.length + ' rows…');
 
-  // Flexible column-name resolver (case-insensitive, ignores punctuation)
-  function findKey(obj, candidates) {
-    var keys = Object.keys(obj);
-    for (var i = 0; i < candidates.length; i++) {
-      var cand = candidates[i].toLowerCase().replace(/[^a-z0-9]/g,'');
-      for (var j = 0; j < keys.length; j++) {
-        var norm = keys[j].toLowerCase().replace(/[^a-z0-9]/g,'');
-        if (norm === cand || norm.includes(cand)) {
-          return keys[j];
-        }
-      }
+  // ── Exact-match key finder (case-insensitive, strips spaces & punctuation) ─
+  var sampleKeys = Object.keys(allRows[0]);
+
+  function exactKey(rawKeys, target) {
+    var t = target.toLowerCase().replace(/\s+/g,' ').trim();
+    for (var k = 0; k < rawKeys.length; k++) {
+      if (rawKeys[k].toLowerCase().replace(/\s+/g,' ').trim() === t) return rawKeys[k];
+    }
+    // Fallback: normalised (no spaces/punct)
+    var tn = t.replace(/[^a-z0-9]/g,'');
+    for (var k2 = 0; k2 < rawKeys.length; k2++) {
+      if (rawKeys[k2].toLowerCase().replace(/[^a-z0-9]/g,'') === tn) return rawKeys[k2];
     }
     return null;
   }
 
-  // Detect column keys from the first non-empty row
-  var sample   = allRows[0];
-  var kSen     = findKey(sample, ['sen','enrollment','enrollmentno','studentid']);
-  var kName    = findKey(sample, ['name','studentname']);
-  var kSem     = findKey(sample, ['semester','sem']);
-  var kCode    = findKey(sample, ['coursecode','code','subjectcode']);
-  var kTitle   = findKey(sample, ['coursetitle','title','subject','coursename']);
-  var kType    = findKey(sample, ['type','coursetype','category']);
-  var kCred    = findKey(sample, ['credits','credit','creditpoints']);
-  var kMarks   = findKey(sample, ['marks','score','totalmarks','total']);
-  var kGrade   = findKey(sample, ['grade']);
-  var kGP      = findKey(sample, ['gradepoints','gradepoint','gp','points']);
-  var kCE      = findKey(sample, ['creditearned','earnedcredit','creditsearned']);
-  // Student-level summary columns — read DIRECTLY from the sheet, no calculation
-  var kCgpa    = findKey(sample, ['cgpa','cumulativegpa','gpa']);
-  var kTotCred = findKey(sample, ['totalcreditsearned','totalcredit','totalcreditearned','totcred']);
-  var kProgram = findKey(sample, ['program','programme','branch']);
-  var kSchool  = findKey(sample, ['school','college','department','dept']);
-
-  if (!kSen) throw new Error('Could not find SEN / Enrollment column. Check headers.');
-
-  // Group rows by SEN
-  var map = {};
-  allRows.forEach(function(row) {
-    var sen = String(row[kSen] || '').toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
-    if (!sen || sen.length < 5) return;
-
-    if (!map[sen]) {
-      map[sen] = {
-        sen              : sen,
-        name             : kName    ? String(row[kName]    || '').trim() : '',
-        program          : kProgram ? String(row[kProgram] || '').trim() : '',
-        school           : kSchool  ? String(row[kSchool]  || '').trim() : '',
-        // Read CGPA and total credits DIRECTLY from the sheet — NO calculation
-        cgpa             : kCgpa    ? row[kCgpa]    : '',
-        totalCreditEarned: kTotCred ? row[kTotCred] : '',
-        courses          : []
-      };
+  // Flexible finder — tries a list of candidate names in order
+  function findKey(rawKeys, candidates) {
+    for (var i = 0; i < candidates.length; i++) {
+      var found = exactKey(rawKeys, candidates[i]);
+      if (found) return found;
     }
+    // Last-resort: substring match
+    var firstNorm = candidates[0].toLowerCase().replace(/[^a-z0-9]/g,'');
+    for (var j = 0; j < rawKeys.length; j++) {
+      if (rawKeys[j].toLowerCase().replace(/[^a-z0-9]/g,'').includes(firstNorm)) return rawKeys[j];
+    }
+    return null;
+  }
 
-    var s = map[sen];
-    // Update name/program if better value is found in this row
-    if (kName    && !s.name    && row[kName])    s.name    = String(row[kName]).trim();
-    if (kProgram && !s.program && row[kProgram]) s.program = String(row[kProgram]).trim();
-    if (kSchool  && !s.school  && row[kSchool])  s.school  = String(row[kSchool]).trim();
+  // ── Detect whether format is HORIZONTAL or VERTICAL ───────────────────────
+  // Horizontal: sheet has columns like '1-Course Code', '2-Course Code', etc.
+  var isHorizontal = sampleKeys.some(function(k) {
+    return /^1[- ]course\s*code/i.test(k.trim());
+  });
 
-    var code = kCode  ? String(row[kCode]  || '').trim() : '';
-    var sem  = kSem   ? String(row[kSem]   || '').trim() : '';
+  // ── Detect fixed column keys ───────────────────────────────────────────────
+  var kSen     = findKey(sampleKeys, ['SEN','Enrollment No','Enrollment','Student ID','Enrollment Number']);
+  var kName    = findKey(sampleKeys, ['Name','Student Name','Full Name']);
+  var kSem     = findKey(sampleKeys, ['SEM','Semester','Sem']);
+  var kProgram = findKey(sampleKeys, ['Program','Programme','Branch','Course']);
+  var kSchool  = findKey(sampleKeys, ['School','College','Department','Dept']);
 
-    if (code && code.toLowerCase() !== 'nan') {
-      var credits = kCred  ? parseFloat(row[kCred])  || 0 : 0;
-      var marks   = kMarks ? parseFloat(row[kMarks]) || 0 : 0;
-      var gp      = kGP    ? parseFloat(row[kGP])    || 0 : 0;
-      var grade   = kGrade ? String(row[kGrade] || '').trim() : '';
-      var ce      = kCE    ? parseFloat(row[kCE]) || 0 : (grade !== 'F' ? credits : 0);
+  // CGPA — strict name match first, then fallbacks
+  var kCgpa    = exactKey(sampleKeys, 'CGPA') ||
+                 findKey(sampleKeys, ['CGPA','Cumulative GPA','GPA']);
+
+  // Total credits earned — look for '1- Credit Earned' aggregate or similar
+  var kTotCred = findKey(sampleKeys, [
+    'Total Credit Earned','Total Credits Earned','Total Credit',
+    'Total Credits','Credits Earned','Credit Earned'
+  ]);
+
+  if (!kSen) throw new Error(
+    'SEN / Enrollment column not found. Column headers detected: ' +
+    sampleKeys.slice(0,10).join(', ')
+  );
+
+  var map = {}; // { SEN → studentObject }
+
+  if (isHorizontal) {
+    // ════════════════════════════════════════════════════════════════════════
+    //  HORIZONTAL FORMAT  (one row = one student, courses spread rightward)
+    //  Column names: 1-Course Code, 1-Course Title, 1-Final Grade,
+    //                1- Credit, 1- Credit Earned  (note space after dash)
+    // ════════════════════════════════════════════════════════════════════════
+    var MAX_COURSES = 15; // scan up to 15 course slots per row
+
+    allRows.forEach(function(row) {
+      var rowKeys = Object.keys(row);
+      var sen = String(row[kSen] || '').toUpperCase().replace(/[^A-Z0-9]/g,'').trim();
+      if (!sen || sen.length < 5) return;
+
+      var sem  = kSem  ? String(row[kSem]  || '').trim() : '';
+      var cgpa = kCgpa ? row[kCgpa] : '';
+      // Try to update CGPA if the cell has a real value
+      if (cgpa === '' || cgpa === null || cgpa === undefined) cgpa = '';
+
+      if (!map[sen]) {
+        map[sen] = {
+          sen              : sen,
+          name             : kName    ? String(row[kName]    || '').trim() : '',
+          program          : kProgram ? String(row[kProgram] || '').trim() : '',
+          school           : kSchool  ? String(row[kSchool]  || '').trim() : '',
+          cgpa             : cgpa,  // literal from sheet
+          totalCreditEarned: kTotCred ? row[kTotCred] : '',
+          courses          : []
+        };
+      }
+
+      var s = map[sen];
+      // Update summary fields if we get a non-empty value on a later row
+      if (kName    && !s.name    && row[kName])    s.name    = String(row[kName]).trim();
+      if (kProgram && !s.program && row[kProgram]) s.program = String(row[kProgram]).trim();
+      if (kSchool  && !s.school  && row[kSchool])  s.school  = String(row[kSchool]).trim();
+      if (kCgpa && (s.cgpa === '' || s.cgpa === null) && row[kCgpa] !== '') {
+        s.cgpa = row[kCgpa];
+      }
+      if (kTotCred && (s.totalCreditEarned === '' || s.totalCreditEarned === null) && row[kTotCred] !== '') {
+        s.totalCreditEarned = row[kTotCred];
+      }
+
+      // Extract courses from horizontal columns: 1-Course Code … N-Course Code
+      for (var i = 1; i <= MAX_COURSES; i++) {
+        // Try both '1-Course Code' and '1- Course Code' (with space after dash)
+        var prefix = i + '-';
+        var prefixSp = i + '- ';
+
+        // Course Code
+        var kCC = exactKey(rowKeys, prefix + 'Course Code') ||
+                  exactKey(rowKeys, prefixSp + 'Course Code') ||
+                  exactKey(rowKeys, prefix + 'CourseCode');
+        if (!kCC) break; // no more numbered slots
+
+        var code = String(row[kCC] || '').trim();
+        if (!code || code.toLowerCase() === 'nan') continue;
+
+        // Course Title
+        var kCT = exactKey(rowKeys, prefix + 'Course Title') ||
+                  exactKey(rowKeys, prefixSp + 'Course Title') ||
+                  exactKey(rowKeys, prefix + 'CourseTitle');
+
+        // Final Grade
+        var kFG = exactKey(rowKeys, prefix + 'Final Grade') ||
+                  exactKey(rowKeys, prefixSp + 'Final Grade') ||
+                  exactKey(rowKeys, prefix + 'Grade') ||
+                  exactKey(rowKeys, prefixSp + 'Grade');
+
+        // Credits (allocated)
+        var kCr = exactKey(rowKeys, prefix + 'Credit') ||
+                  exactKey(rowKeys, prefixSp + 'Credit') ||
+                  exactKey(rowKeys, prefix + 'Credits') ||
+                  exactKey(rowKeys, prefixSp + 'Credits');
+
+        // Credit Earned
+        var kCe = exactKey(rowKeys, prefix + 'Credit Earned') ||
+                  exactKey(rowKeys, prefixSp + 'Credit Earned') ||
+                  exactKey(rowKeys, prefix + 'CreditEarned');
+
+        // Grade Points
+        var kGp = exactKey(rowKeys, prefix + 'Grade Points') ||
+                  exactKey(rowKeys, prefixSp + 'Grade Points') ||
+                  exactKey(rowKeys, prefix + 'GradePoints');
+
+        // Marks
+        var kMk = exactKey(rowKeys, prefix + 'Marks') ||
+                  exactKey(rowKeys, prefixSp + 'Marks') ||
+                  exactKey(rowKeys, prefix + 'Score');
+
+        // Course Type
+        var kTy = exactKey(rowKeys, prefix + 'Type') ||
+                  exactKey(rowKeys, prefixSp + 'Type') ||
+                  exactKey(rowKeys, prefix + 'Course Type');
+
+        s.courses.push({
+          semester    : sem,
+          code        : code,
+          title       : kCT ? String(row[kCT] || '').trim() : '',
+          type        : kTy ? String(row[kTy] || '').trim() : '',
+          credits     : kCr ? row[kCr] : '',   // literal from sheet
+          marks       : kMk ? row[kMk] : '',
+          grade       : kFG ? String(row[kFG] || '').trim() : '',
+          gradePoints : kGp ? row[kGp] : '',
+          creditEarned: kCe ? row[kCe] : ''
+        });
+      }
+    });
+
+  } else {
+    // ════════════════════════════════════════════════════════════════════════
+    //  VERTICAL FORMAT  (one row = one course)
+    //  Column names: Course Code, Course Title, Grade, Credits, etc.
+    // ════════════════════════════════════════════════════════════════════════
+    var kCode  = findKey(sampleKeys, ['Course Code','Code','Subject Code','CourseCode']);
+    var kTitle = findKey(sampleKeys, ['Course Title','Title','Subject','Course Name']);
+    var kType  = findKey(sampleKeys, ['Type','Course Type','Category']);
+    var kCred  = findKey(sampleKeys, ['Credits','Credit','Credit Points']);
+    var kMarks = findKey(sampleKeys, ['Marks','Score','Total Marks','Total']);
+    var kGrade = findKey(sampleKeys, ['Grade','Final Grade']);
+    var kGP    = findKey(sampleKeys, ['Grade Points','GradePoints','GP','Points']);
+    var kCE    = findKey(sampleKeys, ['Credit Earned','Credits Earned','CreditEarned']);
+
+    allRows.forEach(function(row) {
+      var rowKeys = Object.keys(row);
+      var sen = String(row[kSen] || '').toUpperCase().replace(/[^A-Z0-9]/g,'').trim();
+      if (!sen || sen.length < 5) return;
+
+      var cgpa = kCgpa ? row[kCgpa] : '';
+      var sem  = kSem  ? String(row[kSem] || '').trim() : '';
+
+      if (!map[sen]) {
+        map[sen] = {
+          sen              : sen,
+          name             : kName    ? String(row[kName]    || '').trim() : '',
+          program          : kProgram ? String(row[kProgram] || '').trim() : '',
+          school           : kSchool  ? String(row[kSchool]  || '').trim() : '',
+          cgpa             : cgpa,
+          totalCreditEarned: kTotCred ? row[kTotCred] : '',
+          courses          : []
+        };
+      }
+
+      var s = map[sen];
+      if (kName    && !s.name    && row[kName])    s.name    = String(row[kName]).trim();
+      if (kProgram && !s.program && row[kProgram]) s.program = String(row[kProgram]).trim();
+      if (kSchool  && !s.school  && row[kSchool])  s.school  = String(row[kSchool]).trim();
+      if (kCgpa && (s.cgpa === '' || s.cgpa === null) && row[kCgpa] !== '') s.cgpa = row[kCgpa];
+      if (kTotCred && (s.totalCreditEarned === '' || s.totalCreditEarned === null) && row[kTotCred] !== '') {
+        s.totalCreditEarned = row[kTotCred];
+      }
+
+      var code = kCode ? String(row[kCode] || '').trim() : '';
+      if (!code || code.toLowerCase() === 'nan') return;
 
       s.courses.push({
         semester    : sem,
         code        : code,
         title       : kTitle ? String(row[kTitle] || '').trim() : '',
         type        : kType  ? String(row[kType]  || '').trim() : '',
-        credits     : credits,
-        marks       : marks,
-        grade       : grade,
-        gradePoints : gp,
-        creditEarned: ce
+        credits     : kCred  ? row[kCred]  : '',
+        marks       : kMarks ? row[kMarks] : '',
+        grade       : kGrade ? String(row[kGrade] || '').trim() : '',
+        gradePoints : kGP    ? row[kGP]    : '',
+        creditEarned: kCE    ? row[kCE]    : ''
       });
-    }
-  });
+    });
+  }
 
   // Return students as-is — NO CALCULATIONS.
-  // Every numeric value (cgpa, totalCreditEarned, gradePoints, creditEarned)
-  // is the literal value read from the Excel sheet.
   return Object.values(map);
 }
 
@@ -890,7 +1048,7 @@ async function clearAllRecords() {
   var statusEl = document.getElementById('clear-all-status');
   var btn      = document.getElementById('btn-clear-all');
 
-  // Double-confirmation: first native confirm, then typed confirmation
+  // Double-confirmation
   if (!confirm('⚠️ WARNING: This will permanently delete ALL student records from the database.\n\nPasswords will also be wiped. This cannot be undone.\n\nAre you sure you want to continue?')) return;
   if (!confirm('FINAL WARNING: Click OK to delete every student record now.')) return;
 
@@ -905,11 +1063,25 @@ async function clearAllRecords() {
   }
 
   try {
-    var adminKey = await hashPwd(ADMIN_PASSWORD);
-    await gasPost({ action: 'deleteall', adminKey: adminKey });
+    var adminPassword = sessionStorage.getItem(ADMIN_SESSION) || '';
+    await gasPost({ action: 'deleteall', adminPassword: adminPassword });
+
+    // ── Flush ALL local caches so ghost data cannot reappear ──────────────
+    // Remove the student data cache key specifically
+    localStorage.removeItem(LOCAL_STU_KEY);
+    // Remove any other student-related keys (scan for coe_ prefix)
+    var toRemove = [];
+    for (var li = 0; li < localStorage.length; li++) {
+      var lk = localStorage.key(li);
+      if (lk && lk.startsWith('coe_') && lk !== GAS_URL_KEY) toRemove.push(lk);
+    }
+    toRemove.forEach(function(k) { localStorage.removeItem(k); });
+    // Clear sessionStorage student data too
+    sessionStorage.removeItem(LOCAL_STU_KEY);
+
     _allStudents = [];
     renderAdminTable([]);
-    if (statusEl) statusEl.textContent = '✓ All records deleted. The database sheet now contains only the header row.';
+    if (statusEl) statusEl.textContent = '✓ All records deleted. Database and local cache cleared.';
   } catch (err) {
     if (statusEl) statusEl.textContent = '✗ Error: ' + err.message;
   } finally {

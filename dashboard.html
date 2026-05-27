@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="AIIT Student Result Dashboard — view semester-wise results, CGPA, and course grades.">
+<title>Result Dashboard · COE Portal</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ── Design tokens (identical to index.html) ───────────────────────────────── */
+:root {
+  --bg: #060b14; --s1: #0d1626; --s2: #112036; --s3: #162845;
+  --border: #1c3050; --border2: #234060;
+  --accent: #0ea5e9; --accent2: #38bdf8;
+  --gold: #f59e0b; --green: #22c55e; --red: #ef4444; --orange: #f97316;
+  --text: #e2e8f0; --sub: #94a3b8; --muted: #4a6080;
+  --sans: 'DM Sans', sans-serif;
+  --display: 'Syne', sans-serif;
+  --mono: 'DM Mono', monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+body::before{
+  content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:radial-gradient(ellipse 80% 50% at 50% -10%,rgba(14,165,233,0.12),transparent),
+             radial-gradient(ellipse 60% 40% at 100% 100%,rgba(56,189,248,0.06),transparent);
+}
+
+/* ── Topbar ─────────────────────────────────────────────────────────────────── */
+.topbar{
+  position:sticky;top:0;z-index:200;
+  background:rgba(6,11,20,0.88);backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);
+  padding:0 2rem;height:56px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.topbar-brand{
+  font-family:var(--display);font-size:1rem;font-weight:700;
+  background:linear-gradient(90deg,var(--accent),var(--accent2));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.topbar-right{display:flex;align-items:center;gap:0.75rem;font-size:0.82rem;color:var(--sub)}
+.btn-sm{
+  font-family:var(--mono);font-size:0.72rem;padding:0.3rem 0.75rem;
+  border-radius:5px;border:1px solid var(--border2);background:transparent;
+  color:var(--sub);cursor:pointer;transition:all 0.15s;
+}
+.btn-sm:hover{border-color:var(--red);color:var(--red)}
+
+/* ── Main layout ────────────────────────────────────────────────────────────── */
+.dash-body{padding:2rem;max-width:1100px;margin:0 auto;position:relative;z-index:1}
+
+/* ── Profile + stats card ──────────────────────────────────────────────────── */
+.profile-card{
+  background:var(--s1);border:1px solid var(--border);border-radius:16px;
+  padding:1.5rem 2rem;margin-bottom:2rem;
+  display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;
+}
+.avatar{
+  width:60px;height:60px;border-radius:50%;flex-shrink:0;
+  background:linear-gradient(135deg,var(--accent),#0ea5e9 50%,var(--accent2));
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--display);font-size:1.4rem;font-weight:800;color:#fff;
+}
+.pinfo-name{font-family:var(--display);font-size:1.15rem;font-weight:700;margin-bottom:0.25rem}
+.pinfo-meta{font-size:0.8rem;color:var(--sub)}
+.stat-row{display:flex;gap:1rem;flex-wrap:wrap;margin-left:auto}
+.stat-chip{
+  background:var(--s2);border:1px solid var(--border);border-radius:10px;
+  padding:0.75rem 1.2rem;text-align:center;min-width:90px;
+}
+.stat-val{font-family:var(--mono);font-size:1.35rem;font-weight:500;line-height:1}
+.stat-lbl{font-size:0.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-top:0.35rem}
+.stat-val.gold{color:var(--gold)} .stat-val.green{color:var(--green)} .stat-val.blue{color:var(--accent)}
+
+/* ── Semester filter row ────────────────────────────────────────────────────── */
+.filter-row{
+  display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap;
+}
+.filter-label{
+  font-family:var(--mono);font-size:0.7rem;color:var(--muted);
+  text-transform:uppercase;letter-spacing:0.1em;white-space:nowrap;
+}
+.sem-select{
+  flex:1;max-width:380px;
+  padding:0.55rem 1rem;background:var(--s1);
+  border:1px solid var(--border);border-radius:8px;color:var(--text);
+  font-family:var(--sans);font-size:0.88rem;outline:none;
+  cursor:pointer;transition:border-color 0.15s;
+  position:relative;z-index:2;pointer-events:auto;
+}
+.sem-select:focus{border-color:var(--accent)}
+.sem-select option{background:var(--s2)}
+
+/* Pill-style tabs (alternative for small sem counts) */
+.sem-tabs{display:flex;gap:0.4rem;flex-wrap:wrap}
+.tab{
+  font-family:var(--mono);font-size:0.73rem;padding:0.4rem 0.9rem;
+  border-radius:6px;border:1px solid var(--border);background:transparent;
+  color:var(--muted);cursor:pointer;transition:all 0.15s;
+}
+.tab:hover{border-color:var(--accent2);color:var(--accent2)}
+.tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
+
+/* ── Course table card ─────────────────────────────────────────────────────── */
+.card{background:var(--s1);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:2rem}
+.card-head{
+  padding:1rem 1.5rem;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;
+}
+.card-title{font-family:var(--display);font-weight:700;font-size:0.95rem}
+.badge{
+  font-family:var(--mono);font-size:0.7rem;color:var(--sub);
+  background:var(--s2);border:1px solid var(--border);
+  padding:0.18rem 0.6rem;border-radius:20px;
+}
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+thead th{
+  padding:0.7rem 1rem;text-align:left;
+  font-family:var(--mono);font-size:0.65rem;letter-spacing:0.1em;
+  text-transform:uppercase;color:var(--muted);
+  border-bottom:1px solid var(--border);background:var(--s2);
+}
+tbody tr{border-bottom:1px solid rgba(28,48,80,0.5);transition:background 0.1s}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:rgba(14,165,233,0.03)}
+tbody td{padding:0.8rem 1rem;font-size:0.86rem}
+.td-code{font-family:var(--mono);color:var(--accent2);font-size:0.78rem}
+.type-chip{
+  font-family:var(--mono);font-size:0.68rem;color:var(--sub);
+  background:var(--s3);border-radius:3px;padding:0.15rem 0.45rem;display:inline-block;
+}
+.grade{font-family:var(--mono);font-size:0.8rem;font-weight:500;padding:0.2rem 0.6rem;border-radius:4px;display:inline-block}
+.g-S{background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3)}
+.g-A{background:rgba(14,165,233,0.15);color:#38bdf8;border:1px solid rgba(14,165,233,0.3)}
+.g-B{background:rgba(56,189,248,0.1);color:#7dd3fc;border:1px solid rgba(56,189,248,0.25)}
+.g-C{background:rgba(245,158,11,0.12);color:#fbbf24;border:1px solid rgba(245,158,11,0.25)}
+.g-D{background:rgba(249,115,22,0.12);color:#fb923c;border:1px solid rgba(249,115,22,0.25)}
+.g-E{background:rgba(239,68,68,0.1);color:#f87171;border:1px solid rgba(239,68,68,0.25)}
+.g-F{background:rgba(239,68,68,0.18);color:#ef4444;border:1px solid rgba(239,68,68,0.4)}
+.bar-wrap{display:flex;align-items:center;gap:0.5rem}
+.bar-num{font-family:var(--mono);font-size:0.78rem;min-width:40px}
+.bar-bg{height:4px;border-radius:2px;background:var(--s3);flex:1;min-width:45px}
+.bar-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.empty-row td{text-align:center;padding:3rem;color:var(--muted);font-size:0.88rem}
+
+/* ── Error state ─────────────────────────────────────────────────────────────  */
+.error-wrap{
+  min-height:80vh;display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:1rem;text-align:center;padding:2rem;
+}
+.error-icon{font-size:3rem;margin-bottom:0.5rem}
+.error-title{font-family:var(--display);font-size:1.4rem;font-weight:700;color:var(--sub)}
+.error-desc{font-size:0.88rem;color:var(--muted);max-width:360px;line-height:1.6}
+.link-home{
+  font-family:var(--mono);font-size:0.8rem;color:var(--accent);
+  text-decoration:none;border:1px solid rgba(14,165,233,0.3);
+  padding:0.4rem 1rem;border-radius:6px;transition:all 0.15s;
+}
+.link-home:hover{background:rgba(14,165,233,0.1)}
+
+/* ── Developer credit ──────────────────────────────────────────────────────── */
+.dev-credit{
+  position:fixed;top:0;right:0;z-index:300;padding:0.35rem 1rem;
+  font-size:0.68rem;color:var(--muted);pointer-events:none;
+  font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-left-radius:6px;
+}
+
+@media(max-width:600px){
+  .dash-body{padding:1rem}
+  .profile-card{gap:1rem;padding:1.2rem}
+  thead th:nth-child(n+5),tbody td:nth-child(n+5){display:none}
+  .stat-chip{min-width:70px;padding:0.55rem 0.7rem}
+  .stat-val{font-size:1.1rem}
+}
+</style>
+</head>
+<body>
+
+<div class="dev-credit">Developed by <strong style="color:var(--accent2)">Dr. GOPAL RAJENDRAN</strong></div>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-brand">COE · Result Dashboard</div>
+  <div class="topbar-right">
+    <span id="topbar-sen" style="font-family:var(--mono);font-size:0.8rem"></span>
+    <button class="btn-sm" onclick="goBack()">← Back</button>
+  </div>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="dash-body" id="dash-body">
+  <!-- Injected by renderDashboard() -->
+</div>
+
+<script src="script.js"></script>
+<script>
+'use strict';
+
+// ── Retrieve current student from script.js state ────────────────────────────
+// script.js exposes `currentStudent` as a global.
+// dashboard.html is loaded after a successful login on index.html.
+// If the student is not in memory (e.g. page refreshed), redirect home.
+
+function goBack() { window.location.href = 'index.html'; }
+
+function esc(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ── Semester filter state ─────────────────────────────────────────────────────
+var _allCourses   = [];
+var _activeSem    = '__all__';
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  // currentStudent is set by script.js on successful login
+  if (typeof currentStudent === 'undefined' || !currentStudent) {
+    showError(
+      'Session Expired',
+      'Please go back and log in again. Your session data is not available.',
+      true
+    );
+    return;
+  }
+  renderDashboard(currentStudent);
+});
+
+// ── Main render ───────────────────────────────────────────────────────────────
+function renderDashboard(student) {
+  // Update topbar
+  var senEl = document.getElementById('topbar-sen');
+  if (senEl) senEl.textContent = student.sen;
+
+  // Filter out blank/nan courses
+  _allCourses = (student.courses || []).filter(function(c) {
+    return c && c.code && String(c.code).trim() !== '' && String(c.code).toLowerCase() !== 'nan';
+  });
+
+  // Collect unique, non-empty semester labels (preserve insertion order)
+  var semLabels = [];
+  var semSeen   = {};
+  _allCourses.forEach(function(c) {
+    var s = String(c.semester || '').trim();
+    if (s && !semSeen[s]) { semLabels.push(s); semSeen[s] = true; }
+  });
+
+  // Build the page HTML
+  var body = document.getElementById('dash-body');
+  body.innerHTML = [
+    buildProfileCard(student),
+    buildFilterRow(semLabels),
+    buildTableCard(_allCourses, 'All Semesters')
+  ].join('');
+
+  // Set up semester filter interactivity
+  bindFilter(semLabels);
+}
+
+// ── Profile + stat chips ──────────────────────────────────────────────────────
+function buildProfileCard(student) {
+  var initial = (student.name || 'S').charAt(0).toUpperCase();
+  var cgpa    = (student.cgpa !== '' && student.cgpa !== null && student.cgpa !== undefined)
+                  ? student.cgpa : '—';
+  var credits = (student.totalCreditEarned !== '' && student.totalCreditEarned !== null)
+                  ? student.totalCreditEarned : '—';
+  var count   = _allCourses.length;
+
+  return '<div class="profile-card">' +
+    '<div class="avatar">' + esc(initial) + '</div>' +
+    '<div style="flex:1;min-width:0">' +
+      '<div class="pinfo-name">' + esc(student.name || '—') + '</div>' +
+      '<div class="pinfo-meta">' +
+        esc(student.sen) +
+        (student.program ? ' &nbsp;·&nbsp; ' + esc(student.program) : '') +
+        (student.school  ? ' &nbsp;·&nbsp; ' + esc(student.school)  : '') +
+      '</div>' +
+    '</div>' +
+    '<div class="stat-row">' +
+      '<div class="stat-chip">' +
+        '<div class="stat-val gold" id="dash-cgpa">' + esc(String(cgpa)) + '</div>' +
+        '<div class="stat-lbl">CGPA</div>' +
+      '</div>' +
+      '<div class="stat-chip">' +
+        '<div class="stat-val green" id="dash-ce">' + esc(String(credits)) + '</div>' +
+        '<div class="stat-lbl">Credits Earned</div>' +
+      '</div>' +
+      '<div class="stat-chip">' +
+        '<div class="stat-val blue" id="dash-nc">' + count + '</div>' +
+        '<div class="stat-lbl">Courses</div>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+// ── Semester filter row ───────────────────────────────────────────────────────
+function buildFilterRow(semLabels) {
+  if (!semLabels.length) return '';
+
+  // Use a <select> dropdown when there are many sems, tabs when ≤4
+  if (semLabels.length > 4) {
+    var opts = '<option value="__all__">All Semesters</option>';
+    semLabels.forEach(function(s) {
+      opts += '<option value="' + esc(s) + '">' + esc(s) + '</option>';
+    });
+    return '<div class="filter-row">' +
+      '<span class="filter-label">Semester</span>' +
+      '<select id="sem-filter" class="sem-select" onchange="applySemFilter(this.value)">' +
+        opts +
+      '</select>' +
+    '</div>';
+  }
+
+  // Pill tabs for small count
+  var tabs = '<button class="tab active" id="tab-__all__" onclick="applySemFilter(\'__all__\')">All Semesters</button>';
+  semLabels.forEach(function(s) {
+    tabs += '<button class="tab" id="tab-' + esc(s.replace(/\W/g,'_')) + '" onclick="applySemFilter(\'' + esc(s).replace(/'/g,"\\'") + '\')">' + esc(s) + '</button>';
+  });
+  return '<div class="filter-row"><span class="filter-label">Semester</span>' +
+    '<div class="sem-tabs" id="sem-tabs">' + tabs + '</div></div>';
+}
+
+// ── Apply filter ──────────────────────────────────────────────────────────────
+function applySemFilter(sem) {
+  _activeSem = sem;
+  var filtered = (sem === '__all__')
+    ? _allCourses
+    : _allCourses.filter(function(c) { return String(c.semester || '').trim() === sem; });
+
+  var label = (sem === '__all__') ? 'All Semesters' : sem;
+  updateTableCard(filtered, label);
+
+  // Update tab active state (only when using pill tabs)
+  document.querySelectorAll('.sem-tabs .tab').forEach(function(btn) {
+    btn.classList.remove('active');
+  });
+  var activeTab = sem === '__all__'
+    ? document.getElementById('tab-__all__')
+    : document.getElementById('tab-' + sem.replace(/\W/g,'_'));
+  if (activeTab) activeTab.classList.add('active');
+
+  // Update count badge
+  var badge = document.getElementById('course-badge');
+  if (badge) badge.textContent = filtered.length + ' course' + (filtered.length !== 1 ? 's' : '');
+}
+
+function bindFilter(semLabels) {
+  // Nothing extra needed — all interactivity is via inline onchange/onclick
+}
+
+// ── Course table ──────────────────────────────────────────────────────────────
+function buildTableCard(courses, title) {
+  return '<div class="card" id="course-card">' +
+    '<div class="card-head">' +
+      '<div class="card-title" id="table-title">' + esc(title) + '</div>' +
+      '<div class="badge" id="course-badge">' + courses.length + ' course' + (courses.length !== 1 ? 's' : '') + '</div>' +
+    '</div>' +
+    '<div class="tbl-wrap">' +
+      '<table>' +
+        '<thead><tr>' +
+          '<th>Code</th><th>Course Title</th><th>Type</th>' +
+          '<th>Credits</th><th>Grade</th><th>Gr. Pts</th><th>Cr. Earned</th>' +
+        '</tr></thead>' +
+        '<tbody id="courses-tbody">' + buildTableRows(courses) + '</tbody>' +
+      '</table>' +
+    '</div>' +
+  '</div>';
+}
+
+function updateTableCard(courses, title) {
+  var titleEl = document.getElementById('table-title');
+  var tbody   = document.getElementById('courses-tbody');
+  if (titleEl) titleEl.textContent = title;
+  if (tbody)   tbody.innerHTML = buildTableRows(courses);
+  var badge = document.getElementById('course-badge');
+  if (badge) badge.textContent = courses.length + ' course' + (courses.length !== 1 ? 's' : '');
+}
+
+function buildTableRows(courses) {
+  if (!courses.length) {
+    return '<tr class="empty-row"><td colspan="7">No courses found for this semester.</td></tr>';
+  }
+  return courses.map(function(c) {
+    var grade = String(c.grade || '—').trim();
+    var gc    = ['S','A','B','C','D','E','F'].indexOf(grade) >= 0 ? 'g-' + grade : 'g-D';
+    var marksVal = (c.marks !== '' && c.marks !== null && c.marks !== undefined)
+                     ? String(c.marks) : '—';
+    var pct   = (c.marks !== '' && parseFloat(c.marks) > 0)
+                  ? Math.min(100, Math.round(parseFloat(c.marks))) : 0;
+
+    // Marks bar (only shown if marks column has data)
+    var marksCell = (marksVal !== '—')
+      ? '<div class="bar-wrap"><span class="bar-num">' + esc(marksVal) + '</span>' +
+        '<div class="bar-bg"><div class="bar-fill" style="width:' + pct + '%"></div></div></div>'
+      : '<span style="color:var(--muted);font-size:0.78rem;font-family:var(--mono)">—</span>';
+
+    return '<tr>' +
+      '<td class="td-code">'  + esc(c.code)                  + '</td>' +
+      '<td style="font-weight:500;max-width:260px">' + esc(c.title || '—') + '</td>' +
+      '<td><span class="type-chip">' + esc(c.type || '—') + '</span></td>' +
+      '<td style="font-family:var(--mono);font-size:0.8rem">' + esc(String(c.credits !== '' ? c.credits : '—')) + '</td>' +
+      '<td><span class="grade ' + gc + '">' + esc(grade) + '</span></td>' +
+      '<td style="font-family:var(--mono);font-size:0.8rem">' + esc(String(c.gradePoints !== '' ? c.gradePoints : '—')) + '</td>' +
+      '<td style="font-family:var(--mono);font-size:0.8rem;color:var(--green)">' + esc(String(c.creditEarned !== '' ? c.creditEarned : '—')) + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+// ── Error display ─────────────────────────────────────────────────────────────
+function showError(title, desc, showBack) {
+  var body = document.getElementById('dash-body');
+  body.innerHTML = '<div class="error-wrap">' +
+    '<div class="error-icon">⚠️</div>' +
+    '<div class="error-title">' + esc(title) + '</div>' +
+    '<div class="error-desc">' + esc(desc) + '</div>' +
+    (showBack ? '<a href="index.html" class="link-home">← Go to Login</a>' : '') +
+  '</div>';
+}
+</script>
+</body>
+</html>

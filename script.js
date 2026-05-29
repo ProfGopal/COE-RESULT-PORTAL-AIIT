@@ -218,7 +218,29 @@ function goAdmin() {
 function logout() {
   currentStudent = null;
   isNewUser = false;
-  showPage('landing');
+  
+  // Hide student dashboard page and remove display if overridden
+  var dash = document.getElementById('student-dash');
+  if (dash) {
+    dash.classList.remove('active');
+    dash.style.display = 'none';
+  }
+  
+  // Restore login section display
+  var loginSec = document.getElementById('loginSection');
+  if (loginSec) {
+    loginSec.style.display = 'block';
+  }
+  
+  // Show landing page
+  var landing = document.getElementById('landing');
+  if (landing) {
+    landing.classList.add('active');
+    landing.style.display = 'block';
+  }
+  
+  // Clear the SEN/Password input fields and hide alerts
+  resetStudentLoginUI();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -339,6 +361,8 @@ async function studentLoginStep() {
         currentStudent = studentData.student;
         renderStudentDash(currentStudent);
         showPage('student-dash');
+        var loginSec = document.getElementById('loginSection');
+        if (loginSec) loginSec.style.display = 'none';
         var dashEl = document.getElementById('student-dash');
         if (dashEl) {
           dashEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -370,6 +394,8 @@ async function studentLoginStep() {
       currentStudent = loginResult.student;
       renderStudentDash(currentStudent);
       showPage('student-dash');
+      var loginSec = document.getElementById('loginSection');
+      if (loginSec) loginSec.style.display = 'none';
       var dashEl = document.getElementById('student-dash');
       if (dashEl) {
         dashEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -420,40 +446,39 @@ function renderStudentDash(student) {
   });
   document.getElementById('dash-nc').textContent = validCourses.length;
 
-  // Build semester tabs dynamically
-  var sems = [];
-  var seen = {};
-  validCourses.forEach(function (c) {
-    var sVal = String(c.sem || c.semester || '').trim();
-    if (sVal && sVal !== 'nan' && !seen[sVal]) {
-      sems.push(sVal);
-      seen[sVal] = true;
-    }
-  });
-  sems.sort();
+  // Step A (Extract Unique Tabs): Create an array of unique semesters from the student's data
+  const uniqueSems = [...new Set(student.courses.map(c => c.sem).filter(Boolean))];
 
+  // Step B (Render Tabs): Dynamically generate the HTML
   var tabsEl = document.getElementById('sem-tabs');
   tabsEl.innerHTML = '';
 
-  function makeTab(label, key) {
+  function makeTab(label, isAll, clickedSem) {
     var btn = document.createElement('button');
-    btn.className = 'tab' + (key === 'all' ? ' active' : '');
+    btn.className = 'tab' + (isAll ? ' active' : '');
     btn.textContent = label;
     btn.onclick = function () {
       document.querySelectorAll('.tab').forEach(function (t) { t.classList.remove('active'); });
       btn.classList.add('active');
-      renderCourses(validCourses, label, key);
+      if (isAll) {
+        // When "All Semesters" is clicked, pass student.courses to the table rendering function
+        renderCourses(student.courses, 'All Semesters', 'all');
+      } else {
+        // When a specific semester tab is clicked, filter the array
+        const filtered = student.courses.filter(c => c.sem === clickedSem);
+        renderCourses(filtered, label, clickedSem);
+      }
     };
     return btn;
   }
 
-  tabsEl.appendChild(makeTab('All Semesters', 'all'));
-  sems.forEach(function (s) {
-    var label = SEM_MAP[s] || ('Sem ' + s);
-    tabsEl.appendChild(makeTab(label, s));
+  tabsEl.appendChild(makeTab('All Semesters', true));
+  uniqueSems.forEach(function (s) {
+    var label = SEM_MAP[s] || s;
+    tabsEl.appendChild(makeTab(label, false, s));
   });
 
-  renderCourses(validCourses, 'All Semesters', 'all');
+  renderCourses(student.courses, 'All Semesters', 'all');
 }
 
 function renderCourses(courses, title, semesterFilter) {
@@ -919,7 +944,7 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
     }
 
     var kSem = fuzzyFindKey(rowKeys, 'sem') || fuzzyFindKey(rowKeys, 'semester');
-    var sem = kSem ? String(row[kSem] || '').trim() : '';
+    const rowSem = (kSem ? String(row[kSem] || '').trim() : '') || row['SEM'] || row['Semester'] || "Unknown";
 
     // Step A (Extract CGPA): Scan all keys for "CGPA" (case-insensitive)
     rowKeys.forEach(function (k) {
@@ -991,8 +1016,9 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
         }
 
         if (kCC) {
-          var code = String(row[kCC] || '').trim();
-          if (code && code.toLowerCase() !== 'nan') {
+          var rawCode = row[kCC] || '';
+          const cleanCode = rawCode.toString().trim().toUpperCase();
+          if (cleanCode && cleanCode !== 'NAN') {
             numberedCoursesFound = true;
             
             var kCT = findNumberedField(rowKeys, i, ['coursetitle', 'title', 'subject', 'coursename']);
@@ -1004,9 +1030,9 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
             var kTy = findNumberedField(rowKeys, i, ['type', 'coursetype']);
 
             var courseObj = {
-              semester: sem,
-              sem: sem,
-              code: code,
+              semester: rowSem,
+              sem: rowSem,
+              code: cleanCode,
               title: kCT ? String(row[kCT] || '').trim() : '',
               type: kTy ? String(row[kTy] || '').trim() : '',
               credits: kCr ? row[kCr] : '',
@@ -1027,8 +1053,9 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
       if (!numberedCoursesFound) {
         var kCCVert = fuzzyFindKey(rowKeys, 'coursecode') || fuzzyFindKey(rowKeys, 'code') || fuzzyFindKey(rowKeys, 'subjectcode');
         if (kCCVert) {
-          var code = String(row[kCCVert] || '').trim();
-          if (code && code.toLowerCase() !== 'nan') {
+          var rawCode = row[kCCVert] || '';
+          const cleanCode = rawCode.toString().trim().toUpperCase();
+          if (cleanCode && cleanCode !== 'NAN') {
             var kCT = fuzzyFindKey(rowKeys, 'coursetitle') || fuzzyFindKey(rowKeys, 'title') || fuzzyFindKey(rowKeys, 'subject') || fuzzyFindKey(rowKeys, 'coursename');
             var kFG = fuzzyFindKey(rowKeys, 'finalgrade') || fuzzyFindKey(rowKeys, 'grade');
             var kCr = fuzzyFindKey(rowKeys, 'creditregistered') || fuzzyFindKey(rowKeys, 'credit') || fuzzyFindKey(rowKeys, 'credits');
@@ -1038,9 +1065,9 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
             var kTy = fuzzyFindKey(rowKeys, 'type') || fuzzyFindKey(rowKeys, 'coursetype') || fuzzyFindKey(rowKeys, 'category');
 
             var courseObj = {
-              semester: sem,
-              sem: sem,
-              code: code,
+              semester: rowSem,
+              sem: rowSem,
+              code: cleanCode,
               title: kCT ? String(row[kCT] || '').trim() : '',
               type: kTy ? String(row[kTy] || '').trim() : '',
               credits: kCr ? row[kCr] : '',
@@ -1108,6 +1135,15 @@ async function clearAllRecords() {
     var el = document.getElementById('s-sen');
     if (el) el.focus();
   }, 150);
+
+  // Bind event listener to the new bottom logout button
+  var btnLogoutBottom = document.getElementById('btn-logout-bottom');
+  if (btnLogoutBottom) {
+    btnLogoutBottom.addEventListener('click', function (e) {
+      e.preventDefault();
+      logout();
+    });
+  }
 
   var gasUrl = GAS_URL;
   var hint = document.getElementById('sync-hint');

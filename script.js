@@ -339,6 +339,10 @@ async function studentLoginStep() {
         currentStudent = studentData.student;
         renderStudentDash(currentStudent);
         showPage('student-dash');
+        var dashEl = document.getElementById('student-dash');
+        if (dashEl) {
+          dashEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
       } else {
         // setpassword may not be readable via no-cors; fall back gracefully
         showOk('student-ok', '✓ Password created! Please sign in again with your new password.');
@@ -366,6 +370,10 @@ async function studentLoginStep() {
       currentStudent = loginResult.student;
       renderStudentDash(currentStudent);
       showPage('student-dash');
+      var dashEl = document.getElementById('student-dash');
+      if (dashEl) {
+        dashEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     } else if (loginResult && loginResult.error === 'WRONG_PASSWORD') {
       recordFailedAttempt('stu_' + sen);
       showErr('student-err', '⚠ Wrong password. Please try again.', ['s-pass']);
@@ -995,7 +1003,7 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
             var kCe = findNumberedField(rowKeys, i, ['creditearned']);
             var kTy = findNumberedField(rowKeys, i, ['type', 'coursetype']);
 
-            s.courses.push({
+            var courseObj = {
               semester: sem,
               sem: sem,
               code: code,
@@ -1006,7 +1014,11 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
               grade: kFG ? String(row[kFG] || '').trim() : '',
               gradePoints: kGp ? row[kGp] : '',
               creditEarned: kCe ? row[kCe] : ''
-            });
+            };
+            var exists = s.courses.some(function (c) { return c.code === courseObj.code; });
+            if (!exists) {
+              s.courses.push(courseObj);
+            }
           }
         }
       }
@@ -1025,7 +1037,7 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
             var kCe = fuzzyFindKey(rowKeys, 'creditearned');
             var kTy = fuzzyFindKey(rowKeys, 'type') || fuzzyFindKey(rowKeys, 'coursetype') || fuzzyFindKey(rowKeys, 'category');
 
-            s.courses.push({
+            var courseObj = {
               semester: sem,
               sem: sem,
               code: code,
@@ -1036,7 +1048,11 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
               grade: kFG ? String(row[kFG] || '').trim() : '',
               gradePoints: kGp ? row[kGp] : '',
               creditEarned: kCe ? row[kCe] : ''
-            });
+            };
+            var exists = s.courses.some(function (c) { return c.code === courseObj.code; });
+            if (!exists) {
+              s.courses.push(courseObj);
+            }
           }
         }
       }
@@ -1086,6 +1102,12 @@ async function clearAllRecords() {
 (function boot() {
   // Only run on index.html (landing page)
   if (!document.getElementById('landing')) return;
+
+  resetStudentLoginUI();
+  setTimeout(function () {
+    var el = document.getElementById('s-sen');
+    if (el) el.focus();
+  }, 150);
 
   var gasUrl = GAS_URL;
   var hint = document.getElementById('sync-hint');

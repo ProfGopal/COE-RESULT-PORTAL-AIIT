@@ -821,6 +821,9 @@
         display: none
       }
     }
+    #btn-admin-nav:hover {
+      color: var(--accent) !important;
+    }
   </style>
 </head>
 
@@ -829,70 +832,57 @@
   <!-- VERSION TAG -->
   <div
     style="position:fixed;top:0;left:0;z-index:300;padding:0.35rem 1rem;font-size:0.68rem;color:var(--muted);pointer-events:none;font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-right-radius:6px;">
-    Version <strong style="color:var(--accent)">v1.3</strong>
+    Version <strong style="color:var(--accent)">v1.4</strong>
   </div>
 
-  <!-- DEVELOPER CREDIT -->
+  <!-- DEVELOPER CREDIT & ADMIN LINK -->
   <div
-    style="position:fixed;top:0;right:0;z-index:300;padding:0.35rem 1rem;font-size:0.68rem;color:var(--muted);pointer-events:none;font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-left-radius:6px;">
+    style="position:fixed;top:0;right:32px;z-index:300;padding:0.35rem 1rem;font-size:0.68rem;color:var(--muted);pointer-events:none;font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-left-radius:6px;">
     Developed by <strong style="color:var(--accent2)">Dr. GOPAL RAJENDRAN</strong>
   </div>
+
+  <a href="admin-hidden.html" id="btn-admin-nav" style="position:fixed;top:0;right:0;z-index:301;padding:0.35rem 0.6rem;background:rgba(6,11,20,0.6);border-bottom-left-radius:6px;color:var(--sub);display:flex;align-items:center;justify-content:center;transition:color 0.2s;" title="Admin Portal">
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+  </a>
 
   <!-- LANDING -->
   <div id="landing" class="page active">
     <div class="land-eyebrow">Controller of Examinations · COE</div>
     <h1 class="land-title">AMITY UNIVERSITY<br>AIIT RESULT PORTAL</h1>
     <p class="land-sub">Amity Institute of Information Technology</p>
-    <div class="land-cards">
-      <div class="role-card" id="btn-student-login" onclick="showStudentLogin()">
-        <span class="role-icon">🎓</span>
-        <div class="role-name">Student Login</div>
-        <div class="role-desc">View your personal academic results and semester grades</div>
+    
+    <div class="login-box" style="margin: 0 auto 2rem auto; text-align: left; width: 100%; max-width: 440px;">
+      <h2 class="login-title" style="text-align: center; margin-bottom: 0.4rem;">Student Login</h2>
+      <p class="login-sub" id="student-login-hint" style="text-align: center;">Enter your SEN and password. First time? Use password <strong
+          style="color:var(--accent);font-family:var(--mono)">pwd</strong> to set a new one.</p>
+      <div class="alert err" id="student-err"></div>
+      <div class="alert ok" id="student-ok"></div>
+      <div class="field">
+        <label for="s-sen">SEN Number</label>
+        <input type="text" id="s-sen" placeholder="e.g. A869145024001" autocomplete="username" oninput="onSenInput()"
+          onkeydown="if(event.key==='Enter')studentLoginStep()">
       </div>
-      <div class="role-card" id="btn-admin-nav" onclick="goAdmin()">
-        <span class="role-icon">🛡️</span>
-        <div class="role-name">Admin Panel</div>
-        <div class="role-desc">Upload result sheets, manage students, reset passwords</div>
+      <div class="field" id="s-pass-field">
+        <label for="s-pass">Password</label>
+        <input type="password" id="s-pass" placeholder="Your password" autocomplete="current-password"
+          onkeydown="if(event.key==='Enter')studentLoginStep()">
       </div>
-    </div>
-    <p style="margin-top:3rem;font-size:0.72rem;color:var(--muted);font-family:var(--mono)" id="sync-hint"></p>
-  </div>
-
-  <!-- STUDENT LOGIN -->
-  <div id="student-login" class="page">
-    <div class="login-wrap">
-      <div class="login-box">
-        <button class="back-btn" id="back-to-landing" onclick="showPage('landing')">← Back to Home</button>
-        <h2 class="login-title">Student Login</h2>
-        <p class="login-sub" id="student-login-hint">Enter your SEN and password. First time? Use password <strong
-            style="color:var(--accent);font-family:var(--mono)">pwd</strong> to set a new one.</p>
-        <div class="alert err" id="student-err"></div>
-        <div class="alert ok" id="student-ok"></div>
+      <div id="s-newpass-fields" style="display:none">
         <div class="field">
-          <label for="s-sen">SEN Number</label>
-          <input type="text" id="s-sen" placeholder="e.g. A869145024001" autocomplete="username" oninput="onSenInput()"
+          <label for="s-newpass">Create Password</label>
+          <input type="password" id="s-newpass" placeholder="Min 6 characters"
             onkeydown="if(event.key==='Enter')studentLoginStep()">
         </div>
-        <div class="field" id="s-pass-field">
-          <label for="s-pass">Password</label>
-          <input type="password" id="s-pass" placeholder="Your password" autocomplete="current-password"
+        <div class="field">
+          <label for="s-confirmpass">Confirm Password</label>
+          <input type="password" id="s-confirmpass" placeholder="Repeat password"
             onkeydown="if(event.key==='Enter')studentLoginStep()">
         </div>
-        <div id="s-newpass-fields" style="display:none">
-          <div class="field">
-            <label for="s-newpass">Create Password</label>
-            <input type="password" id="s-newpass" placeholder="Min 6 characters"
-              onkeydown="if(event.key==='Enter')studentLoginStep()">
-          </div>
-          <div class="field">
-            <label for="s-confirmpass">Confirm Password</label>
-            <input type="password" id="s-confirmpass" placeholder="Repeat password"
-              onkeydown="if(event.key==='Enter')studentLoginStep()">
-          </div>
-        </div>
-        <button class="btn-primary" id="s-login-btn" onclick="studentLoginStep()">Sign In →</button>
       </div>
+      <button class="btn-primary" id="s-login-btn" onclick="studentLoginStep()">Sign In →</button>
     </div>
+
+    <p style="font-size:0.72rem;color:var(--muted);font-family:var(--mono)" id="sync-hint"></p>
   </div>
 
   <!-- STUDENT DASHBOARD -->

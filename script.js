@@ -591,7 +591,7 @@ function renderDedicatedBacklogBanner(student, idPrefix) {
           '</table>',
         '</div>',
       '</div>'
-    ];
+    );
     backlogContainer.innerHTML = html.join('');
     backlogContainer.style.display = 'block';
   } else {

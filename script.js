@@ -458,7 +458,7 @@ function renderStudentDash(student) {
     btn.className = 'tab' + (isAll ? ' active' : '');
     btn.textContent = label;
     btn.onclick = function () {
-      document.querySelectorAll('.tab').forEach(function (t) { t.classList.remove('active'); });
+      document.querySelectorAll('#sem-tabs .tab').forEach(function (t) { t.classList.remove('active'); });
       btn.classList.add('active');
       if (isAll) {
         // When "All Semesters" is clicked, pass student.courses to the table rendering function
@@ -479,9 +479,47 @@ function renderStudentDash(student) {
   });
 
   renderCourses(student.courses, 'All Semesters', 'all');
+  updateSummaryBanner(student.courses, 'all', '');
 }
 
-function renderCourses(courses, title, semesterFilter) {
+// ── Compute and render the Completed Credits / Backlog summary banner ─────────
+// Works for both student dashboard and faculty view.
+// If idPrefix is 'faculty-', it updates the faculty banner; otherwise the student banner.
+function updateSummaryBanner(courses, semesterFilter, idPrefix) {
+  idPrefix = idPrefix || '';
+  var valid = (courses || []).filter(function (c) {
+    return c && c.code && c.code !== 'nan' && c.code.trim() !== '';
+  });
+
+  var filtered;
+  if (!semesterFilter || semesterFilter === 'all' || semesterFilter === 'All' || semesterFilter === 'All Semesters') {
+    filtered = valid;
+  } else {
+    filtered = valid.filter(function (c) {
+      return String(c.sem || c.semester || '').trim() === semesterFilter;
+    });
+  }
+
+  var completed = filtered.filter(function (c) {
+    return String(c.grade || '').trim().toUpperCase() !== 'F';
+  }).length;
+  var backlog = filtered.filter(function (c) {
+    var g = String(c.grade || '').trim().toUpperCase();
+    if (g === 'F') return true;
+    // Also flag if marks are present and < passing threshold (treat < 40 as fail)
+    var m = parseFloat(c.marks);
+    if (!isNaN(m) && m < 40 && g === '') return true;
+    return false;
+  }).length;
+
+  var compEl = document.getElementById(idPrefix + 'completed-credits');
+  var failEl = document.getElementById(idPrefix + 'backlog-count');
+  if (compEl) compEl.textContent = completed;
+  if (failEl) failEl.textContent = backlog;
+}
+
+function renderCourses(courses, title, semesterFilter, idPrefix) {
+  idPrefix = idPrefix || '';
   var valid = (courses || []).filter(function (c) {
     return c && c.code && c.code !== 'nan' && c.code.trim() !== '';
   });
@@ -495,10 +533,13 @@ function renderCourses(courses, title, semesterFilter) {
     });
   }
 
-  document.getElementById('tbl-title').textContent = title;
-  document.getElementById('tbl-badge').textContent = filteredCourses.length + ' course' + (filteredCourses.length !== 1 ? 's' : '');
+  document.getElementById(idPrefix + 'tbl-title').textContent = title;
+  document.getElementById(idPrefix + 'tbl-badge').textContent = filteredCourses.length + ' course' + (filteredCourses.length !== 1 ? 's' : '');
 
-  var tbody = document.getElementById('courses-tbody');
+  // Update the summary banner
+  updateSummaryBanner(courses, semesterFilter, idPrefix);
+
+  var tbody = document.getElementById(idPrefix + 'courses-tbody');
   tbody.innerHTML = '';
 
   if (!filteredCourses.length) {
@@ -519,11 +560,11 @@ function renderCourses(courses, title, semesterFilter) {
     var marks = String(c.marks !== undefined && c.marks !== null && c.marks !== '' ? c.marks : '-').trim();
 
     var marksNum = parseFloat(marks);
-    var marksDisplay = !isNaN(marksNum) ? marksNum.toFixed(1) : '-';
+    var marksDisplay = !isNaN(marksNum) ? marksNum.toFixed(1) : marks;
     var pct = !isNaN(marksNum) ? Math.min(100, Math.round(marksNum)) : 0;
     var gc = ['S', 'A', 'B', 'C', 'D', 'E', 'F'].includes(grade) ? 'g-' + grade : 'g-D';
 
-    var marksCell = (marksDisplay !== '-')
+    var marksCell = (marksDisplay !== '-' && marksDisplay !== '')
       ? '<div class="bar-wrap"><span class="bar-num">' + esc(marksDisplay) + '</span>' +
         '<div class="bar-bg"><div class="bar-fill" style="width:' + pct + '%"></div></div></div>'
       : '<span style="color:var(--muted);font-size:0.78rem;font-family:var(--mono)">-</span>';
@@ -541,6 +582,197 @@ function renderCourses(courses, title, semesterFilter) {
     ].join('');
     tbody.appendChild(row);
   });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  FACULTY LOGIN / SEARCH
+// ═══════════════════════════════════════════════════════════════════════════════
+var FACULTY_SESSION = 'coe_faculty_auth';
+var currentFacultyEmail = null;
+
+function showFacultyLogin() {
+  var emailEl = document.getElementById('f-email');
+  var passEl  = document.getElementById('f-pass');
+  if (emailEl) emailEl.value = '';
+  if (passEl)  passEl.value  = '';
+  var errEl = document.getElementById('faculty-err');
+  var okEl  = document.getElementById('faculty-ok');
+  if (errEl) errEl.style.display = 'none';
+  if (okEl)  okEl.style.display  = 'none';
+  showPage('faculty-login');
+  setTimeout(function () { if (emailEl) emailEl.focus(); }, 150);
+}
+
+async function facultyLoginStep() {
+  var emailRaw = (document.getElementById('f-email').value || '').trim().toLowerCase();
+  var passRaw  = (document.getElementById('f-pass').value  || '').trim();
+  var errEl = document.getElementById('faculty-err');
+  var okEl  = document.getElementById('faculty-ok');
+  var btn   = document.getElementById('f-login-btn');
+
+  if (errEl) errEl.style.display = 'none';
+  if (okEl)  okEl.style.display  = 'none';
+
+  if (!emailRaw) {
+    if (errEl) { errEl.textContent = 'Please enter your institutional email.'; errEl.className = 'alert err'; errEl.style.display = 'block'; }
+    return;
+  }
+  if (!passRaw) {
+    if (errEl) { errEl.textContent = 'Please enter your password.'; errEl.className = 'alert err'; errEl.style.display = 'block'; }
+    return;
+  }
+
+  if (btn) btn.disabled = true;
+  if (errEl) { errEl.textContent = '⏳ Authenticating with backend…'; errEl.className = 'alert info'; errEl.style.display = 'block'; }
+
+  try {
+    var response = await fetch(GAS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'verifyfaculty', email: emailRaw, password: passRaw })
+    });
+    var data = await response.json();
+
+    if (data && data.status === 'success') {
+      currentFacultyEmail = emailRaw;
+      sessionStorage.setItem(FACULTY_SESSION, emailRaw);
+      if (errEl) errEl.style.display = 'none';
+      var labelEl = document.getElementById('faculty-email-label');
+      if (labelEl) labelEl.textContent = emailRaw;
+      showPage('faculty-dash');
+      // Reset search state
+      var senInp = document.getElementById('faculty-sen-input');
+      if (senInp) senInp.value = '';
+      var resultDiv = document.getElementById('faculty-student-result');
+      if (resultDiv) resultDiv.style.display = 'none';
+    } else {
+      if (errEl) {
+        errEl.textContent = '⚠ ' + ((data && data.error) || 'Invalid faculty credentials. Please try again.');
+        errEl.className = 'alert err';
+        errEl.style.display = 'block';
+      }
+      document.getElementById('f-pass').value = '';
+    }
+  } catch (err) {
+    if (errEl) {
+      errEl.textContent = '✗ Connection error: ' + err.message;
+      errEl.className = 'alert err';
+      errEl.style.display = 'block';
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function facultyLogout() {
+  sessionStorage.removeItem(FACULTY_SESSION);
+  currentFacultyEmail = null;
+  showPage('landing');
+}
+
+async function facultySearchStudent() {
+  var rawSen = document.getElementById('faculty-sen-input').value;
+  var sen = sanitize(rawSen).toUpperCase();
+  var errEl  = document.getElementById('faculty-search-err');
+  var infoEl = document.getElementById('faculty-search-info');
+  var resDiv = document.getElementById('faculty-student-result');
+  var btn    = document.getElementById('faculty-search-btn');
+  var email  = sessionStorage.getItem(FACULTY_SESSION) || currentFacultyEmail || '';
+
+  if (errEl)  errEl.style.display  = 'none';
+  if (infoEl) infoEl.style.display = 'none';
+
+  if (!sen) {
+    if (errEl) { errEl.textContent = 'Please enter a SEN number.'; errEl.style.display = 'block'; }
+    return;
+  }
+
+  if (btn) btn.disabled = true;
+  if (infoEl) { infoEl.innerHTML = '<span class="spinner"></span> Fetching student data…'; infoEl.style.display = 'block'; }
+  if (resDiv) resDiv.style.display = 'none';
+
+  try {
+    // Use the secure facultylookup endpoint — faculty email is validated server-side
+    var result = await gasJsonp(
+      GAS_URL + '?action=facultylookup&facultyEmail=' + encodeURIComponent(email) +
+      '&sen=' + encodeURIComponent(sen),
+      12000
+    );
+
+    if (infoEl) infoEl.style.display = 'none';
+
+    if (!result || result.error) {
+      var msg = (result && result.error) ? result.error : 'Student not found.';
+      if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
+    } else if (result.success && result.student) {
+      renderFacultyStudentView(result.student);
+      if (resDiv) resDiv.style.display = 'block';
+    }
+  } catch (err) {
+    if (infoEl) infoEl.style.display = 'none';
+    if (errEl) { errEl.textContent = '✗ Error: ' + err.message; errEl.style.display = 'block'; }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+/**
+ * renderFacultyStudentView — mirrors renderStudentDash but targets the faculty-prefixed DOM elements.
+ * Shows the exact same dashboard layout that a student sees.
+ */
+function renderFacultyStudentView(student) {
+  document.getElementById('faculty-dash-avatar').textContent  = (student.name || 'S').charAt(0);
+  document.getElementById('faculty-dash-name').textContent    = student.name;
+  document.getElementById('faculty-dash-program').textContent = student.program || '';
+  document.getElementById('faculty-dash-school').textContent  = student.school ? ' · ' + student.school : '';
+
+  var cgpaVal = parseFloat(student.cgpa);
+  document.getElementById('faculty-dash-cgpa').textContent =
+    (!isNaN(cgpaVal) && cgpaVal !== 0) ? cgpaVal.toFixed(2) : (student.cgpa || 'N/A');
+
+  var creditsVal = parseFloat(student.totalCredits || student.totalCreditEarned);
+  document.getElementById('faculty-dash-ce').textContent =
+    (!isNaN(creditsVal) && creditsVal !== 0) ? String(creditsVal) : 'N/A';
+
+  var validCourses = (student.courses || []).filter(function (c) {
+    return c && c.code && c.code !== 'nan' && c.code.trim() !== '';
+  });
+  document.getElementById('faculty-dash-nc').textContent = validCourses.length;
+
+  var uniqueSems = [];
+  var seen = {};
+  (student.courses || []).forEach(function (c) {
+    var s = c.sem;
+    if (s && !seen[s]) { seen[s] = true; uniqueSems.push(s); }
+  });
+
+  var tabsEl = document.getElementById('faculty-sem-tabs');
+  tabsEl.innerHTML = '';
+
+  function makeFacultyTab(label, isAll, clickedSem) {
+    var btn = document.createElement('button');
+    btn.className = 'tab' + (isAll ? ' active' : '');
+    btn.textContent = label;
+    btn.onclick = function () {
+      document.querySelectorAll('#faculty-sem-tabs .tab').forEach(function (t) { t.classList.remove('active'); });
+      btn.classList.add('active');
+      if (isAll) {
+        renderCourses(student.courses, 'All Semesters', 'all', 'faculty-');
+      } else {
+        var filtered = student.courses.filter(function (c) { return c.sem === clickedSem; });
+        renderCourses(filtered, label, clickedSem, 'faculty-');
+      }
+    };
+    return btn;
+  }
+
+  tabsEl.appendChild(makeFacultyTab('All Semesters', true));
+  uniqueSems.forEach(function (s) {
+    var label = SEM_MAP[s] || s;
+    tabsEl.appendChild(makeFacultyTab(label, false, s));
+  });
+
+  renderCourses(student.courses, 'All Semesters', 'all', 'faculty-');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -668,7 +900,7 @@ function renderAdminTable(students) {
       '<td class="td-code">' + esc(s.sen) + '</td>',
       '<td style="font-weight:500">' + esc(s.name) + '</td>',
       '<td style="font-family:var(--mono);font-size:0.8rem">' + courses.length + '</td>',
-      '<td style="font-family:var(--mono);font-size:0.88rem;color:var(--gold)">' + (s.cgpa ? parseFloat(s.cgpa).toFixed(2) : '—') + '</td>',
+      '<td style="font-family:var(--mono);font-size:0.88rem;color:var(--gold)">' + (s.cgpa ? s.cgpa : '—') + '</td>',
       '<td style="font-family:var(--mono);font-size:0.8rem;color:var(--green)">' + esc(String(s.totalCreditEarned || '—')) + '</td>',
       '<td>' +
       '<span style="font-size:0.75rem;font-family:var(--mono);color:var(--muted)">Managed on server</span>' +
@@ -700,6 +932,8 @@ function quickClearPwd(sen) {
 // ═══════════════════════════════════════════════════════════════════════════════
 async function testGasConnection() {
   var url = GAS_URL;
+  var statusEl = document.getElementById('gas-status');
+  var btn = document.getElementById('test-gas-btn');
   if (statusEl) statusEl.textContent = '⏳ Testing…';
   if (btn) btn.disabled = true;
   try {
@@ -816,7 +1050,7 @@ async function handleFileUpload(files) {
           var isDuplicate = target.courses.some(function (existC) {
             var existSem = String(existC.semester || existC.sem || '').trim();
             var existCode = String(existC.code || '').trim().toLowerCase();
-            return existSem === semKey && existCode === codeKey;
+            return existSem === semKey && existCode === existCode;
           });
 
           if (!isDuplicate) {
@@ -859,7 +1093,6 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
 
   var wb = XLSX.read(arrayBuffer, { type: 'array', cellDates: false, raw: false });
 
-  // ── Collect all rows from every sheet ──────────────────────────────────────
   var allRows = [];
   wb.SheetNames.forEach(function (sheetName) {
     var ws = wb.Sheets[sheetName];
@@ -869,67 +1102,34 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
   if (!allRows.length) return [];
   if (progressCb) progressCb('Mapping ' + allRows.length + ' rows…');
 
-  // Helper to collapse key spaces, hyphens, and uppercase characters
-  function collapseKey(k) {
-    return String(k || '').toLowerCase().replace(/[\s\-]+/g, '').trim();
-  }
-
-  // Helper to fuzzy match key collapsing spaces and hyphens
+  function collapseKey(k) { return String(k || '').toLowerCase().replace(/[\s\-]+/g, '').trim(); }
   function fuzzyFindKey(rowKeys, target) {
     var t1 = collapseKey(target);
-    var found = rowKeys.find(function(k) {
-      return collapseKey(k) === t1;
-    });
-    if (found) return found;
-    found = rowKeys.find(function(k) {
-      return collapseKey(k).includes(t1);
-    });
-    return found || null;
+    var found = rowKeys.find(function(k) { return collapseKey(k) === t1; });
+    return found || rowKeys.find(function(k) { return collapseKey(k).includes(t1); }) || null;
   }
-
-  // Helper to find numbered fields in row keys (e.g. 1-Course Title, 1 Course Title)
   function findNumberedField(rowKeys, idx, suffixes) {
     for (var s = 0; s < suffixes.length; s++) {
       var target = idx + suffixes[s].toLowerCase().replace(/[\s\-]+/g, '').trim();
-      for (var j = 0; j < rowKeys.length; j++) {
-        var ck = rowKeys[j].toLowerCase().replace(/[\s\-]+/g, '').trim();
-        if (ck === target || ck.includes(target)) {
-          return rowKeys[j];
-        }
-      }
+      var f = rowKeys.find(function(k) { var ck = collapseKey(k); return ck === target || ck.includes(target); });
+      if (f) return f;
     }
     return null;
   }
 
-  var map = {}; // { SEN → studentObject }
-
+  var map = {};
   allRows.forEach(function (row) {
     var rowKeys = Object.keys(row);
-    
-    // 1. Extract SEN
-    var kSen = fuzzyFindKey(rowKeys, 'sen') || fuzzyFindKey(rowKeys, 'rollno') || fuzzyFindKey(rowKeys, 'enrollment') || fuzzyFindKey(rowKeys, 'enrollmentno');
+    var kSen = fuzzyFindKey(rowKeys, 'sen') || fuzzyFindKey(rowKeys, 'rollno') || fuzzyFindKey(rowKeys, 'enrollment');
     var sen = kSen ? String(row[kSen] || '').toUpperCase().replace(/[^A-Z0-9]/g, '').trim() : '';
     if (!sen || sen.length < 5) return;
 
-    // 2. Initialize student object with cgpa: 0 and totalCredits: 0
     if (!map[sen]) {
-      var kName = fuzzyFindKey(rowKeys, 'name') || fuzzyFindKey(rowKeys, 'studentname');
-      var kProgram = fuzzyFindKey(rowKeys, 'program') || fuzzyFindKey(rowKeys, 'programme');
-      var kSchool = fuzzyFindKey(rowKeys, 'school') || fuzzyFindKey(rowKeys, 'institute');
-      map[sen] = {
-        sen: sen,
-        name: kName ? String(row[kName] || '').trim() : '',
-        program: kProgram ? String(row[kProgram] || '').trim() : '',
-        school: kSchool ? String(row[kSchool] || '').trim() : '',
-        cgpa: 0,
-        totalCredits: 0,
-        totalCreditEarned: 0,
-        courses: []
-      };
+      map[sen] = { sen: sen, name: '', program: '', school: '', cgpa: '', totalCredits: 0, totalCreditEarned: 0, courses: [] };
     }
     var s = map[sen];
 
-    // Update blank student fields
+    // Update blank student fields from this row
     if (!s.name) {
       var kName = fuzzyFindKey(rowKeys, 'name') || fuzzyFindKey(rowKeys, 'studentname');
       if (kName && row[kName]) s.name = String(row[kName]).trim();
@@ -946,12 +1146,13 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
     var kSem = fuzzyFindKey(rowKeys, 'sem') || fuzzyFindKey(rowKeys, 'semester');
     const rowSem = (kSem ? String(row[kSem] || '').trim() : '') || row['SEM'] || row['Semester'] || "Unknown";
 
-    // Step A (Extract CGPA): Scan all keys for "CGPA" (case-insensitive)
+    // Step A (Extract CGPA): Scan all keys for a key containing EXACTLY "CGPA" and store the LITERAL value — DO NOT calculate.
     rowKeys.forEach(function (k) {
-      if (/cgpa/i.test(k)) {
-        var cgpaVal = parseFloat(row[k]);
-        if (!isNaN(cgpaVal) && cgpaVal > 0) {
-          s.cgpa = cgpaVal;
+      if (k.toUpperCase().indexOf('CGPA') !== -1) {
+        var rawVal = row[k];
+        if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '' && String(rawVal).trim().toLowerCase() !== 'nan') {
+          // Store the literal string so downstream code receives it exactly as-is
+          s.cgpa = rawVal;  // literal copy — no parseFloat here
         }
       }
     });
@@ -1026,6 +1227,14 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
             var kCr = findNumberedField(rowKeys, i, ['creditregistered', 'credit', 'credits']);
             var kGp = findNumberedField(rowKeys, i, ['totalcreditpoints', 'creditpoint', 'gradepoints', 'gp', 'points']);
             var kMk = findNumberedField(rowKeys, i, ['totalmarks', 'marks', 'score']);
+            // Fuzzy match: any key containing "marks" (e.g. "1 Total marks", "Total Marks Obtained")
+            if (!kMk) {
+              for (var mi = 0; mi < rowKeys.length; mi++) {
+                if (collapseKey(rowKeys[mi]).includes(String(i) + 'marks') || collapseKey(rowKeys[mi]).includes(String(i) + 'totalmarks')) {
+                  kMk = rowKeys[mi]; break;
+                }
+              }
+            }
             var kCe = findNumberedField(rowKeys, i, ['creditearned']);
             var kTy = findNumberedField(rowKeys, i, ['type', 'coursetype']);
 

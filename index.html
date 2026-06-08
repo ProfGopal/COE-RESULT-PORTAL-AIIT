@@ -848,11 +848,53 @@
     }
     .sem-summary-banner span { color: var(--text); font-weight: 600; }
     .sem-summary-banner .fail-count { color: var(--red); }
-    .neon-title {
-      color: #00d2ff;
-      text-shadow: 0 0 5px rgba(0, 210, 255, 0.5), 0 0 15px rgba(0, 210, 255, 0.8);
-      font-weight: 800;
-      letter-spacing: 1px;
+    .cinematic-title {
+      color: #ffffff !important;
+      -webkit-text-fill-color: #ffffff !important;
+      -webkit-text-stroke: 1.2px rgba(255, 255, 255, 0.75);
+      letter-spacing: 2.5px;
+      font-weight: 950;
+      text-transform: uppercase;
+      animation: neonRandomGlow 12s infinite ease-in-out;
+    }
+
+    @keyframes neonRandomGlow {
+      0%, 100% {
+        text-shadow: 
+          0 0 4px #fff,
+          0 0 10px #00d2ff,
+          0 0 22px #00d2ff,
+          0 0 40px #0ea5e9,
+          0 0 70px #0ea5e9;
+        -webkit-text-stroke-color: #00d2ff;
+      }
+      25% {
+        text-shadow: 
+          0 0 4px #fff,
+          0 0 10px #ec4899,
+          0 0 22px #ec4899,
+          0 0 40px #db2777,
+          0 0 70px #db2777;
+        -webkit-text-stroke-color: #ec4899;
+      }
+      50% {
+        text-shadow: 
+          0 0 4px #fff,
+          0 0 10px #10b981,
+          0 0 22px #10b981,
+          0 0 40px #059669,
+          0 0 70px #059669;
+        -webkit-text-stroke-color: #10b981;
+      }
+      75% {
+        text-shadow: 
+          0 0 4px #fff,
+          0 0 10px #a855f7,
+          0 0 22px #a855f7,
+          0 0 40px #9333ea,
+          0 0 70px #9333ea;
+        -webkit-text-stroke-color: #a855f7;
+      }
     }
     .summary-badge-btn {
       display: inline-flex;
@@ -890,7 +932,7 @@
   <!-- VERSION TAG -->
   <div
     style="position:fixed;top:0;left:0;z-index:300;padding:0.35rem 1rem;font-size:0.68rem;color:var(--muted);pointer-events:none;font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-right-radius:6px;">
-    Version <strong style="color:var(--accent)">v1.10</strong>
+    Version <strong style="color:var(--accent)">Ver 1.1</strong>
   </div>
 
   <!-- DEVELOPER CREDIT & ADMIN LINK -->
@@ -912,7 +954,7 @@
   <!-- LANDING -->
   <div id="landing" class="page active">
     <div class="land-eyebrow">Controller of Examinations · COE</div>
-    <h1 class="land-title neon-title">AMITY UNIVERSITY<br>AIIT RESULT PORTAL</h1>
+    <h1 class="land-title cinematic-title">AMITY UNIVERSITY<br>AIIT RESULT PORTAL</h1>
     <p class="land-sub">Amity Institute of Information Technology</p>
     
     <!-- STUDENT LOGIN CONTAINER -->

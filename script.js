@@ -477,6 +477,7 @@ function renderStudentDash(student) {
 
   renderCourses(student.courses, 'All Semesters', 'all');
   updateSummaryBanner(student.courses, 'all', '');
+  renderDedicatedBacklogBanner(student, '');
 }
 
 // ── Compute and render the Completed / Backlog summary banner ─────────────────
@@ -533,6 +534,69 @@ function updateSummaryBanner(courses, semesterFilter, idPrefix) {
         '<strong>' + backlogs + '</strong>',
       '</div>'
     ].join('');
+  }
+}
+
+// ── Render the Dedicated Backlog/F-Grade warning banner and table ───────────────
+// Spec: Filters for 'F', 'FAIL', 'AB' and displays subjects details in a table.
+function renderDedicatedBacklogBanner(student, idPrefix) {
+  idPrefix = idPrefix || '';
+  var backlogContainerId = idPrefix + 'dedicated-backlog-container';
+  var backlogContainer = document.getElementById(backlogContainerId);
+  if (!backlogContainer) {
+    backlogContainer = document.createElement('div');
+    backlogContainer.id = backlogContainerId;
+    backlogContainer.style.marginTop = '1rem';
+    backlogContainer.style.marginBottom = '1rem';
+    
+    var bannerEl = document.getElementById(idPrefix + 'sem-summary-banner') ||
+                   document.getElementById(idPrefix + 'sem-summary');
+    if (bannerEl) {
+      bannerEl.parentNode.insertBefore(backlogContainer, bannerEl.nextSibling);
+    }
+  }
+
+  const backlogs = student.courses.filter(c => ['F', 'FAIL', 'AB'].includes(String(c.grade || '').toUpperCase().trim()));
+
+  if (backlogs.length > 0) {
+    var html = [
+      '<div style="background:rgba(220,38,38,0.08); border:1px solid rgba(220,38,38,0.25); border-radius:8px; padding:1.2rem; color:#dc2626; font-family:var(--sans); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">',
+        '<div style="display:flex; align-items:center; gap:0.6rem; font-weight:700; font-size:0.98rem; margin-bottom:0.6rem;">',
+          '<span>⚠️ Dedicated Backlog Alert:</span>',
+          '<span style="background:#dc2626; color:#ffffff; font-size:0.75rem; padding:0.2rem 0.65rem; border-radius:12px; font-family:var(--mono); font-weight:700;">' + backlogs.length + ' Subject' + (backlogs.length !== 1 ? 's' : '') + '</span>',
+        '</div>',
+        '<div style="font-size:0.85rem; color:var(--sub); margin-bottom:0.8rem;">The following course(s) require re-examination or registration:</div>',
+        '<div style="overflow-x:auto;">',
+          '<table style="width:100%; border-collapse:collapse; font-size:0.85rem; text-align:left;">',
+            '<thead>',
+              '<tr style="border-bottom:1px solid rgba(220,38,38,0.15); color:var(--text); font-weight:600;">',
+                '<th style="padding:0.4rem 0.6rem; width:120px;">Course Code</th>',
+                '<th style="padding:0.4rem 0.6rem;">Course Title</th>',
+                '<th style="padding:0.4rem 0.6rem; width:80px; text-align:center;">Grade</th>',
+              '</tr>',
+            '</thead>',
+            '<tbody>'
+    ];
+    backlogs.forEach(function (c) {
+      html.push(
+        '<tr style="border-bottom:1px solid rgba(220,38,38,0.06); color:var(--text);">',
+          '<td style="padding:0.5rem 0.6rem; font-family:var(--mono); font-weight:600;">' + esc(c.code) + '</td>',
+          '<td style="padding:0.5rem 0.6rem;">' + esc(c.title || '-') + '</td>',
+          '<td style="padding:0.5rem 0.6rem; text-align:center;"><span class="grade g-F" style="padding:0.1rem 0.4rem; font-size:0.75rem;">' + esc(c.grade) + '</span></td>',
+        '</tr>'
+      );
+    });
+    html.push(
+            '</tbody>',
+          '</table>',
+        '</div>',
+      '</div>'
+    ];
+    backlogContainer.innerHTML = html.join('');
+    backlogContainer.style.display = 'block';
+  } else {
+    backlogContainer.innerHTML = '';
+    backlogContainer.style.display = 'none';
   }
 }
 
@@ -835,6 +899,7 @@ function renderFacultyStudentView(student) {
   });
 
   renderCourses(student.courses, 'All Semesters', 'all', 'faculty-');
+  renderDedicatedBacklogBanner(student, 'faculty-');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1167,14 +1232,11 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
 
   var wb = XLSX.read(arrayBuffer, { type: 'array', cellDates: false, raw: false });
 
-  var allRows = [];
-  wb.SheetNames.forEach(function (sheetName) {
-    var ws = wb.Sheets[sheetName];
-    var rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
-    rows.forEach(function (r) { r.__sheet = sheetName; allRows.push(r); });
-  });
-  if (!allRows.length) return [];
-  if (progressCb) progressCb('Mapping ' + allRows.length + ' rows…');
+  // Get first sheet data
+  var firstSheetName = wb.SheetNames[0];
+  var firstSheetRows = XLSX.utils.sheet_to_json(wb.Sheets[firstSheetName], { defval: '' });
+
+  if (progressCb) progressCb('Mapping first sheet rows…');
 
   function collapseKey(k) { return String(k || '').toLowerCase().replace(/[\s\-]+/g, '').trim(); }
   function fuzzyFindKey(rowKeys, target) {
@@ -1192,7 +1254,9 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
   }
 
   var map = {};
-  allRows.forEach(function (row) {
+
+  // Step A: Extract global details (Name, Program, School, CGPA, Credits) strictly from firstSheetRows
+  firstSheetRows.forEach(function (row) {
     var rowKeys = Object.keys(row);
     var kSen = fuzzyFindKey(rowKeys, 'sen') || fuzzyFindKey(rowKeys, 'rollno') || fuzzyFindKey(rowKeys, 'enrollment');
     var sen = kSen ? String(row[kSen] || '').toUpperCase().replace(/[^A-Z0-9]/g, '').trim() : '';
@@ -1203,7 +1267,7 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
     }
     var s = map[sen];
 
-    // Update blank student fields from this row
+    // Update student fields from this row
     if (!s.name) {
       var kName = fuzzyFindKey(rowKeys, 'name') || fuzzyFindKey(rowKeys, 'studentname');
       if (kName && row[kName]) s.name = String(row[kName]).trim();
@@ -1217,10 +1281,7 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
       if (kSchool && row[kSchool]) s.school = String(row[kSchool]).trim();
     }
 
-    var kSem = fuzzyFindKey(rowKeys, 'sem') || fuzzyFindKey(rowKeys, 'semester');
-    const rowSem = (kSem ? String(row[kSem] || '').trim() : '') || row['SEM'] || row['Semester'] || "Unknown";
-
-    // Step A (Extract CGPA): strict Non-Destructive check
+    // Step A.1: strict Non-Destructive CGPA check
     var rawCgpaVal = row['CGPA'] || row['C.G.P.A'];
     if (rawCgpaVal === undefined || rawCgpaVal === null || String(rawCgpaVal).trim() === '') {
       var kCgpaFuzzy = rowKeys.find(function (k) {
@@ -1236,7 +1297,7 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
       s.cgpa = extractedCgpa; // Never overwrite with 0 or NaN
     }
 
-    // Step B (Extract Total Credits - Explicit Columns): Look for keys containing "Earned". Parse as integer.
+    // Step A.2: Extract Total Credits (Look for keys containing "Earned". Parse as integer.)
     rowKeys.forEach(function (k) {
       var lowerKey = k.toLowerCase();
       if (lowerKey.includes('earned')) {
@@ -1248,7 +1309,7 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
       }
     });
 
-    // Step C (The Summary Row Trap): Detect if all Course Code columns are blank
+    // Step A.3 (The Summary Row Trap): Detect if all Course Code columns are blank
     var hasAnyCourseCode = false;
     rowKeys.forEach(function (k) {
       var ck = collapseKey(k);
@@ -1275,124 +1336,167 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
         }
       });
     }
+  });
 
-    // Step D: Hybrid Course Extractor (Horizontal & Vertical scanning)
-    if (!isSummaryRow) {
-      var numberedCoursesFound = false;
+  // Step B: Course Extraction (Loop through ALL sheets)
+  wb.SheetNames.forEach(function (sheetName) {
+    var ws = wb.Sheets[sheetName];
+    var rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
 
-      // Loop 1 to 20 for Horizontal slots (handles both "{n}-Course Code" and "{n} Course Code" patterns)
-      for (var i = 1; i <= 20; i++) {
-        // Collapsed targets for both hyphenated and spaced variants: "1coursecode" matches either
-        var targetP1 = i + 'coursecode';   // matches "1 Course Code" and "1-Course Code"
-        var targetP2 = i + 'code';          // matches "1 Code"
-        var targetP3 = i + 'subjectcode';   // matches "1 Subject Code"
+    rows.forEach(function (row) {
+      var rowKeys = Object.keys(row);
+      var kSen = fuzzyFindKey(rowKeys, 'sen') || fuzzyFindKey(rowKeys, 'rollno') || fuzzyFindKey(rowKeys, 'enrollment');
+      var sen = kSen ? String(row[kSen] || '').toUpperCase().replace(/[^A-Z0-9]/g, '').trim() : '';
+      if (!sen || sen.length < 5) return;
 
-        var kCC = null;
-        for (var j = 0; j < rowKeys.length; j++) {
-          var ck = collapseKey(rowKeys[j]);
-          if (ck === targetP1 || ck === targetP2 || ck === targetP3 || ck.includes(targetP1)) {
-            kCC = rowKeys[j];
-            break;
+      if (!map[sen]) {
+        // Fallback initialization if a student is only in a secondary sheet
+        map[sen] = { sen: sen, name: '', program: '', school: '', cgpa: '', totalCredits: 0, totalCreditEarned: 0, courses: [] };
+      }
+      var s = map[sen];
+
+      if (!s.name) {
+        var kName = fuzzyFindKey(rowKeys, 'name') || fuzzyFindKey(rowKeys, 'studentname');
+        if (kName && row[kName]) s.name = String(row[kName]).trim();
+      }
+      if (!s.program) {
+        var kProgram = fuzzyFindKey(rowKeys, 'program') || fuzzyFindKey(rowKeys, 'programme');
+        if (kProgram && row[kProgram]) s.program = String(row[kProgram]).trim();
+      }
+      if (!s.school) {
+        var kSchool = fuzzyFindKey(rowKeys, 'school') || fuzzyFindKey(rowKeys, 'institute');
+        if (kSchool && row[kSchool]) s.school = String(row[kSchool]).trim();
+      }
+
+      var kSem = fuzzyFindKey(rowKeys, 'sem') || fuzzyFindKey(rowKeys, 'semester');
+      var rowSem = (kSem ? String(row[kSem] || '').trim() : '') || row['SEM'] || row['Semester'] || "Unknown";
+
+      // Detect if summary row
+      var hasAnyCourseCode = false;
+      rowKeys.forEach(function (k) {
+        var ck = collapseKey(k);
+        if (ck.includes('coursecode') || ck.includes('subjectcode') || (/^\d+coursecode$/.test(ck)) || (/^\d+code$/.test(ck))) {
+          var val = String(row[k] || '').trim();
+          if (val && val.toLowerCase() !== 'nan') {
+            hasAnyCourseCode = true;
           }
         }
+      });
 
-        if (kCC) {
-          var rawCode = row[kCC] || '';
-          var cleanCode = rawCode.toString().trim().toUpperCase();
-          if (cleanCode && cleanCode !== 'NAN') {
-            numberedCoursesFound = true;
+      var isSummaryRow = !hasAnyCourseCode;
 
-            var kCT = findNumberedField(rowKeys, i, ['coursetitle', 'title', 'subject', 'coursename']);
-            var kFG = findNumberedField(rowKeys, i, ['finalgrade', 'grade']);
-            var kCr = findNumberedField(rowKeys, i, ['creditregistered', 'credit', 'credits']);
-            var kGp = findNumberedField(rowKeys, i, ['totalcreditpoints', 'creditpoint', 'gradepoints', 'gp', 'points']);
-            var kMk = findNumberedField(rowKeys, i, ['totalmarks', 'marks', 'score']);
-            if (!kMk) {
-              for (var mi = 0; mi < rowKeys.length; mi++) {
-                if (collapseKey(rowKeys[mi]).includes(String(i) + 'marks') || collapseKey(rowKeys[mi]).includes(String(i) + 'totalmarks')) {
-                  kMk = rowKeys[mi]; break;
+      if (!isSummaryRow) {
+        var numberedCoursesFound = false;
+
+        // Loop 1 to 20 for Horizontal slots
+        for (var i = 1; i <= 20; i++) {
+          var targetP1 = i + 'coursecode';
+          var targetP2 = i + 'code';
+          var targetP3 = i + 'subjectcode';
+
+          var kCC = null;
+          for (var j = 0; j < rowKeys.length; j++) {
+            var ck = collapseKey(rowKeys[j]);
+            if (ck === targetP1 || ck === targetP2 || ck === targetP3 || ck.includes(targetP1)) {
+              kCC = rowKeys[j];
+              break;
+            }
+          }
+
+          if (kCC) {
+            var rawCode = row[kCC] || '';
+            var cleanCode = rawCode.toString().trim().toUpperCase();
+            if (cleanCode && cleanCode !== 'NAN') {
+              numberedCoursesFound = true;
+
+              var kCT = findNumberedField(rowKeys, i, ['coursetitle', 'title', 'subject', 'coursename']);
+              var kFG = findNumberedField(rowKeys, i, ['finalgrade', 'grade']);
+              var kCr = findNumberedField(rowKeys, i, ['creditregistered', 'credit', 'credits']);
+              var kGp = findNumberedField(rowKeys, i, ['totalcreditpoints', 'creditpoint', 'gradepoints', 'gp', 'points']);
+              var kMk = findNumberedField(rowKeys, i, ['totalmarks', 'marks', 'score']);
+              if (!kMk) {
+                for (var mi = 0; mi < rowKeys.length; mi++) {
+                  if (collapseKey(rowKeys[mi]).includes(String(i) + 'marks') || collapseKey(rowKeys[mi]).includes(String(i) + 'totalmarks')) {
+                    kMk = rowKeys[mi]; break;
+                  }
                 }
               }
-            }
-            var kCe = findNumberedField(rowKeys, i, ['creditearned']);
-            var kTy = findNumberedField(rowKeys, i, ['type', 'coursetype']);
+              var kCe = findNumberedField(rowKeys, i, ['creditearned']);
+              var kTy = findNumberedField(rowKeys, i, ['type', 'coursetype']);
 
-            var courseObj = {
-              semester: rowSem,
-              sem: rowSem,
-              code: cleanCode,
-              title: kCT ? String(row[kCT] || '').trim() : '',
-              type: kTy ? String(row[kTy] || '').trim() : '',
-              credits: kCr ? row[kCr] : '',          // literal copy
-              marks: kMk ? row[kMk] : '',             // literal copy
-              grade: kFG ? String(row[kFG] || '').trim() : '',
-              gradePoints: kGp ? row[kGp] : '',       // literal copy
-              creditEarned: kCe ? row[kCe] : ''       // literal copy
-            };
-            // Composite dedup: same course code AND same semester = duplicate
-            var exists = s.courses.some(function (c) {
-              return c.code === courseObj.code && c.sem === courseObj.sem;
-            });
-            if (!exists) {
-              s.courses.push(courseObj);
+              var courseObj = {
+                semester: rowSem,
+                sem: rowSem,
+                code: cleanCode,
+                title: kCT ? String(row[kCT] || '').trim() : '',
+                type: kTy ? String(row[kTy] || '').trim() : '',
+                credits: kCr ? row[kCr] : '',
+                marks: kMk ? row[kMk] : '',
+                grade: kFG ? String(row[kFG] || '').trim() : '',
+                gradePoints: kGp ? row[kGp] : '',
+                creditEarned: kCe ? row[kCe] : ''
+              };
+
+              var exists = s.courses.some(function (c) {
+                return c.code === courseObj.code && c.sem === courseObj.sem;
+              });
+              if (!exists) {
+                s.courses.push(courseObj);
+              }
             }
           }
         }
-      }
 
-      // If no numbered courses found, scan for single vertical column (vertical/consolidated sheets)
-      // Also handles the generic "Course Code" column without a number prefix
-      if (!numberedCoursesFound) {
-        var kCCVert = null;
-
-        // First: strict exact match on "Course Code" (generic, un-numbered)
-        for (var j2 = 0; j2 < rowKeys.length; j2++) {
-          var ck2 = collapseKey(rowKeys[j2]);
-          if (ck2 === 'coursecode' || ck2 === 'subjectcode' || ck2 === 'code') {
-            kCCVert = rowKeys[j2]; break;
+        // Single vertical column fallback
+        if (!numberedCoursesFound) {
+          var kCCVert = null;
+          for (var j2 = 0; j2 < rowKeys.length; j2++) {
+            var ck2 = collapseKey(rowKeys[j2]);
+            if (ck2 === 'coursecode' || ck2 === 'subjectcode' || ck2 === 'code') {
+              kCCVert = rowKeys[j2]; break;
+            }
           }
-        }
-        // Fallback fuzzy if strict not found
-        if (!kCCVert) {
-          kCCVert = fuzzyFindKey(rowKeys, 'coursecode') || fuzzyFindKey(rowKeys, 'subjectcode') || fuzzyFindKey(rowKeys, 'code');
-        }
+          if (!kCCVert) {
+            kCCVert = fuzzyFindKey(rowKeys, 'coursecode') || fuzzyFindKey(rowKeys, 'subjectcode') || fuzzyFindKey(rowKeys, 'code');
+          }
 
-        if (kCCVert) {
-          var rawCode = row[kCCVert] || '';
-          var cleanCode = rawCode.toString().trim().toUpperCase();
-          if (cleanCode && cleanCode !== 'NAN') {
-            var kCT = fuzzyFindKey(rowKeys, 'coursetitle') || fuzzyFindKey(rowKeys, 'title') || fuzzyFindKey(rowKeys, 'subject') || fuzzyFindKey(rowKeys, 'coursename');
-            var kFG = fuzzyFindKey(rowKeys, 'finalgrade') || fuzzyFindKey(rowKeys, 'grade');
-            var kCr = fuzzyFindKey(rowKeys, 'creditregistered') || fuzzyFindKey(rowKeys, 'credit') || fuzzyFindKey(rowKeys, 'credits');
-            var kGp = fuzzyFindKey(rowKeys, 'totalcreditpoints') || fuzzyFindKey(rowKeys, 'creditpoint') || fuzzyFindKey(rowKeys, 'gradepoints') || fuzzyFindKey(rowKeys, 'gp') || fuzzyFindKey(rowKeys, 'points');
-            var kMk = fuzzyFindKey(rowKeys, 'totalmarks') || fuzzyFindKey(rowKeys, 'marks') || fuzzyFindKey(rowKeys, 'score');
-            if (!kMk) kMk = rowKeys.find(function (k) { return collapseKey(k).includes('marks'); }) || null;
-            var kCe = fuzzyFindKey(rowKeys, 'creditearned');
-            var kTy = fuzzyFindKey(rowKeys, 'type') || fuzzyFindKey(rowKeys, 'coursetype') || fuzzyFindKey(rowKeys, 'category');
+          if (kCCVert) {
+            var rawCode = row[kCCVert] || '';
+            var cleanCode = rawCode.toString().trim().toUpperCase();
+            if (cleanCode && cleanCode !== 'NAN') {
+              var kCT = fuzzyFindKey(rowKeys, 'coursetitle') || fuzzyFindKey(rowKeys, 'title') || fuzzyFindKey(rowKeys, 'subject') || fuzzyFindKey(rowKeys, 'coursename');
+              var kFG = fuzzyFindKey(rowKeys, 'finalgrade') || fuzzyFindKey(rowKeys, 'grade');
+              var kCr = fuzzyFindKey(rowKeys, 'creditregistered') || fuzzyFindKey(rowKeys, 'credit') || fuzzyFindKey(rowKeys, 'credits');
+              var kGp = fuzzyFindKey(rowKeys, 'totalcreditpoints') || fuzzyFindKey(rowKeys, 'creditpoint') || fuzzyFindKey(rowKeys, 'gradepoints') || fuzzyFindKey(rowKeys, 'gp') || fuzzyFindKey(rowKeys, 'points');
+              var kMk = fuzzyFindKey(rowKeys, 'totalmarks') || fuzzyFindKey(rowKeys, 'marks') || fuzzyFindKey(rowKeys, 'score');
+              if (!kMk) kMk = rowKeys.find(function (k) { return collapseKey(k).includes('marks'); }) || null;
+              var kCe = fuzzyFindKey(rowKeys, 'creditearned');
+              var kTy = fuzzyFindKey(rowKeys, 'type') || fuzzyFindKey(rowKeys, 'coursetype') || fuzzyFindKey(rowKeys, 'category');
 
-            var courseObj = {
-              semester: rowSem,
-              sem: rowSem,
-              code: cleanCode,
-              title: kCT ? String(row[kCT] || '').trim() : '',
-              type: kTy ? String(row[kTy] || '').trim() : '',
-              credits: kCr ? row[kCr] : '',          // literal copy
-              marks: kMk ? row[kMk] : '',             // literal copy
-              grade: kFG ? String(row[kFG] || '').trim() : '',
-              gradePoints: kGp ? row[kGp] : '',       // literal copy
-              creditEarned: kCe ? row[kCe] : ''       // literal copy
-            };
-            // Composite dedup: same course code AND same semester = duplicate
-            var exists = s.courses.some(function (c) {
-              return c.code === courseObj.code && c.sem === courseObj.sem;
-            });
-            if (!exists) {
-              s.courses.push(courseObj);
+              var courseObj = {
+                semester: rowSem,
+                sem: rowSem,
+                code: cleanCode,
+                title: kCT ? String(row[kCT] || '').trim() : '',
+                type: kTy ? String(row[kTy] || '').trim() : '',
+                credits: kCr ? row[kCr] : '',
+                marks: kMk ? row[kMk] : '',
+                grade: kFG ? String(row[kFG] || '').trim() : '',
+                gradePoints: kGp ? row[kGp] : '',
+                creditEarned: kCe ? row[kCe] : ''
+              };
+
+              var exists = s.courses.some(function (c) {
+                return c.code === courseObj.code && c.sem === courseObj.sem;
+              });
+              if (!exists) {
+                s.courses.push(courseObj);
+              }
             }
           }
         }
       }
-    }
+    });
   });
 
   return Object.values(map);

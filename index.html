@@ -879,7 +879,7 @@
   <!-- VERSION TAG -->
   <div
     style="position:fixed;top:0;left:0;z-index:300;padding:0.35rem 1rem;font-size:0.68rem;color:var(--muted);pointer-events:none;font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-right-radius:6px;">
-    Version <strong style="color:var(--accent)">v1.7</strong>
+    Version <strong style="color:var(--accent)">v1.8</strong>
   </div>
 
   <!-- DEVELOPER CREDIT & ADMIN LINK -->
@@ -904,35 +904,63 @@
     <h1 class="land-title">AMITY UNIVERSITY<br>AIIT RESULT PORTAL</h1>
     <p class="land-sub">Amity Institute of Information Technology</p>
     
-    <div id="loginSection" class="login-box" style="margin: 0 auto 2rem auto; text-align: left; width: 100%; max-width: 440px;">
-      <h2 class="login-title" style="text-align: center; margin-bottom: 0.4rem;">Student Login</h2>
-      <p class="login-sub" id="student-login-hint" style="text-align: center;">Enter your SEN and password. First time? Use password <strong
-          style="color:var(--accent);font-family:var(--mono)">pwd</strong> to set a new one.</p>
-      <div class="alert err" id="student-err"></div>
-      <div class="alert ok" id="student-ok"></div>
-      <div class="field">
-        <label for="s-sen">SEN Number</label>
-        <input type="text" id="s-sen" placeholder="e.g. A869145024001" autocomplete="username" oninput="onSenInput()"
-          onkeydown="if(event.key==='Enter')studentLoginStep()">
-      </div>
-      <div class="field" id="s-pass-field">
-        <label for="s-pass">Password</label>
-        <input type="password" id="s-pass" placeholder="Your password" autocomplete="current-password"
-          onkeydown="if(event.key==='Enter')studentLoginStep()">
-      </div>
-      <div id="s-newpass-fields" style="display:none">
+    <!-- STUDENT LOGIN CONTAINER -->
+    <div id="student-login-container">
+      <div id="loginSection" class="login-box" style="margin: 0 auto 2rem auto; text-align: left; width: 100%; max-width: 440px;">
+        <h2 class="login-title" style="text-align: center; margin-bottom: 0.4rem;">Student Login</h2>
+        <p class="login-sub" id="student-login-hint" style="text-align: center;">Enter your SEN and password. First time? Use password <strong
+            style="color:var(--accent);font-family:var(--mono)">pwd</strong> to set a new one.</p>
+        <div class="alert err" id="student-err"></div>
+        <div class="alert ok" id="student-ok"></div>
         <div class="field">
-          <label for="s-newpass">Create Password</label>
-          <input type="password" id="s-newpass" placeholder="Min 6 characters"
+          <label for="s-sen">SEN Number</label>
+          <input type="text" id="s-sen" placeholder="e.g. A869145024001" autocomplete="username" oninput="onSenInput()"
             onkeydown="if(event.key==='Enter')studentLoginStep()">
         </div>
-        <div class="field">
-          <label for="s-confirmpass">Confirm Password</label>
-          <input type="password" id="s-confirmpass" placeholder="Repeat password"
+        <div class="field" id="s-pass-field">
+          <label for="s-pass">Password</label>
+          <input type="password" id="s-pass" placeholder="Your password" autocomplete="current-password"
             onkeydown="if(event.key==='Enter')studentLoginStep()">
         </div>
+        <div id="s-newpass-fields" style="display:none">
+          <div class="field">
+            <label for="s-newpass">Create Password</label>
+            <input type="password" id="s-newpass" placeholder="Min 6 characters"
+              onkeydown="if(event.key==='Enter')studentLoginStep()">
+          </div>
+          <div class="field">
+            <label for="s-confirmpass">Confirm Password</label>
+            <input type="password" id="s-confirmpass" placeholder="Repeat password"
+              onkeydown="if(event.key==='Enter')studentLoginStep()">
+          </div>
+        </div>
+        <button class="btn-primary" id="s-login-btn" onclick="studentLoginStep()">Sign In &rarr;</button>
       </div>
-      <button class="btn-primary" id="s-login-btn" onclick="studentLoginStep()">Sign In →</button>
+    </div>
+
+    <!-- FACULTY LOGIN CONTAINER (inline on landing page, hidden by default) -->
+    <div id="faculty-login-container" style="display:none; width:100%; max-width:440px; margin: 0 auto 2rem auto;">
+      <div class="login-box" style="text-align: left;">
+        <button class="back-btn" id="btn-back-to-student" onclick="showStudentLoginUI()">&larr; Back to Student Login</button>
+        <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.6rem">
+          <div class="login-title" style="margin-bottom:0">Faculty Login</div>
+          <div class="faculty-badge">&#x1F469;&#x200D;&#x1F3EB; Faculty</div>
+        </div>
+        <p class="login-sub">Authorized AIIT faculty only. Enter your institutional email and password.</p>
+        <div class="alert err" id="faculty-err"></div>
+        <div class="alert ok" id="faculty-ok"></div>
+        <div class="field">
+          <label for="f-email">Institutional Email</label>
+          <input type="email" id="f-email" placeholder="yourname@blr.amity.edu" autocomplete="email"
+            onkeydown="if(event.key==='Enter')facultyLoginStep()">
+        </div>
+        <div class="field">
+          <label for="f-pass">Password</label>
+          <input type="password" id="f-pass" placeholder="Your password" autocomplete="current-password"
+            onkeydown="if(event.key==='Enter')facultyLoginStep()">
+        </div>
+        <button class="btn-primary" id="f-login-btn" onclick="facultyLoginStep()">Faculty Sign In &rarr;</button>
+      </div>
     </div>
 
     <p style="font-size:0.72rem;color:var(--muted);font-family:var(--mono)" id="sync-hint"></p>

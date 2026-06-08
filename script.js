@@ -226,18 +226,15 @@ function logout() {
     dash.style.display = 'none';
   }
   
-  // Restore login section display
-  var loginSec = document.getElementById('loginSection');
-  if (loginSec) {
-    loginSec.style.display = 'block';
-  }
-  
   // Show landing page
   var landing = document.getElementById('landing');
   if (landing) {
     landing.classList.add('active');
     landing.style.display = 'block';
   }
+  
+  // Ensure student login is shown (not faculty login container)
+  showStudentLoginUI();
   
   // Clear the SEN/Password input fields and hide alerts
   resetStudentLoginUI();
@@ -590,7 +587,44 @@ function renderCourses(courses, title, semesterFilter, idPrefix) {
 var FACULTY_SESSION = 'coe_faculty_auth';
 var currentFacultyEmail = null;
 
+/**
+ * showFacultyLoginUI — shows the faculty login container inside the landing page
+ * and hides the student login container. Mutually exclusive toggle.
+ */
+function showFacultyLoginUI() {
+  var stu = document.getElementById('student-login-container');
+  var fac = document.getElementById('faculty-login-container');
+  if (stu) stu.style.display = 'none';
+  if (fac) fac.style.display = 'block';
+  var emailEl = document.getElementById('f-email');
+  var errEl = document.getElementById('faculty-err');
+  var okEl  = document.getElementById('faculty-ok');
+  if (errEl) errEl.style.display = 'none';
+  if (okEl)  okEl.style.display  = 'none';
+  if (emailEl) { emailEl.value = ''; setTimeout(function () { emailEl.focus(); }, 150); }
+  var passEl = document.getElementById('f-pass');
+  if (passEl) passEl.value = '';
+}
+
+/**
+ * showStudentLoginUI — restores the student login container and hides the
+ * faculty login container. Used by the "Back to Student Login" button.
+ */
+function showStudentLoginUI() {
+  var stu = document.getElementById('student-login-container');
+  var fac = document.getElementById('faculty-login-container');
+  if (fac) fac.style.display = 'none';
+  if (stu) stu.style.display = 'block';
+}
+
 function showFacultyLogin() {
+  // If the inline landing-page containers exist, use them (mutually exclusive toggle)
+  var facContainer = document.getElementById('faculty-login-container');
+  if (facContainer) {
+    showFacultyLoginUI();
+    return;
+  }
+  // Fallback: show the standalone faculty-login page
   var emailEl = document.getElementById('f-email');
   var passEl  = document.getElementById('f-pass');
   if (emailEl) emailEl.value = '';
@@ -639,6 +673,10 @@ async function facultyLoginStep() {
       if (errEl) errEl.style.display = 'none';
       var labelEl = document.getElementById('faculty-email-label');
       if (labelEl) labelEl.textContent = emailRaw;
+      // Hide the inline faculty login container completely
+      var facContainer = document.getElementById('faculty-login-container');
+      if (facContainer) facContainer.style.display = 'none';
+      // Navigate to faculty dashboard
       showPage('faculty-dash');
       // Reset search state
       var senInp = document.getElementById('faculty-sen-input');
@@ -667,7 +705,9 @@ async function facultyLoginStep() {
 function facultyLogout() {
   sessionStorage.removeItem(FACULTY_SESSION);
   currentFacultyEmail = null;
+  // Return to landing and show the student login (not the faculty form)
   showPage('landing');
+  showStudentLoginUI();
 }
 
 async function facultySearchStudent() {

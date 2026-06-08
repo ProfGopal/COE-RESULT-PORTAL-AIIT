@@ -848,6 +848,40 @@
     }
     .sem-summary-banner span { color: var(--text); font-weight: 600; }
     .sem-summary-banner .fail-count { color: var(--red); }
+    .neon-title {
+      color: #00d2ff;
+      text-shadow: 0 0 5px rgba(0, 210, 255, 0.5), 0 0 15px rgba(0, 210, 255, 0.8);
+      font-weight: 800;
+      letter-spacing: 1px;
+    }
+    .summary-badge-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.8rem;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      border: 1px solid transparent;
+      user-select: none;
+      transition: all 0.2s ease-in-out;
+    }
+    .summary-badge-btn.earned {
+      background: rgba(22, 163, 74, 0.1);
+      border-color: rgba(22, 163, 74, 0.3);
+      color: #16a34a;
+    }
+    .summary-badge-btn.earned:hover {
+      background: rgba(22, 163, 74, 0.18);
+    }
+    .summary-badge-btn.backlog {
+      background: rgba(220, 38, 38, 0.1);
+      border-color: rgba(220, 38, 38, 0.3);
+      color: #dc2626;
+    }
+    .summary-badge-btn.backlog:hover {
+      background: rgba(220, 38, 38, 0.18);
+    }
   </style>
 </head>
 
@@ -856,7 +890,7 @@
   <!-- VERSION TAG -->
   <div
     style="position:fixed;top:0;left:0;z-index:300;padding:0.35rem 1rem;font-size:0.68rem;color:var(--muted);pointer-events:none;font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-right-radius:6px;">
-    Version <strong style="color:var(--accent)">v1.9</strong>
+    Version <strong style="color:var(--accent)">v1.10</strong>
   </div>
 
   <!-- DEVELOPER CREDIT & ADMIN LINK -->
@@ -878,7 +912,7 @@
   <!-- LANDING -->
   <div id="landing" class="page active">
     <div class="land-eyebrow">Controller of Examinations · COE</div>
-    <h1 class="land-title">AMITY UNIVERSITY<br>AIIT RESULT PORTAL</h1>
+    <h1 class="land-title neon-title">AMITY UNIVERSITY<br>AIIT RESULT PORTAL</h1>
     <p class="land-sub">Amity Institute of Information Technology</p>
     
     <!-- STUDENT LOGIN CONTAINER -->

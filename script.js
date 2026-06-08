@@ -480,7 +480,7 @@ function renderStudentDash(student) {
 }
 
 // ── Compute and render the Completed / Backlog summary banner ─────────────────
-// Spec: backlogs = grade 'F' OR 'Fail' OR 'Ab'. Shows a red warning tag when > 0.
+// Spec: Calculates dynamic semester-wise earned credits vs backlog credits.
 // Works for both student and faculty dashboards (idPrefix = '' or 'faculty-').
 function updateSummaryBanner(courses, semesterFilter, idPrefix) {
   idPrefix = idPrefix || '';
@@ -488,56 +488,51 @@ function updateSummaryBanner(courses, semesterFilter, idPrefix) {
     return c && c.code && c.code !== 'nan' && c.code.trim() !== '';
   });
 
-  var filtered;
+  var currentCourses;
   if (!semesterFilter || semesterFilter === 'all' || semesterFilter === 'All' || semesterFilter === 'All Semesters') {
-    filtered = valid;
+    currentCourses = valid;
   } else {
-    filtered = valid.filter(function (c) {
+    currentCourses = valid.filter(function (c) {
       return String(c.sem || c.semester || '').trim() === semesterFilter;
     });
   }
 
-  // Completed = not F / Fail / Ab
-  var completed = filtered.filter(function (c) {
-    var g = String(c.grade || '').trim();
-    return g !== 'F' && g.toLowerCase() !== 'fail' && g.toLowerCase() !== 'ab';
-  }).length;
+  // Calculation Logic per spec:
+  var earned = currentCourses.filter(function (c) {
+    var g = String(c.grade || '').toUpperCase().trim();
+    return !['F', 'FAIL', 'AB'].includes(g);
+  }).reduce(function (sum, c) {
+    return sum + (parseFloat(c.credits) || 0);
+  }, 0);
 
-  // Backlogs: explicitly F, Fail, or Ab (spec requirement)
-  var backlogs = filtered.filter(function (c) {
-    var g = String(c.grade || '').trim();
-    return g === 'F' || g.toLowerCase() === 'fail' || g.toLowerCase() === 'ab';
-  });
-
-  var compEl = document.getElementById(idPrefix + 'completed-credits');
-  var failEl = document.getElementById(idPrefix + 'backlog-count');
-  if (compEl) compEl.textContent = completed;
-  if (failEl) failEl.textContent = backlogs.length;
-
-  // Render / remove the red warning tag for active backlogs
-  var warnId  = idPrefix + 'backlog-warn-tag';
-  var existing = document.getElementById(warnId);
+  var backlogs = currentCourses.filter(function (c) {
+    var g = String(c.grade || '').toUpperCase().trim();
+    return ['F', 'FAIL', 'AB'].includes(g);
+  }).reduce(function (sum, c) {
+    return sum + (parseFloat(c.credits) || 0);
+  }, 0);
 
   // Locate the banner container (handles both ID conventions)
   var bannerEl = document.getElementById(idPrefix + 'sem-summary-banner') ||
                  document.getElementById(idPrefix + 'sem-summary');
 
-  if (backlogs.length > 0 && bannerEl) {
-    var tagStyle =
-      'display:inline-flex;align-items:center;gap:0.3rem;' +
-      'background:rgba(220,38,38,0.12);border:1px solid rgba(220,38,38,0.4);' +
-      'color:#dc2626;border-radius:20px;padding:0.15rem 0.65rem;' +
-      'font-family:var(--mono);font-size:0.7rem;font-weight:600;margin-left:0.75rem;';
-    var tagHtml = '<span id="' + warnId + '" style="' + tagStyle + '">' +
-      '&#9888; ' + backlogs.length + ' Backlog' + (backlogs.length !== 1 ? 's' : '') +
-      '</span>';
-    if (existing) {
-      existing.outerHTML = tagHtml;
-    } else {
-      bannerEl.insertAdjacentHTML('beforeend', tagHtml);
-    }
-  } else {
-    if (existing) existing.remove();
+  if (bannerEl) {
+    bannerEl.style.display = 'flex';
+    bannerEl.style.gap = '0.75rem';
+    bannerEl.style.padding = '0.5rem 0';
+    bannerEl.style.background = 'transparent';
+    bannerEl.style.border = 'none';
+
+    bannerEl.innerHTML = [
+      '<div class="summary-badge-btn earned" title="Total credits earned in selected semester(s)">',
+        '<span>🎓 Credits Earned:</span>',
+        '<strong>' + earned + '</strong>',
+      '</div>',
+      '<div class="summary-badge-btn backlog" title="Total backlog credits in selected semester(s)">',
+        '<span>⚠️ Backlog Credits:</span>',
+        '<strong>' + backlogs + '</strong>',
+      '</div>'
+    ].join('');
   }
 }
 
@@ -1104,10 +1099,20 @@ async function handleFileUpload(files) {
         if (s.name) target.name = s.name;
         if (s.program) target.program = s.program;
         if (s.school) target.school = s.school;
-        if (s.cgpa) target.cgpa = s.cgpa;
-        if (s.totalCredits > target.totalCredits) {
-          target.totalCredits = s.totalCredits;
-          target.totalCreditEarned = s.totalCredits;
+        
+        var sCgpa = parseFloat(s.cgpa || 0);
+        var targetCgpa = parseFloat(target.cgpa || 0);
+        if (!isNaN(sCgpa) && sCgpa > targetCgpa) {
+          target.cgpa = sCgpa;
+        } else if (!targetCgpa && !isNaN(sCgpa) && sCgpa > 0) {
+          target.cgpa = sCgpa;
+        }
+
+        var sCredits = parseInt(s.totalCredits || 0, 10);
+        var targetCredits = parseInt(target.totalCredits || 0, 10);
+        if (!isNaN(sCredits) && sCredits > targetCredits) {
+          target.totalCredits = sCredits;
+          target.totalCreditEarned = sCredits;
         }
 
         s.courses.forEach(function (c) {
@@ -1215,25 +1220,30 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
     var kSem = fuzzyFindKey(rowKeys, 'sem') || fuzzyFindKey(rowKeys, 'semester');
     const rowSem = (kSem ? String(row[kSem] || '').trim() : '') || row['SEM'] || row['Semester'] || "Unknown";
 
-    // Step A (Extract CGPA): Scan all keys for a key containing EXACTLY "CGPA" and store the LITERAL value — DO NOT calculate.
-    rowKeys.forEach(function (k) {
-      if (k.toUpperCase().indexOf('CGPA') !== -1) {
-        var rawVal = row[k];
-        if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '' && String(rawVal).trim().toLowerCase() !== 'nan') {
-          // Store the literal string so downstream code receives it exactly as-is
-          s.cgpa = rawVal;  // literal copy — no parseFloat here
-        }
+    // Step A (Extract CGPA): strict Non-Destructive check
+    var rawCgpaVal = row['CGPA'] || row['C.G.P.A'];
+    if (rawCgpaVal === undefined || rawCgpaVal === null || String(rawCgpaVal).trim() === '') {
+      var kCgpaFuzzy = rowKeys.find(function (k) {
+        var uk = k.toUpperCase();
+        return uk.indexOf('CGPA') !== -1 || uk.indexOf('C.G.P.A') !== -1;
+      });
+      if (kCgpaFuzzy) {
+        rawCgpaVal = row[kCgpaFuzzy];
       }
-    });
+    }
+    var extractedCgpa = parseFloat(rawCgpaVal || 0);
+    if (!isNaN(extractedCgpa) && extractedCgpa > 0) {
+      s.cgpa = extractedCgpa; // Never overwrite with 0 or NaN
+    }
 
-    // Step B (Extract Total Credits - Explicit Columns): total AND (credit OR crdit) AND earned
+    // Step B (Extract Total Credits - Explicit Columns): Look for keys containing "Earned". Parse as integer.
     rowKeys.forEach(function (k) {
       var lowerKey = k.toLowerCase();
-      if (lowerKey.includes('total') && (lowerKey.includes('credit') || lowerKey.includes('crdit')) && lowerKey.includes('earned')) {
-        var credVal = parseFloat(row[k]);
-        if (!isNaN(credVal) && credVal > s.totalCredits) {
-          s.totalCredits = credVal;
-          s.totalCreditEarned = credVal;
+      if (lowerKey.includes('earned')) {
+        var extractedCredits = parseInt(row[k], 10);
+        if (!isNaN(extractedCredits) && extractedCredits > s.totalCredits) {
+          s.totalCredits = extractedCredits;
+          s.totalCreditEarned = extractedCredits;
         }
       }
     });
@@ -1252,15 +1262,15 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
 
     var isSummaryRow = !hasAnyCourseCode;
 
-    // IF Summary Row: Scan all keys for any "Credit Earned" or "Crdit Earned"
+    // IF Summary Row: Scan all keys for any key containing "Earned"
     if (isSummaryRow) {
       rowKeys.forEach(function (k) {
         var lowerKey = k.toLowerCase();
-        if (lowerKey.includes('credit earned') || lowerKey.includes('crdit earned') || lowerKey.includes('creditearned') || lowerKey.includes('crditearned')) {
-          var credVal = parseFloat(row[k]);
-          if (!isNaN(credVal) && credVal > s.totalCredits) {
-            s.totalCredits = credVal;
-            s.totalCreditEarned = credVal;
+        if (lowerKey.includes('earned')) {
+          var extractedCredits = parseInt(row[k], 10);
+          if (!isNaN(extractedCredits) && extractedCredits > s.totalCredits) {
+            s.totalCredits = extractedCredits;
+            s.totalCreditEarned = extractedCredits;
           }
         }
       });

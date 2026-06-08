@@ -479,9 +479,9 @@ function renderStudentDash(student) {
   updateSummaryBanner(student.courses, 'all', '');
 }
 
-// ── Compute and render the Completed Credits / Backlog summary banner ─────────
-// Works for both student dashboard and faculty view.
-// If idPrefix is 'faculty-', it updates the faculty banner; otherwise the student banner.
+// ── Compute and render the Completed / Backlog summary banner ─────────────────
+// Spec: backlogs = grade 'F' OR 'Fail' OR 'Ab'. Shows a red warning tag when > 0.
+// Works for both student and faculty dashboards (idPrefix = '' or 'faculty-').
 function updateSummaryBanner(courses, semesterFilter, idPrefix) {
   idPrefix = idPrefix || '';
   var valid = (courses || []).filter(function (c) {
@@ -497,23 +497,50 @@ function updateSummaryBanner(courses, semesterFilter, idPrefix) {
     });
   }
 
+  // Completed = not F / Fail / Ab
   var completed = filtered.filter(function (c) {
-    return String(c.grade || '').trim().toUpperCase() !== 'F';
+    var g = String(c.grade || '').trim();
+    return g !== 'F' && g.toLowerCase() !== 'fail' && g.toLowerCase() !== 'ab';
   }).length;
-  var backlog = filtered.filter(function (c) {
-    var g = String(c.grade || '').trim().toUpperCase();
-    if (g === 'F') return true;
-    // Also flag if marks are present and < passing threshold (treat < 40 as fail)
-    var m = parseFloat(c.marks);
-    if (!isNaN(m) && m < 40 && g === '') return true;
-    return false;
-  }).length;
+
+  // Backlogs: explicitly F, Fail, or Ab (spec requirement)
+  var backlogs = filtered.filter(function (c) {
+    var g = String(c.grade || '').trim();
+    return g === 'F' || g.toLowerCase() === 'fail' || g.toLowerCase() === 'ab';
+  });
 
   var compEl = document.getElementById(idPrefix + 'completed-credits');
   var failEl = document.getElementById(idPrefix + 'backlog-count');
   if (compEl) compEl.textContent = completed;
-  if (failEl) failEl.textContent = backlog;
+  if (failEl) failEl.textContent = backlogs.length;
+
+  // Render / remove the red warning tag for active backlogs
+  var warnId  = idPrefix + 'backlog-warn-tag';
+  var existing = document.getElementById(warnId);
+
+  // Locate the banner container (handles both ID conventions)
+  var bannerEl = document.getElementById(idPrefix + 'sem-summary-banner') ||
+                 document.getElementById(idPrefix + 'sem-summary');
+
+  if (backlogs.length > 0 && bannerEl) {
+    var tagStyle =
+      'display:inline-flex;align-items:center;gap:0.3rem;' +
+      'background:rgba(220,38,38,0.12);border:1px solid rgba(220,38,38,0.4);' +
+      'color:#dc2626;border-radius:20px;padding:0.15rem 0.65rem;' +
+      'font-family:var(--mono);font-size:0.7rem;font-weight:600;margin-left:0.75rem;';
+    var tagHtml = '<span id="' + warnId + '" style="' + tagStyle + '">' +
+      '&#9888; ' + backlogs.length + ' Backlog' + (backlogs.length !== 1 ? 's' : '') +
+      '</span>';
+    if (existing) {
+      existing.outerHTML = tagHtml;
+    } else {
+      bannerEl.insertAdjacentHTML('beforeend', tagHtml);
+    }
+  } else {
+    if (existing) existing.remove();
+  }
 }
+
 
 function renderCourses(courses, title, semesterFilter, idPrefix) {
   idPrefix = idPrefix || '';
@@ -940,7 +967,7 @@ function renderAdminTable(students) {
       '<td class="td-code">' + esc(s.sen) + '</td>',
       '<td style="font-weight:500">' + esc(s.name) + '</td>',
       '<td style="font-family:var(--mono);font-size:0.8rem">' + courses.length + '</td>',
-      '<td style="font-family:var(--mono);font-size:0.88rem;color:var(--gold)">' + (s.cgpa ? s.cgpa : '—') + '</td>',
+      '<td style="font-family:var(--mono);font-size:0.88rem;color:var(--gold)">' + (s.cgpa ? parseFloat(s.cgpa).toFixed(2) : '—') + '</td>',
       '<td style="font-family:var(--mono);font-size:0.8rem;color:var(--green)">' + esc(String(s.totalCreditEarned || '—')) + '</td>',
       '<td>' +
       '<span style="font-size:0.75rem;font-family:var(--mono);color:var(--muted)">Managed on server</span>' +
@@ -1084,13 +1111,15 @@ async function handleFileUpload(files) {
         }
 
         s.courses.forEach(function (c) {
-          var semKey = String(c.semester || c.sem || '').trim();
+          var semKey  = String(c.semester || c.sem || '').trim();
           var codeKey = String(c.code || '').trim().toLowerCase();
-          
+
+          // Composite key: Course Code + Semester (allows same course in different sems,
+          // and retaken F-grade courses in the same sem to both appear)
           var isDuplicate = target.courses.some(function (existC) {
-            var existSem = String(existC.semester || existC.sem || '').trim();
+            var existSem  = String(existC.semester || existC.sem || '').trim();
             var existCode = String(existC.code || '').trim().toLowerCase();
-            return existSem === semKey && existCode === existCode;
+            return existCode === codeKey && existSem === semKey;
           });
 
           if (!isDuplicate) {
@@ -1241,15 +1270,16 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
     if (!isSummaryRow) {
       var numberedCoursesFound = false;
 
-      // Loop 1 to 15 for Horizontal slots
-      for (var i = 1; i <= 15; i++) {
-        var targetP1 = i + 'coursecode';
-        var targetP2 = i + 'code';
-        var targetP3 = i + 'subjectcode';
-        
+      // Loop 1 to 20 for Horizontal slots (handles both "{n}-Course Code" and "{n} Course Code" patterns)
+      for (var i = 1; i <= 20; i++) {
+        // Collapsed targets for both hyphenated and spaced variants: "1coursecode" matches either
+        var targetP1 = i + 'coursecode';   // matches "1 Course Code" and "1-Course Code"
+        var targetP2 = i + 'code';          // matches "1 Code"
+        var targetP3 = i + 'subjectcode';   // matches "1 Subject Code"
+
         var kCC = null;
         for (var j = 0; j < rowKeys.length; j++) {
-          var ck = rowKeys[j].toLowerCase().replace(/[\s\-]+/g, '').trim();
+          var ck = collapseKey(rowKeys[j]);
           if (ck === targetP1 || ck === targetP2 || ck === targetP3 || ck.includes(targetP1)) {
             kCC = rowKeys[j];
             break;
@@ -1258,16 +1288,15 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
 
         if (kCC) {
           var rawCode = row[kCC] || '';
-          const cleanCode = rawCode.toString().trim().toUpperCase();
+          var cleanCode = rawCode.toString().trim().toUpperCase();
           if (cleanCode && cleanCode !== 'NAN') {
             numberedCoursesFound = true;
-            
+
             var kCT = findNumberedField(rowKeys, i, ['coursetitle', 'title', 'subject', 'coursename']);
             var kFG = findNumberedField(rowKeys, i, ['finalgrade', 'grade']);
             var kCr = findNumberedField(rowKeys, i, ['creditregistered', 'credit', 'credits']);
             var kGp = findNumberedField(rowKeys, i, ['totalcreditpoints', 'creditpoint', 'gradepoints', 'gp', 'points']);
             var kMk = findNumberedField(rowKeys, i, ['totalmarks', 'marks', 'score']);
-            // Fuzzy match: any key containing "marks" (e.g. "1 Total marks", "Total Marks Obtained")
             if (!kMk) {
               for (var mi = 0; mi < rowKeys.length; mi++) {
                 if (collapseKey(rowKeys[mi]).includes(String(i) + 'marks') || collapseKey(rowKeys[mi]).includes(String(i) + 'totalmarks')) {
@@ -1284,13 +1313,16 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
               code: cleanCode,
               title: kCT ? String(row[kCT] || '').trim() : '',
               type: kTy ? String(row[kTy] || '').trim() : '',
-              credits: kCr ? row[kCr] : '',
-              marks: kMk ? row[kMk] : '',
+              credits: kCr ? row[kCr] : '',          // literal copy
+              marks: kMk ? row[kMk] : '',             // literal copy
               grade: kFG ? String(row[kFG] || '').trim() : '',
-              gradePoints: kGp ? row[kGp] : '',
-              creditEarned: kCe ? row[kCe] : ''
+              gradePoints: kGp ? row[kGp] : '',       // literal copy
+              creditEarned: kCe ? row[kCe] : ''       // literal copy
             };
-            var exists = s.courses.some(function (c) { return c.code === courseObj.code; });
+            // Composite dedup: same course code AND same semester = duplicate
+            var exists = s.courses.some(function (c) {
+              return c.code === courseObj.code && c.sem === courseObj.sem;
+            });
             if (!exists) {
               s.courses.push(courseObj);
             }
@@ -1298,18 +1330,33 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
         }
       }
 
-      // If no numbered courses, scan for single vertical column
+      // If no numbered courses found, scan for single vertical column (vertical/consolidated sheets)
+      // Also handles the generic "Course Code" column without a number prefix
       if (!numberedCoursesFound) {
-        var kCCVert = fuzzyFindKey(rowKeys, 'coursecode') || fuzzyFindKey(rowKeys, 'code') || fuzzyFindKey(rowKeys, 'subjectcode');
+        var kCCVert = null;
+
+        // First: strict exact match on "Course Code" (generic, un-numbered)
+        for (var j2 = 0; j2 < rowKeys.length; j2++) {
+          var ck2 = collapseKey(rowKeys[j2]);
+          if (ck2 === 'coursecode' || ck2 === 'subjectcode' || ck2 === 'code') {
+            kCCVert = rowKeys[j2]; break;
+          }
+        }
+        // Fallback fuzzy if strict not found
+        if (!kCCVert) {
+          kCCVert = fuzzyFindKey(rowKeys, 'coursecode') || fuzzyFindKey(rowKeys, 'subjectcode') || fuzzyFindKey(rowKeys, 'code');
+        }
+
         if (kCCVert) {
           var rawCode = row[kCCVert] || '';
-          const cleanCode = rawCode.toString().trim().toUpperCase();
+          var cleanCode = rawCode.toString().trim().toUpperCase();
           if (cleanCode && cleanCode !== 'NAN') {
             var kCT = fuzzyFindKey(rowKeys, 'coursetitle') || fuzzyFindKey(rowKeys, 'title') || fuzzyFindKey(rowKeys, 'subject') || fuzzyFindKey(rowKeys, 'coursename');
             var kFG = fuzzyFindKey(rowKeys, 'finalgrade') || fuzzyFindKey(rowKeys, 'grade');
             var kCr = fuzzyFindKey(rowKeys, 'creditregistered') || fuzzyFindKey(rowKeys, 'credit') || fuzzyFindKey(rowKeys, 'credits');
             var kGp = fuzzyFindKey(rowKeys, 'totalcreditpoints') || fuzzyFindKey(rowKeys, 'creditpoint') || fuzzyFindKey(rowKeys, 'gradepoints') || fuzzyFindKey(rowKeys, 'gp') || fuzzyFindKey(rowKeys, 'points');
             var kMk = fuzzyFindKey(rowKeys, 'totalmarks') || fuzzyFindKey(rowKeys, 'marks') || fuzzyFindKey(rowKeys, 'score');
+            if (!kMk) kMk = rowKeys.find(function (k) { return collapseKey(k).includes('marks'); }) || null;
             var kCe = fuzzyFindKey(rowKeys, 'creditearned');
             var kTy = fuzzyFindKey(rowKeys, 'type') || fuzzyFindKey(rowKeys, 'coursetype') || fuzzyFindKey(rowKeys, 'category');
 
@@ -1319,13 +1366,16 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
               code: cleanCode,
               title: kCT ? String(row[kCT] || '').trim() : '',
               type: kTy ? String(row[kTy] || '').trim() : '',
-              credits: kCr ? row[kCr] : '',
-              marks: kMk ? row[kMk] : '',
+              credits: kCr ? row[kCr] : '',          // literal copy
+              marks: kMk ? row[kMk] : '',             // literal copy
               grade: kFG ? String(row[kFG] || '').trim() : '',
-              gradePoints: kGp ? row[kGp] : '',
-              creditEarned: kCe ? row[kCe] : ''
+              gradePoints: kGp ? row[kGp] : '',       // literal copy
+              creditEarned: kCe ? row[kCe] : ''       // literal copy
             };
-            var exists = s.courses.some(function (c) { return c.code === courseObj.code; });
+            // Composite dedup: same course code AND same semester = duplicate
+            var exists = s.courses.some(function (c) {
+              return c.code === courseObj.code && c.sem === courseObj.sem;
+            });
             if (!exists) {
               s.courses.push(courseObj);
             }

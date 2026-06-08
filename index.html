@@ -13,50 +13,26 @@
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <style>
     :root {
-      --bg: #060b14;
-      --s1: #0d1626;
-      --s2: #112036;
-      --s3: #162845;
-      --border: #1c3050;
-      --border2: #234060;
-      --accent: #0ea5e9;
-      --accent2: #38bdf8;
-      --gold: #f59e0b;
-      --green: #22c55e;
-      --red: #ef4444;
-      --orange: #f97316;
-      --text: #e2e8f0;
-      --sub: #94a3b8;
-      --muted: #4a6080;
-      --sans: 'DM Sans', sans-serif;
-      --display: 'Syne', sans-serif;
-      --mono: 'DM Mono', monospace;
-    }
-
-    body.light-theme {
-      --bg: #f0f4f8;
+      --bg: #f8fafc;
       --s1: #ffffff;
-      --s2: #e8eef5;
-      --s3: #dce5ef;
-      --border: #c8d8e8;
-      --border2: #aabfcf;
+      --s2: #f1f5f9;
+      --s3: #e2e8f0;
+      --border: #cbd5e1;
+      --border2: #94a3b8;
       --accent: #0284c7;
       --accent2: #0ea5e9;
       --gold: #d97706;
       --green: #16a34a;
       --red: #dc2626;
+      --orange: #ea580c;
       --text: #0f172a;
       --sub: #475569;
-      --muted: #94a3b8
+      --muted: #94a3b8;
+      --sans: 'DM Sans', sans-serif;
+      --display: 'Syne', sans-serif;
+      --mono: 'DM Mono', monospace;
     }
 
-    body.light-theme::before {
-      background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(2, 132, 199, 0.07), transparent), radial-gradient(ellipse 60% 40% at 100% 100%, rgba(14, 165, 233, 0.04), transparent)
-    }
-
-    body.light-theme .topbar {
-      background: rgba(240, 244, 248, 0.92)
-    }
 
     body,
     body * {
@@ -124,8 +100,8 @@
       inset: 0;
       z-index: 0;
       pointer-events: none;
-      background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(14, 165, 233, 0.12), transparent),
-        radial-gradient(ellipse 60% 40% at 100% 100%, rgba(56, 189, 248, 0.06), transparent);
+      background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(2, 132, 199, 0.06), transparent),
+        radial-gradient(ellipse 60% 40% at 100% 100%, rgba(14, 165, 233, 0.03), transparent);
     }
 
     .page {
@@ -156,8 +132,9 @@
       position: sticky;
       top: 0;
       z-index: 200;
-      background: rgba(6, 11, 20, 0.85);
+      background: rgba(255, 255, 255, 0.88);
       backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
       border-bottom: 1px solid var(--border);
       padding: 0 2rem;
       height: 56px;
@@ -879,7 +856,7 @@
   <!-- VERSION TAG -->
   <div
     style="position:fixed;top:0;left:0;z-index:300;padding:0.35rem 1rem;font-size:0.68rem;color:var(--muted);pointer-events:none;font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-right-radius:6px;">
-    Version <strong style="color:var(--accent)">v1.8</strong>
+    Version <strong style="color:var(--accent)">v1.9</strong>
   </div>
 
   <!-- DEVELOPER CREDIT & ADMIN LINK -->

@@ -268,13 +268,148 @@ function onSenInput() {
   if (pf) pf.style.display = 'block';
   var nf = document.getElementById('s-newpass-fields');
   if (nf) nf.style.display = 'none';
-  ['s-pass', 's-newpass', 's-confirmpass'].forEach(function (id) {
+  var otf = document.getElementById('s-otp-fields');
+  if (otf) otf.style.display = 'none';
+  var otb = document.getElementById('s-otp-buttons');
+  if (otb) otb.style.display = 'none';
+  var sLoginTitle = document.getElementById('s-login-title');
+  if (sLoginTitle) sLoginTitle.textContent = 'Student Login';
+  var sLoginBtn = document.getElementById('s-login-btn');
+  if (sLoginBtn) sLoginBtn.style.display = 'block';
+
+  ['s-pass', 's-newpass', 's-confirmpass', 's-otp', 's-otp-newpass', 's-otp-confirmpass'].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) el.value = '';
   });
   var btn = document.getElementById('s-login-btn');
   if (btn) { btn.textContent = 'Sign In →'; btn.disabled = false; }
   isNewUser = false;
+}
+
+/**
+ * requestOtpReset — initiates the OTP recovery flow by calling backend.gs's forgotpassword action.
+ */
+async function requestOtpReset() {
+  var rawSen = document.getElementById('s-sen').value;
+  var sen = sanitize(rawSen).toUpperCase();
+  hideAlerts('student');
+
+  if (!sen) { 
+    showErr('student-err', 'Please enter your SEN number first.', ['s-sen']); 
+    return; 
+  }
+
+  var btn = document.getElementById('s-login-btn');
+  if (btn) btn.disabled = true;
+
+  showOk('student-ok', '⏳ Sending OTP to your institutional email...');
+
+  var gasUrl = GAS_URL;
+
+  try {
+    var response = await fetch(gasUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'forgotpassword', sen: sen })
+    });
+    var result = await response.json();
+
+    if (result && result.status === 'success') {
+      showOk('student-ok', '✓ ' + result.message);
+      // Toggle UI to OTP entry
+      document.getElementById('s-login-title').textContent = 'Reset Password';
+      document.getElementById('s-pass-field').style.display = 'none';
+      document.getElementById('s-newpass-fields').style.display = 'none';
+      document.getElementById('s-otp-fields').style.display = 'block';
+      document.getElementById('s-login-btn').style.display = 'none';
+      document.getElementById('s-otp-buttons').style.display = 'flex';
+      setTimeout(function () {
+        var otpEl = document.getElementById('s-otp');
+        if (otpEl) otpEl.focus();
+      }, 150);
+    } else {
+      showErr('student-err', '⚠ ' + ((result && result.error) || 'Failed to request password reset. Contact admin.'), ['s-sen']);
+    }
+  } catch (err) {
+    showErr('student-err', '✗ Connection error: ' + err.message, ['s-sen']);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+/**
+ * otpResetStep — verifies the OTP and sets the new password.
+ */
+async function otpResetStep() {
+  var rawSen = document.getElementById('s-sen').value;
+  var sen = sanitize(rawSen).toUpperCase();
+  var otp = sanitize(document.getElementById('s-otp').value).trim();
+  var newpass = sanitize(document.getElementById('s-otp-newpass').value);
+  var confpass = sanitize(document.getElementById('s-otp-confirmpass').value);
+  hideAlerts('student');
+
+  if (!otp || otp.length !== 6) {
+    showErr('student-err', 'Please enter a valid 6-digit OTP.', ['s-otp']);
+    return;
+  }
+  if (!newpass || newpass.length < 6) {
+    showErr('student-err', 'Password must be at least 6 characters.', ['s-otp-newpass', 's-otp-confirmpass']);
+    return;
+  }
+  if (newpass !== confpass) {
+    showErr('student-err', 'Passwords do not match.', ['s-otp-newpass', 's-otp-confirmpass']);
+    return;
+  }
+
+  var submitBtn = document.getElementById('s-otp-submit-btn');
+  if (submitBtn) submitBtn.disabled = true;
+  showOk('student-ok', '⏳ Resetting password...');
+
+  var hash = await hashPwd(newpass);
+  var gasUrl = GAS_URL;
+
+  try {
+    var response = await fetch(gasUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'resetpassword', sen: sen, otp: otp, hash: hash })
+    });
+    var result = await response.json();
+
+    if (result && result.status === 'success') {
+      showOk('student-ok', '✓ ' + result.message);
+      setTimeout(function () {
+        cancelOtpResetUI();
+        hideAlerts('student');
+        showOk('student-ok', '✓ Password reset successful. Please sign in.');
+      }, 1500);
+    } else {
+      showErr('student-err', '⚠ ' + ((result && result.error) || 'Invalid OTP or reset failed. Try again.'), ['s-otp']);
+    }
+  } catch (err) {
+    showErr('student-err', '✗ Connection error: ' + err.message, ['s-otp']);
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+  }
+}
+
+/**
+ * cancelOtpResetUI — reverts the student login form to its standard state.
+ */
+function cancelOtpResetUI() {
+  document.getElementById('s-login-title').textContent = 'Student Login';
+  document.getElementById('s-pass-field').style.display = 'block';
+  document.getElementById('s-newpass-fields').style.display = 'none';
+  document.getElementById('s-otp-fields').style.display = 'none';
+  document.getElementById('s-login-btn').style.display = 'block';
+  document.getElementById('s-otp-buttons').style.display = 'none';
+  
+  // Clear OTP input values
+  ['s-otp', 's-otp-newpass', 's-otp-confirmpass'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  hideAlerts('student');
 }
 
 /**
@@ -920,8 +1055,18 @@ function renderFacultyStudentView(student) {
 //  ADMIN LOGIN  (admin-hidden.html)
 // ═══════════════════════════════════════════════════════════════════════════════
 async function adminLogin() {
+  var email = sanitize(document.getElementById('a-email').value).trim().toLowerCase();
   var pass = sanitize(document.getElementById('a-pass').value);
   var errEl = document.getElementById('admin-err');
+
+  if (!email || email !== 'itsgopalmail@gmail.com') {
+    if (errEl) {
+      errEl.textContent = '⚠ Access denied. Invalid admin email.';
+      errEl.className = 'alert err';
+      errEl.style.display = 'block';
+    }
+    return;
+  }
 
   var limitMsg = checkRateLimit('admin');
   if (limitMsg) {
@@ -943,7 +1088,7 @@ async function adminLogin() {
     var response = await fetch(gasUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'verifyadmin', password: pass })
+      body: JSON.stringify({ action: 'verifyadmin', email: email, password: pass })
     });
     var data = await response.json();
 
@@ -955,7 +1100,7 @@ async function adminLogin() {
     } else {
       recordFailedAttempt('admin');
       if (errEl) {
-        errEl.textContent = '⚠ ' + (data.error || 'Wrong admin password. Please try again.');
+        errEl.textContent = '⚠ ' + (data.error || 'Wrong admin credentials. Please try again.');
         errEl.className = 'alert err';
         errEl.style.display = 'block';
         errEl.classList.remove('shake');

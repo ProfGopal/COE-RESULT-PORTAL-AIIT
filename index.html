@@ -199,9 +199,18 @@
       display: flex;
       flex-direction: column;
       align-items: center;
+      justify-content: flex-start;
+      padding: 0 0 2rem 0;
+      box-sizing: border-box;
+    }
+
+    #student-login-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
       justify-content: center;
-      padding: 2rem;
-      text-align: center;
+      width: 100%;
+      margin-top: 1rem;
     }
 
     .land-eyebrow {
@@ -924,34 +933,192 @@
     .summary-badge-btn.backlog:hover {
       background: rgba(220, 38, 38, 0.18);
     }
+
+    /* Header Container Adjustments for the 3-column layout */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 20px 30px;
+      width: 100%;
+      box-sizing: border-box;
+      position: relative; /* Crucial for absolute centering child */
+      min-height: 200px;
+    }
+
+    .header-left, .header-right {
+      z-index: 10; /* Keep corners clickable */
+    }
+
+    .header-center {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      width: max-content;
+      z-index: 5;
+    }
+
+    /* Marvel Studios Style Result Portal Banner */
+    .marvel-banner {
+      background-color: #e23636; /* Classic Marvel Red */
+      color: #ffffff;
+      font-family: 'Arial Black', Impact, sans-serif;
+      font-weight: 900;
+      font-size: 1.5rem;
+      text-transform: uppercase;
+      letter-spacing: -1px; /* Tight tracking like Marvel */
+      padding: 4px 16px;
+      border-top: 2px solid #ffffff;
+      border-bottom: 2px solid #ffffff;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+      display: inline-block;
+    }
+
+    /* Corner Typography Styling */
+    .header-left {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      font-size: 0.9rem;
+      font-weight: bold;
+      text-align: left;
+    }
+    
+    .header-right {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: flex-end;
+    }
+
+    /* Golden Neon Glow and Flow Styles */
+    .logo-neon-container {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px 24px;
+      border-radius: 14px;
+      background: rgba(15, 23, 42, 0.75); /* Dark background for premium contrast */
+      overflow: hidden;
+      z-index: 1;
+      margin-bottom: 8px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Rotating gradient layer creating a flowing light trail */
+    .logo-neon-container::before {
+      content: '';
+      position: absolute;
+      width: 250%;
+      height: 250%;
+      background: conic-gradient(
+        from 0deg,
+        transparent 20%,
+        #fbbf24 40%,
+        #ffd700 50%,
+        #fbbf24 60%,
+        transparent 80%
+      );
+      animation: rotateNeonFlow 3s linear infinite;
+      z-index: -2;
+    }
+
+    /* Inner cover to make the gradient appear as a border */
+    .logo-neon-container::after {
+      content: '';
+      position: absolute;
+      inset: 2px;
+      background: rgba(15, 23, 42, 0.95);
+      border-radius: 12px;
+      z-index: -1;
+    }
+
+    /* Glowing bloom effect behind the logo container */
+    .logo-neon-glow-behind {
+      position: absolute;
+      inset: -5px;
+      background: conic-gradient(
+        from 0deg,
+        transparent 20%,
+        #fbbf24 40%,
+        #ffd700 50%,
+        #fbbf24 60%,
+        transparent 80%
+      );
+      animation: rotateNeonFlow 3s linear infinite;
+      filter: blur(12px);
+      opacity: 0.6;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /* Pulsing drop shadow on the transparent logo image */
+    .gold-neon-logo {
+      max-width: 240px;
+      height: auto;
+      display: block;
+      z-index: 2;
+      filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.5));
+      animation: logoGoldPulse 3s ease-in-out infinite;
+    }
+
+    @keyframes rotateNeonFlow {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @keyframes logoGoldPulse {
+      0%, 100% {
+        transform: scale(1);
+        filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.5)) drop-shadow(0 0 15px rgba(217, 119, 6, 0.3));
+      }
+      50% {
+        transform: scale(1.02);
+        filter: drop-shadow(0 0 16px rgba(251, 191, 36, 0.85)) drop-shadow(0 0 30px rgba(217, 119, 6, 0.5));
+      }
+    }
   </style>
 </head>
 
 <body>
 
-  <!-- VERSION TAG -->
-  <div
-    style="position:fixed;top:0;left:0;z-index:300;padding:0.35rem 1rem;font-size:0.68rem;color:var(--muted);pointer-events:none;font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-right-radius:6px;">
-    Version <strong style="color:var(--accent)">Ver 4.</strong>
-  </div>
-
-  <!-- DEVELOPER CREDIT & ADMIN LINK -->
-  <div
-    style="position:fixed;top:0;right:32px;z-index:300;padding:0.35rem 1rem;font-size:0.68rem;color:var(--muted);pointer-events:none;font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-left-radius:6px;">
-    Developed by <strong style="color:var(--accent2)">Dr. GOPAL RAJENDRAN</strong>
-  </div>
-
-  <!-- FACULTY LOGIN ICON -->
-  <button id="btn-faculty-nav" onclick="showFacultyLogin()" style="position:fixed;top:0;right:0;z-index:301;padding:0.35rem 0.6rem;background:rgba(6,11,20,0.6);border-bottom-left-radius:6px;color:var(--sub);display:flex;align-items:center;gap:0.4rem;transition:color 0.2s;border:none;cursor:pointer;" title="Faculty Portal">
-    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-    <span style="font-size:0.65rem;font-family:var(--mono);font-weight:600;letter-spacing:0.5px;">FACULTY LOGIN</span>
-  </button>
-
   <!-- LANDING -->
   <div id="landing" class="page active">
-    <div class="land-eyebrow">Controller of Examinations · COE</div>
-    <h1 class="land-title cinematic-title">AMITY UNIVERSITY<br>AIIT RESULT PORTAL</h1>
-    <p class="land-sub">Amity Institute of Information Technology</p>
+    <header>
+      <div class="header-left">
+        <span style="color: var(--text); font-size: 0.9rem; font-weight: 500;">Developed by <strong style="color: var(--accent2);">Dr. GOPAL RAJENDRAN</strong></span>
+        <span style="font-size: 0.75rem; color: var(--muted); font-family: var(--mono);">Version 5</span>
+      </div>
+      <div class="header-center">
+        <div style="font-size: 0.8rem; font-weight: 700; letter-spacing: 2px; color: var(--gold); margin-bottom: 8px; text-transform: uppercase; font-family: var(--mono);">
+          Controller of Examination - COE
+        </div>
+        <div style="position: relative; display: inline-block;">
+          <div class="logo-neon-glow-behind"></div>
+          <div class="logo-neon-container">
+            <img src="amity-logo.png" class="gold-neon-logo" alt="Amity University Logo">
+          </div>
+        </div>
+        <div class="marvel-banner" style="margin-top: 4px;">RESULT PORTAL</div>
+      </div>
+      <div class="header-right">
+        <!-- Admin Login Button -->
+        <a href="admin-hidden.html" class="btn-sm primary" id="btn-admin-nav" style="display:inline-flex; align-items:center; gap:0.5rem; font-size:0.75rem; padding:0.45rem 1rem; border-radius:6px; border-color:var(--accent); color:var(--accent); font-family:var(--sans); font-weight:600; letter-spacing:0.5px; text-decoration:none; background:rgba(2, 132, 199, 0.05); transition:all 0.2s;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+          ADMIN LOGIN
+        </a>
+        <!-- Faculty Login Button -->
+        <button id="btn-faculty-nav" onclick="showFacultyLogin()" class="btn-sm" style="display:inline-flex; align-items:center; gap:0.5rem; font-size:0.75rem; padding:0.45rem 1rem; border-radius:6px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+          FACULTY LOGIN
+        </button>
+      </div>
+    </header>
     
     <!-- STUDENT LOGIN CONTAINER -->
     <div id="student-login-container">
@@ -1013,14 +1180,6 @@
           <button class="btn-primary" onclick="cancelOtpResetUI()" style="background:var(--s3); color:var(--text); border:1px solid var(--border); width:auto; padding:0 1rem;">Cancel</button>
         </div>
       </div>
-    </div>
-
-    <!-- ISOLATED ADMIN PORTAL GATEWAY BUTTON -->
-    <div style="margin-top: 1.5rem; margin-bottom: 2rem;">
-      <a href="admin-hidden.html" class="btn-sm primary" style="display:inline-flex; align-items:center; gap:0.5rem; font-size:0.75rem; padding:0.55rem 1.25rem; border-radius:8px; border-color:var(--accent); color:var(--accent); font-family:var(--sans); font-weight:600; letter-spacing:0.5px; text-decoration:none; background:rgba(2, 132, 199, 0.05); transition:all 0.2s;">
-        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:2px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-        ADMIN PORTAL LOGIN
-      </a>
     </div>
 
     <!-- FACULTY LOGIN CONTAINER (inline on landing page, hidden by default) -->

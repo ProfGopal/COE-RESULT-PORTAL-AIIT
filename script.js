@@ -914,11 +914,8 @@ async function facultyLoginStep() {
       if (facContainer) facContainer.style.display = 'none';
       // Navigate to faculty dashboard
       showPage('faculty-dash');
-      // Reset search state
-      var senInp = document.getElementById('faculty-sen-input');
-      if (senInp) senInp.value = '';
-      var resultDiv = document.getElementById('faculty-student-result');
-      if (resultDiv) resultDiv.style.display = 'none';
+      // Load all students for the analytics dashboard
+      facultyLoadAllStudents();
     } else {
       if (errEl) {
         errEl.textContent = '⚠ ' + ((data && data.error) || 'Invalid faculty credentials. Please try again.');
@@ -941,54 +938,197 @@ async function facultyLoginStep() {
 function facultyLogout() {
   sessionStorage.removeItem(FACULTY_SESSION);
   currentFacultyEmail = null;
+  window.students = [];
   // Return to landing and show the student login (not the faculty form)
   showPage('landing');
   showStudentLoginUI();
 }
 
-async function facultySearchStudent() {
-  var rawSen = document.getElementById('faculty-sen-input').value;
-  var sen = sanitize(rawSen).toUpperCase();
-  var errEl  = document.getElementById('faculty-search-err');
+// ── Load all students into window.students (called on faculty login) ──────────
+async function facultyLoadAllStudents() {
   var infoEl = document.getElementById('faculty-search-info');
-  var resDiv = document.getElementById('faculty-student-result');
-  var btn    = document.getElementById('faculty-search-btn');
-  var email  = sessionStorage.getItem(FACULTY_SESSION) || currentFacultyEmail || '';
+  var errEl  = document.getElementById('faculty-search-err');
+  if (infoEl) { infoEl.innerHTML = '<span class="spinner"></span> Loading student directory…'; infoEl.style.display = 'block'; }
+  if (errEl)  errEl.style.display = 'none';
 
-  if (errEl)  errEl.style.display  = 'none';
-  if (infoEl) infoEl.style.display = 'none';
+  try {
+    // Try backend load first (requires admin password — fallback to local cache)
+    var cached = localStorage.getItem(LOCAL_STU_KEY);
+    var students = [];
+    if (cached) {
+      try { students = JSON.parse(cached); } catch(e) { students = []; }
+    }
+    if (students && students.length) {
+      window.students = students;
+      if (infoEl) infoEl.style.display = 'none';
+      renderFacultyTable(window.students);
+    } else {
+      window.students = [];
+      if (infoEl) infoEl.style.display = 'none';
+      renderFacultyTable([]);
+    }
+  } catch (err) {
+    if (infoEl) infoEl.style.display = 'none';
+    if (errEl)  { errEl.textContent = '✗ Could not load students: ' + err.message; errEl.style.display = 'block'; }
+  }
+}
 
-  if (!sen) {
-    if (errEl) { errEl.textContent = 'Please enter a SEN number.'; errEl.style.display = 'block'; }
+// ── Render Faculty Directory Table ────────────────────────────────────────────
+function renderFacultyTable(studentsArray) {
+  var tbody  = document.getElementById('faculty-dir-tbody');
+  var badge  = document.getElementById('faculty-dir-badge');
+  if (!tbody) return;
+
+  if (badge) badge.textContent = (studentsArray.length) + ' student' + (studentsArray.length !== 1 ? 's' : '');
+  tbody.innerHTML = '';
+
+  if (!studentsArray || !studentsArray.length) {
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td colspan="6" style="text-align:center;padding:2.5rem;color:var(--muted);">No students match the current filter.</td>';
+    tbody.appendChild(tr);
     return;
   }
 
-  if (btn) btn.disabled = true;
+  studentsArray.forEach(function (student) {
+    // Calculate backlogs on the fly
+    var backlogCount = (student.courses || []).filter(function (c) {
+      return ['F', 'FAIL', 'AB'].includes(String(c.grade || '').toUpperCase().trim());
+    }).length;
+
+    var cgpaVal = parseFloat(student.cgpa);
+    var cgpaDisplay = (!isNaN(cgpaVal) && cgpaVal !== 0) ? cgpaVal.toFixed(2) : '—';
+    var creditsDisplay = student.totalCreditEarned || student.totalCredits || '—';
+
+    var backlogCell = backlogCount > 0
+      ? '<span style="background:rgba(220,38,38,0.12);border:1px solid rgba(220,38,38,0.35);color:#dc2626;font-family:var(--mono);font-size:0.72rem;padding:0.15rem 0.55rem;border-radius:12px;font-weight:700;">' + backlogCount + '</span>'
+      : '<span style="color:var(--green);font-family:var(--mono);font-size:0.8rem;">✓ Clear</span>';
+
+    var tr = document.createElement('tr');
+    tr.innerHTML = [
+      '<td class="td-code">' + esc(student.sen) + '</td>',
+      '<td style="font-weight:500">' + esc(student.name) + '</td>',
+      '<td style="font-family:var(--mono);font-size:0.88rem;color:var(--gold)">' + esc(cgpaDisplay) + '</td>',
+      '<td style="font-family:var(--mono);font-size:0.8rem;color:var(--green)">' + esc(String(creditsDisplay)) + '</td>',
+      '<td>' + backlogCell + '</td>',
+      '<td><button onclick="facultyViewStudent(' + JSON.stringify(student.sen) + ')" ' +
+        'style="font-family:var(--mono);font-size:0.7rem;padding:0.25rem 0.7rem;border-radius:5px;' +
+        'border:1px solid var(--accent);background:rgba(2,132,199,0.07);color:var(--accent);cursor:pointer;' +
+        'transition:all 0.15s;" onmouseover="this.style.background=\'var(--accent)\';this.style.color=\'#fff\'" ' +
+        'onmouseout="this.style.background=\'rgba(2,132,199,0.07)\';this.style.color=\'var(--accent)\'">View Results →</button></td>'
+    ].join('');
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Filter: View All ──────────────────────────────────────────────────────────
+function facultyViewAll() {
+  if (!window.students || !window.students.length) {
+    facultyLoadAllStudents();
+    return;
+  }
+  var searchEl = document.getElementById('faculty-search-input');
+  if (searchEl) searchEl.value = '';
+  var creditEl = document.getElementById('faculty-credit-input');
+  if (creditEl) creditEl.value = '';
+  renderFacultyTable(window.students);
+}
+
+// ── Filter: Search by SEN or Name ─────────────────────────────────────────────
+function facultyFilterSearch() {
+  var val = (document.getElementById('faculty-search-input').value || '').trim();
+  if (!val) { renderFacultyTable(window.students || []); return; }
+  var filtered = (window.students || []).filter(function (s) {
+    return s.sen.includes(val.toUpperCase()) || s.name.toLowerCase().includes(val.toLowerCase());
+  });
+  renderFacultyTable(filtered);
+}
+
+// ── Filter: Has Backlogs ──────────────────────────────────────────────────────
+function facultyFilterBacklogs() {
+  var filtered = (window.students || []).filter(function (s) {
+    return (s.courses || []).some(function (c) {
+      return ['F', 'FAIL', 'AB'].includes(String(c.grade || '').toUpperCase().trim());
+    });
+  });
+  var searchEl = document.getElementById('faculty-search-input');
+  if (searchEl) searchEl.value = '';
+  renderFacultyTable(filtered);
+}
+
+// ── Filter: Credits Below X ───────────────────────────────────────────────────
+function facultyFilterCredits() {
+  var creditEl = document.getElementById('faculty-credit-input');
+  var target = parseInt(creditEl ? creditEl.value : '');
+  if (isNaN(target)) {
+    var errEl = document.getElementById('faculty-search-err');
+    if (errEl) { errEl.textContent = 'Please enter a valid credit threshold number.'; errEl.style.display = 'block'; }
+    return;
+  }
+  var errEl = document.getElementById('faculty-search-err');
+  if (errEl) errEl.style.display = 'none';
+  var searchEl = document.getElementById('faculty-search-input');
+  if (searchEl) searchEl.value = '';
+  var filtered = (window.students || []).filter(function (s) {
+    return parseInt(s.totalCreditEarned || s.totalCredits || 0) < target;
+  });
+  renderFacultyTable(filtered);
+}
+
+// ── View Individual Student Detail ────────────────────────────────────────────
+function facultyViewStudent(sen) {
+  var student = (window.students || []).find(function (s) { return s.sen === sen; });
+  if (!student) return;
+  // Hide directory table, show detail view
+  var dirView    = document.getElementById('faculty-directory-view');
+  var detailView = document.getElementById('faculty-student-detail-view');
+  var ctrlPanel  = document.getElementById('faculty-control-panel');
+  if (dirView)    dirView.style.display = 'none';
+  if (ctrlPanel)  ctrlPanel.style.display = 'none';
+  if (detailView) detailView.style.display = 'block';
+  // Render the student detail exactly as the student sees it
+  renderFacultyStudentView(student);
+}
+
+// ── Back to Directory ─────────────────────────────────────────────────────────
+function facultyBackToDirectory() {
+  var dirView    = document.getElementById('faculty-directory-view');
+  var detailView = document.getElementById('faculty-student-detail-view');
+  var ctrlPanel  = document.getElementById('faculty-control-panel');
+  if (detailView) detailView.style.display = 'none';
+  if (dirView)    dirView.style.display = 'block';
+  if (ctrlPanel)  ctrlPanel.style.display = 'flex';
+}
+
+// ── Legacy single-SEN search (kept for backward compat if needed) ─────────────
+async function facultySearchStudent() {
+  var rawSen = (document.getElementById('faculty-sen-input') || {}).value || '';
+  var sen = sanitize(rawSen).toUpperCase();
+  if (!sen) return;
+  var student = (window.students || []).find(function (s) { return s.sen === sen; });
+  if (student) { facultyViewStudent(sen); return; }
+  // Fallback server lookup
+  var errEl  = document.getElementById('faculty-search-err');
+  var infoEl = document.getElementById('faculty-search-info');
+  var email  = sessionStorage.getItem(FACULTY_SESSION) || currentFacultyEmail || '';
   if (infoEl) { infoEl.innerHTML = '<span class="spinner"></span> Fetching student data…'; infoEl.style.display = 'block'; }
-  if (resDiv) resDiv.style.display = 'none';
-
+  if (errEl)  errEl.style.display = 'none';
   try {
-    // Use the secure facultylookup endpoint — faculty email is validated server-side
     var result = await gasJsonp(
-      GAS_URL + '?action=facultylookup&facultyEmail=' + encodeURIComponent(email) +
-      '&sen=' + encodeURIComponent(sen),
-      12000
+      GAS_URL + '?action=facultylookup&facultyEmail=' + encodeURIComponent(email) + '&sen=' + encodeURIComponent(sen), 12000
     );
-
     if (infoEl) infoEl.style.display = 'none';
-
     if (!result || result.error) {
-      var msg = (result && result.error) ? result.error : 'Student not found.';
-      if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
+      if (errEl) { errEl.textContent = (result && result.error) ? result.error : 'Student not found.'; errEl.style.display = 'block'; }
     } else if (result.success && result.student) {
-      renderFacultyStudentView(result.student);
-      if (resDiv) resDiv.style.display = 'block';
+      // Inject into window.students for future use
+      if (!window.students) window.students = [];
+      var existing = window.students.findIndex(function(s){ return s.sen === result.student.sen; });
+      if (existing === -1) window.students.push(result.student); else window.students[existing] = result.student;
+      facultyViewStudent(result.student.sen);
     }
   } catch (err) {
     if (infoEl) infoEl.style.display = 'none';
     if (errEl) { errEl.textContent = '✗ Error: ' + err.message; errEl.style.display = 'block'; }
-  } finally {
-    if (btn) btn.disabled = false;
   }
 }
 

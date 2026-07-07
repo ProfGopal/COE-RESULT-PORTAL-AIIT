@@ -610,25 +610,74 @@ function renderStudentDash(student) {
   });
   document.getElementById('dash-nc').textContent = validCourses.length;
 
-  // Step A (Extract Unique Tabs): Create an array of unique semesters from the student's data
+  // ── Smart Backlog Engine ──────────────────────────────────────────────────────
+  // Groups courses by code to detect Active vs. Cleared backlogs
+  var FAIL_GRADES = ['F', 'FAIL', 'AB'];
+  var courseGroups = {};
+  validCourses.forEach(function (c) {
+    var key = String(c.code || '').trim().toUpperCase();
+    if (!courseGroups[key]) courseGroups[key] = [];
+    courseGroups[key].push(c);
+  });
+
+  var activeBacklogs  = [];  // Failed, never passed
+  var clearedBacklogs = [];  // Had fails but later passed
+
+  Object.keys(courseGroups).forEach(function (code) {
+    var attempts = courseGroups[code];
+    var hasFail  = attempts.some(function (c) { return FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); });
+    var hasPass  = attempts.some(function (c) { return !FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); });
+
+    if (hasFail && !hasPass) {
+      // Active Backlog — pick the latest failed attempt
+      var latest = attempts.filter(function (c) { return FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); });
+      activeBacklogs.push(latest[latest.length - 1]);
+    } else if (hasFail && hasPass) {
+      // Cleared Backlog — push the passed attempt(s)
+      attempts.filter(function (c) { return !FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); })
+              .forEach(function (c) { clearedBacklogs.push(c); });
+    }
+    // Standard (only passes) — no special handling needed
+  });
+
+  // ── Step A: Extract Unique Semesters ─────────────────────────────────────────
   const uniqueSems = [...new Set(student.courses.map(c => c.sem).filter(Boolean))];
 
-  // Step B (Render Tabs): Dynamically generate the HTML
+  // ── Step B: Render Tabs ───────────────────────────────────────────────────────
   var tabsEl = document.getElementById('sem-tabs');
   tabsEl.innerHTML = '';
 
-  function makeTab(label, isAll, clickedSem) {
+  function makeTab(label, isAll, clickedSem, backlogType) {
     var btn = document.createElement('button');
     btn.className = 'tab' + (isAll ? ' active' : '');
     btn.textContent = label;
     btn.onclick = function () {
       document.querySelectorAll('#sem-tabs .tab').forEach(function (t) { t.classList.remove('active'); });
       btn.classList.add('active');
-      if (isAll) {
-        // When "All Semesters" is clicked, pass student.courses to the table rendering function
+
+      // Clear any backlog-mode info banner
+      var infoBanner = document.getElementById('backlog-info-banner');
+      if (infoBanner) infoBanner.remove();
+
+      if (backlogType === 'active') {
+        renderCourses(activeBacklogs, '🔴 Active Backlogs', 'all');
+        var b = document.createElement('div');
+        b.id = 'backlog-info-banner';
+        b.style.cssText = 'background:rgba(220,38,38,0.08);border:1px solid rgba(220,38,38,0.25);border-radius:8px;padding:0.75rem 1rem;color:#dc2626;font-size:0.88rem;font-weight:600;margin-bottom:0.75rem;';
+        b.textContent = '⚠ These courses require re-examination.';
+        var tblTitle = document.getElementById('tbl-title');
+        if (tblTitle && tblTitle.parentNode) tblTitle.parentNode.insertBefore(b, tblTitle);
+      } else if (backlogType === 'cleared') {
+        renderCourses(clearedBacklogs, '🟢 Cleared Backlogs', 'all');
+        var b = document.createElement('div');
+        b.id = 'backlog-info-banner';
+        b.style.cssText = 'background:rgba(22,163,74,0.08);border:1px solid rgba(22,163,74,0.25);border-radius:8px;padding:0.75rem 1rem;color:#16a34a;font-size:0.88rem;font-weight:600;margin-bottom:0.75rem;';
+        b.textContent = '✓ Historical backlogs successfully cleared.';
+        var tblTitle = document.getElementById('tbl-title');
+        if (tblTitle && tblTitle.parentNode) tblTitle.parentNode.insertBefore(b, tblTitle);
+      } else if (isAll) {
         renderCourses(student.courses, 'All Semesters', 'all');
       } else {
-        // When a specific semester tab is clicked, filter the array
         const filtered = student.courses.filter(c => c.sem === clickedSem);
         renderCourses(filtered, label, clickedSem);
       }
@@ -636,11 +685,21 @@ function renderStudentDash(student) {
     return btn;
   }
 
+  // Tab 1: All Semesters
   tabsEl.appendChild(makeTab('All Semesters', true));
+  // Tabs 2…n: Individual semesters
   uniqueSems.forEach(function (s) {
     var label = SEM_MAP[s] || s;
     tabsEl.appendChild(makeTab(label, false, s));
   });
+  // Tab n+1: 🔴 Active Backlogs (only if any exist)
+  if (activeBacklogs.length > 0) {
+    tabsEl.appendChild(makeTab('🔴 Active Backlogs', false, null, 'active'));
+  }
+  // Tab n+2: 🟢 Cleared Backlogs (only if any exist)
+  if (clearedBacklogs.length > 0) {
+    tabsEl.appendChild(makeTab('🟢 Cleared Backlogs', false, null, 'cleared'));
+  }
 
   renderCourses(student.courses, 'All Semesters', 'all');
 }
@@ -1181,7 +1240,7 @@ async function facultySearchStudent() {
 
 /**
  * renderFacultyStudentView — mirrors renderStudentDash but targets the faculty-prefixed DOM elements.
- * Shows the exact same dashboard layout that a student sees.
+ * V7.1: Includes the Smart Backlog Engine (Active vs. Cleared backlog tabs).
  */
 function renderFacultyStudentView(student) {
   document.getElementById('faculty-dash-avatar').textContent  = (student.name || 'S').charAt(0);
@@ -1202,6 +1261,33 @@ function renderFacultyStudentView(student) {
   });
   document.getElementById('faculty-dash-nc').textContent = validCourses.length;
 
+  // ── Smart Backlog Engine ──────────────────────────────────────────────────────
+  var FAIL_GRADES = ['F', 'FAIL', 'AB'];
+  var courseGroups = {};
+  validCourses.forEach(function (c) {
+    var key = String(c.code || '').trim().toUpperCase();
+    if (!courseGroups[key]) courseGroups[key] = [];
+    courseGroups[key].push(c);
+  });
+
+  var activeBacklogs  = [];
+  var clearedBacklogs = [];
+
+  Object.keys(courseGroups).forEach(function (code) {
+    var attempts = courseGroups[code];
+    var hasFail  = attempts.some(function (c) { return FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); });
+    var hasPass  = attempts.some(function (c) { return !FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); });
+
+    if (hasFail && !hasPass) {
+      var latest = attempts.filter(function (c) { return FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); });
+      activeBacklogs.push(latest[latest.length - 1]);
+    } else if (hasFail && hasPass) {
+      attempts.filter(function (c) { return !FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); })
+              .forEach(function (c) { clearedBacklogs.push(c); });
+    }
+  });
+
+  // ── Unique Semesters ──────────────────────────────────────────────────────────
   var uniqueSems = [];
   var seen = {};
   (student.courses || []).forEach(function (c) {
@@ -1212,14 +1298,34 @@ function renderFacultyStudentView(student) {
   var tabsEl = document.getElementById('faculty-sem-tabs');
   tabsEl.innerHTML = '';
 
-  function makeFacultyTab(label, isAll, clickedSem) {
+  function makeFacultyTab(label, isAll, clickedSem, backlogType) {
     var btn = document.createElement('button');
     btn.className = 'tab' + (isAll ? ' active' : '');
     btn.textContent = label;
     btn.onclick = function () {
       document.querySelectorAll('#faculty-sem-tabs .tab').forEach(function (t) { t.classList.remove('active'); });
       btn.classList.add('active');
-      if (isAll) {
+
+      var infoBanner = document.getElementById('faculty-backlog-info-banner');
+      if (infoBanner) infoBanner.remove();
+
+      if (backlogType === 'active') {
+        renderCourses(activeBacklogs, '🔴 Active Backlogs', 'all', 'faculty-');
+        var b = document.createElement('div');
+        b.id = 'faculty-backlog-info-banner';
+        b.style.cssText = 'background:rgba(220,38,38,0.08);border:1px solid rgba(220,38,38,0.25);border-radius:8px;padding:0.75rem 1rem;color:#dc2626;font-size:0.88rem;font-weight:600;margin-bottom:0.75rem;';
+        b.textContent = '⚠ These courses require re-examination.';
+        var tblTitle = document.getElementById('faculty-tbl-title');
+        if (tblTitle && tblTitle.parentNode) tblTitle.parentNode.insertBefore(b, tblTitle);
+      } else if (backlogType === 'cleared') {
+        renderCourses(clearedBacklogs, '🟢 Cleared Backlogs', 'all', 'faculty-');
+        var b = document.createElement('div');
+        b.id = 'faculty-backlog-info-banner';
+        b.style.cssText = 'background:rgba(22,163,74,0.08);border:1px solid rgba(22,163,74,0.25);border-radius:8px;padding:0.75rem 1rem;color:#16a34a;font-size:0.88rem;font-weight:600;margin-bottom:0.75rem;';
+        b.textContent = '✓ Historical backlogs successfully cleared.';
+        var tblTitle = document.getElementById('faculty-tbl-title');
+        if (tblTitle && tblTitle.parentNode) tblTitle.parentNode.insertBefore(b, tblTitle);
+      } else if (isAll) {
         renderCourses(student.courses, 'All Semesters', 'all', 'faculty-');
       } else {
         var filtered = student.courses.filter(function (c) { return c.sem === clickedSem; });
@@ -1229,11 +1335,21 @@ function renderFacultyStudentView(student) {
     return btn;
   }
 
+  // Tab 1: All Semesters
   tabsEl.appendChild(makeFacultyTab('All Semesters', true));
+  // Tabs 2…n: Individual semesters
   uniqueSems.forEach(function (s) {
     var label = SEM_MAP[s] || s;
     tabsEl.appendChild(makeFacultyTab(label, false, s));
   });
+  // 🔴 Active Backlogs tab (conditional)
+  if (activeBacklogs.length > 0) {
+    tabsEl.appendChild(makeFacultyTab('🔴 Active Backlogs', false, null, 'active'));
+  }
+  // 🟢 Cleared Backlogs tab (conditional)
+  if (clearedBacklogs.length > 0) {
+    tabsEl.appendChild(makeFacultyTab('🟢 Cleared Backlogs', false, null, 'cleared'));
+  }
 
   renderCourses(student.courses, 'All Semesters', 'all', 'faculty-');
 }
@@ -1510,8 +1626,15 @@ async function handleFileUpload(files) {
       var file = fileList[f];
       setAlert('info', '<span class="spinner"></span>[' + (f + 1) + '/' + fileList.length + '] Reading ' + esc(file.name) + '…');
 
+      // ── Filename Parsing: extract Batch & Program before SheetJS ─────────────
+      // Handles names like "2024 Batch MCA.xlsx" or "2024 Batch MCA.xlsx - FS 24-25.csv"
+      var cleanName = file.name.split('-')[0].replace(/\.xlsx?|\.csv/gi, '').trim();
+      var batchMatch = cleanName.match(/(20\d{2}\s*Batch)/i);
+      var fileBatch   = batchMatch ? batchMatch[0].trim() : '';
+      var fileProgram = cleanName.replace(/(20\d{2}\s*Batch)/i, '').trim();
+
       var arrayBuffer = await file.arrayBuffer();
-      
+
       var studentsArray = parseExcelToStudents(arrayBuffer, function (msg) {
         setAlert('info', '<span class="spinner"></span>[' + (f + 1) + '/' + fileList.length + '] ' + esc(file.name) + ': ' + msg);
       });
@@ -1522,7 +1645,8 @@ async function handleFileUpload(files) {
           consolidatedMap[sen] = {
             sen: sen,
             name: s.name,
-            program: s.program,
+            program: fileProgram || s.program,
+            batch:   fileBatch   || s.batch   || '',
             school: s.school,
             cgpa: s.cgpa || 0,
             totalCredits: s.totalCredits || 0,
@@ -1532,7 +1656,9 @@ async function handleFileUpload(files) {
         }
         var target = consolidatedMap[sen];
         if (s.name) target.name = s.name;
-        if (s.program) target.program = s.program;
+        // Filename data takes priority; fall back to row data
+        target.program = fileProgram || target.program || s.program;
+        target.batch   = fileBatch   || target.batch   || s.batch || '';
         if (s.school) target.school = s.school;
         
         var sCgpa = parseFloat(s.cgpa || 0);

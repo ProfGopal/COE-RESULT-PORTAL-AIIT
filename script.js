@@ -554,11 +554,19 @@ async function studentLoginStep() {
       }, 100);
 
     } else if (result && result.status === 'error') {
-      // ── Backend returned a specific error (wrong password, SEN not found, etc.) ─
-      recordFailedAttempt('stu_' + sen);
-      showErr('student-err', '⚠ ' + (result.message || 'Login failed. Please try again.'), ['s-pass']);
-      var passEl = document.getElementById('s-pass');
-      if (passEl) passEl.value = '';
+      // ── Backend returned a specific error ─────────────────────────────────────
+      // If the message tells the student to type 'pwd', show it as a clean info
+      // notice so they can read the exact instruction without the ⚠ noise.
+      var errMsg = result.message || 'Login failed. Please try again.';
+      var isPwdHint = errMsg.toLowerCase().includes('pwd') || errMsg.toLowerCase().includes('first-time') || errMsg.toLowerCase().includes('first time');
+      if (isPwdHint) {
+        showOk('student-ok', '📋 ' + errMsg);
+      } else {
+        recordFailedAttempt('stu_' + sen);
+        showErr('student-err', '⚠ ' + errMsg, ['s-pass']);
+        var passEl = document.getElementById('s-pass');
+        if (passEl) passEl.value = '';
+      }
 
     } else {
       // ── Unexpected / malformed response ───────────────────────────────────
@@ -1434,12 +1442,36 @@ async function clearPassword() {
 
   try {
     var adminPassword = sessionStorage.getItem(ADMIN_SESSION) || '';
-    await gasPost({ action: 'clearpassword', sen: sen, adminPassword: adminPassword });
-    if (statusEl) statusEl.textContent = '✓ Password cleared for ' + sen + '. Student will be prompted on next login.';
+
+    // Use readable POST (not no-cors) so we can confirm success/failure from backend
+    var resp   = await fetch(GAS_URL, {
+      method:  'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body:    JSON.stringify({ action: 'clearpassword', sen: sen, adminPassword: adminPassword })
+    });
+    var result = await resp.json();
+
+    if (result && result.status === 'success') {
+      if (statusEl) statusEl.innerHTML =
+        '<span style="color:var(--green)">✓ Password cleared for <strong>' + esc(sen) +
+        '</strong>. Student will be prompted to create a new one on next login.</span>';
+    } else {
+      if (statusEl) statusEl.innerHTML =
+        '<span style="color:var(--red)">⚠ ' +
+        esc((result && result.message) || 'Backend did not confirm clear. Check admin password and try again.') +
+        '</span>';
+    }
     document.getElementById('reset-sen-input').value = '';
     setTimeout(loadAdminData, 1200);
   } catch (err) {
-    if (statusEl) statusEl.textContent = '✗ Error: ' + err.message;
+    // Fallback: if readable fetch fails (e.g. CORS), attempt blind post and assume success
+    try {
+      await gasPost({ action: 'clearpassword', sen: sen, adminPassword: sessionStorage.getItem(ADMIN_SESSION) || '' });
+      if (statusEl) statusEl.textContent = '✓ Clear request sent for ' + sen + ' (response unreadable — check backend logs).';
+      setTimeout(loadAdminData, 1500);
+    } catch (e2) {
+      if (statusEl) statusEl.textContent = '✗ Error: ' + err.message;
+    }
   } finally {
     if (btn) btn.disabled = false;
   }

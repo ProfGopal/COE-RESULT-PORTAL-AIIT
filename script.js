@@ -15,6 +15,10 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 //  CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════════
+
+// IMPORTANT: Paste your active Google Apps Script Web App URL below.
+// Go to: Apps Script → Deploy → Manage Deployments → copy the Web App URL.
+// Leave no spaces inside the quotes. Re-deploy after every code change in GAS.
 const GAS_URL = "https://script.google.com/macros/s/AKfycby0xTAEjyfcN-IrEVaEzQuFFAfCQD1wWhpTJ5dlv9S7jBIT48RY8PxH76mW2Mci0rCGCw/exec";
 var LOCAL_STU_KEY = 'coe_students_v2';
 var ADMIN_SESSION = 'coe_admin_auth';
@@ -952,20 +956,35 @@ async function facultyLoadAllStudents() {
   if (errEl)  errEl.style.display = 'none';
 
   try {
-    // Try backend load first (requires admin password — fallback to local cache)
+    // 1. Try live backend first via action=load JSONP (populates window.students with fresh data)
+    var data = await gasJsonp(GAS_URL + '?action=load', 15000);
+    var students = Array.isArray(data) ? data : (data && Array.isArray(data.students) ? data.students : []);
+
+    if (students && students.length) {
+      window.students = students;
+      // Refresh local cache with latest backend data
+      try { localStorage.setItem(LOCAL_STU_KEY, JSON.stringify(students)); } catch(e) {}
+      if (infoEl) infoEl.style.display = 'none';
+      renderFacultyTable(window.students);
+      return;
+    }
+  } catch (backendErr) {
+    // Backend unreachable — fall through to localStorage cache
+    console.warn('[facultyLoadAllStudents] Backend fetch failed, using local cache:', backendErr.message);
+  }
+
+  try {
+    // 2. Fallback: use localStorage cache (same-device, possibly stale)
     var cached = localStorage.getItem(LOCAL_STU_KEY);
     var students = [];
     if (cached) {
       try { students = JSON.parse(cached); } catch(e) { students = []; }
     }
-    if (students && students.length) {
-      window.students = students;
-      if (infoEl) infoEl.style.display = 'none';
-      renderFacultyTable(window.students);
-    } else {
-      window.students = [];
-      if (infoEl) infoEl.style.display = 'none';
-      renderFacultyTable([]);
+    window.students = students;
+    if (infoEl) infoEl.style.display = 'none';
+    renderFacultyTable(window.students);
+    if (students.length === 0) {
+      if (errEl) { errEl.textContent = '⚠ No cached data found. Ensure the backend is reachable and data has been uploaded.'; errEl.style.display = 'block'; }
     }
   } catch (err) {
     if (infoEl) infoEl.style.display = 'none';

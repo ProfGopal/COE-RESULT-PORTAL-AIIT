@@ -514,14 +514,18 @@ async function studentLoginStep() {
     }
 
     // ── Returning / First-Click: POST login directly to backend ───────────────
-    var passInput = sanitize((document.getElementById('s-pass') || {}).value || '');
+    var passInput = (document.getElementById('s-pass') || {}).value || '';
 
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Signing in…'; }
 
     var response = await fetch(GAS_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'login', sen: sen, password: passInput })
+      body: JSON.stringify({
+        action:   'login',
+        sen:      (document.getElementById('s-sen').value || '').trim().toUpperCase(),
+        password: passInput.trim()
+      })
     });
     var result = await response.json();
 
@@ -1240,9 +1244,30 @@ async function facultySearchStudent() {
 
 /**
  * renderFacultyStudentView — mirrors renderStudentDash but targets the faculty-prefixed DOM elements.
- * V7.1: Includes the Smart Backlog Engine (Active vs. Cleared backlog tabs).
+ * V8.0: Ensures 'Back to Directory' button is injected into the detail container + full Smart Backlog Engine.
  */
 function renderFacultyStudentView(student) {
+  // ── Inject / refresh Back button at the top of detail view ────────────────
+  var detailView = document.getElementById('faculty-student-detail-view');
+  if (detailView) {
+    var existingBack = document.getElementById('faculty-back-btn-injected');
+    if (existingBack) existingBack.remove();
+    var backBtn = document.createElement('button');
+    backBtn.id = 'faculty-back-btn-injected';
+    backBtn.textContent = '← Back to Directory';
+    backBtn.style.cssText = [
+      'display:inline-flex;align-items:center;gap:0.4rem;',
+      'margin-bottom:1rem;padding:0.45rem 1rem;',
+      'border:1px solid var(--accent);border-radius:6px;',
+      'background:rgba(2,132,199,0.08);color:var(--accent);',
+      'font-family:var(--mono);font-size:0.78rem;cursor:pointer;',
+      'transition:all 0.15s;'
+    ].join('');
+    backBtn.onmouseover = function () { this.style.background = 'var(--accent)'; this.style.color = '#fff'; };
+    backBtn.onmouseout  = function () { this.style.background = 'rgba(2,132,199,0.08)'; this.style.color = 'var(--accent)'; };
+    backBtn.onclick = facultyBackToDirectory;
+    detailView.insertBefore(backBtn, detailView.firstChild);
+  }
   document.getElementById('faculty-dash-avatar').textContent  = (student.name || 'S').charAt(0);
   document.getElementById('faculty-dash-name').textContent    = student.name;
   document.getElementById('faculty-dash-program').textContent = student.program || '';
@@ -1626,12 +1651,16 @@ async function handleFileUpload(files) {
       var file = fileList[f];
       setAlert('info', '<span class="spinner"></span>[' + (f + 1) + '/' + fileList.length + '] Reading ' + esc(file.name) + '…');
 
-      // ── Filename Parsing: extract Batch & Program before SheetJS ─────────────
-      // Handles names like "2024 Batch MCA.xlsx" or "2024 Batch MCA.xlsx - FS 24-25.csv"
-      var cleanName = file.name.split('-')[0].replace(/\.xlsx?|\.csv/gi, '').trim();
-      var batchMatch = cleanName.match(/(20\d{2}\s*Batch)/i);
-      var fileBatch   = batchMatch ? batchMatch[0].trim() : '';
-      var fileProgram = cleanName.replace(/(20\d{2}\s*Batch)/i, '').trim();
+      // ── Filename Parsing: robust extraction of Batch & Program (V8.0) ──────────
+      // Searches the FULL filename for batch token — no pre-split on '-' which was
+      // silently truncating names like "2024 Batch MCA - FS 24-25.xlsx".
+      var fileName = file.name;
+      var batchMatch = fileName.match(/20\d{2}\s*Batch/i);
+      var extractedBatch   = batchMatch ? batchMatch[0].trim() : 'Unknown Batch';
+      var extractedProgram = fileName.replace(extractedBatch, '').split('-')[0].replace(/\.xlsx?|\.csv/gi, '').trim() || 'Unknown Program';
+      var fileBatch   = extractedBatch;
+      var fileProgram = extractedProgram;
+
 
       var arrayBuffer = await file.arrayBuffer();
 

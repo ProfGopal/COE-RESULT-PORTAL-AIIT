@@ -417,13 +417,15 @@ function cancelOtpResetUI() {
 }
 
 /**
- * studentLoginStep — the unified login handler.
+ * studentLoginStep — the unified login handler (V6.3).
  *
  * Flow:
- *  1. Validate SEN exists on backend (?action=checksen)
- *  2a. If no password set → show create-password fields
- *  2b. If password set    → verify hash via (?action=login)
- *  3. On first-time password creation → POST setpassword to backend
+ *  1. POST { action: 'login', sen, password } directly to GAS backend.
+ *     Backend is the single source of truth — no local SEN lookup is done first.
+ *  2. On success  → render student dashboard with the returned student object.
+ *  3. On 'FIRST_TIME' or no-password signal → show password creation fields.
+ *  4. On first-time password creation → POST { action: 'setpassword', sen, newPassword }
+ *     directly to GAS, then auto-login with the new password.
  */
 async function studentLoginStep() {
   var rawSen = document.getElementById('s-sen').value;
@@ -435,42 +437,19 @@ async function studentLoginStep() {
   var limitMsg = checkRateLimit('stu_' + sen);
   if (limitMsg) { showErr('student-err', limitMsg, ['s-sen', 's-pass']); return; }
 
-  var gasUrl = GAS_URL;
-
   var btn = document.getElementById('s-login-btn');
   if (btn) btn.disabled = true;
 
   try {
-    // ── Step 1: Check if SEN exists ──────────────────────────────────────────
-    var checkData = await gasJsonp(gasUrl + '?action=checksen&sen=' + encodeURIComponent(sen));
-
-    if (!checkData || !checkData.found) {
-      recordFailedAttempt('stu_' + sen);
-      showErr('student-err', 'SEN not found in records. Please check and try again.', ['s-sen']);
-      return;
-    }
-
-    // ── Step 2a: No password — show creation form ─────────────────────────────
-    if (!checkData.hasPassword) {
-      isNewUser = true;
-      var newpass = sanitize(document.getElementById('s-newpass') ? document.getElementById('s-newpass').value : '');
-      var confpass = sanitize(document.getElementById('s-confirmpass') ? document.getElementById('s-confirmpass').value : '');
+    // ── New User: Password Creation Flow ─────────────────────────────────────
+    if (isNewUser) {
+      var newpass  = sanitize((document.getElementById('s-newpass')     || {}).value || '');
+      var confpass = sanitize((document.getElementById('s-confirmpass') || {}).value || '');
 
       if (!newpass) {
-        // First click — reveal the creation fields
-        var pf = document.getElementById('s-pass-field');
-        var nf = document.getElementById('s-newpass-fields');
-        if (pf) pf.style.display = 'none';
-        if (nf) nf.style.display = 'block';
-        if (btn) btn.textContent = 'Create Password & Login →';
-        showOk('student-ok', 'First-time login detected. Please create your password below.');
-        setTimeout(function () {
-          var np = document.getElementById('s-newpass');
-          if (np) { np.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(function () { np.focus(); }, 150); }
-        }, 100);
+        showErr('student-err', 'Please enter a new password.', ['s-newpass']);
         return;
       }
-
       if (newpass.length < 6) {
         showErr('student-err', 'Password must be at least 6 characters.', ['s-newpass', 's-confirmpass']);
         return;
@@ -480,75 +459,116 @@ async function studentLoginStep() {
         return;
       }
 
-      // Hash and store password on GAS backend
       if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
-      var hash = await hashPwd(newpass);
 
+      // POST setpassword directly to backend — no local array dependency
       try {
-        await gasPost({ action: 'setpassword', sen: sen, hash: hash });
-      } catch (postErr) {
-        console.warn('setpassword POST failed (no-cors, likely ok):', postErr.message);
-      }
-
-      clearAttempts('stu_' + sen);
-      // Fetch full student data for dashboard
-      var studentData = await gasJsonp(gasUrl + '?action=login&sen=' + encodeURIComponent(sen) + '&hash=' + encodeURIComponent(hash));
-      if (studentData && studentData.success && studentData.student) {
-        currentStudent = studentData.student;
-        renderStudentDash(currentStudent);
-        showPage('student-dash');
-        var loginSec = document.getElementById('loginSection');
-        if (loginSec) loginSec.style.display = 'none';
-        var dashEl = document.getElementById('student-dash');
-        if (dashEl) {
-          dashEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        var spResp   = await fetch(GAS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({ action: 'setpassword', sen: sen, newPassword: newpass })
+        });
+        var spResult = await spResp.json();
+        if (spResult && spResult.status === 'error') {
+          showErr('student-err', '⚠ ' + (spResult.message || 'Could not save password. Try again.'));
+          return;
         }
-      } else {
-        // setpassword may not be readable via no-cors; fall back gracefully
-        showOk('student-ok', '✓ Password created! Please sign in again with your new password.');
+      } catch (spErr) {
+        // GAS may return opaque on some deploys; proceed to auto-login attempt
+        console.warn('setpassword response unreadable (may still have succeeded):', spErr.message);
+      }
+
+      clearAttempts('stu_' + sen);
+
+      // Auto-login with the new password
+      try {
+        var alResp   = await fetch(GAS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({ action: 'login', sen: sen, password: newpass })
+        });
+        var alResult = await alResp.json();
+
+        if (alResult && alResult.status === 'success' && alResult.student) {
+          currentStudent = alResult.student;
+          renderStudentDash(currentStudent);
+          showPage('student-dash');
+          var loginSec = document.getElementById('loginSection');
+          if (loginSec) loginSec.style.display = 'none';
+          var dashEl = document.getElementById('student-dash');
+          if (dashEl) dashEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else {
+          // Password saved but auto-login failed — ask user to re-sign-in
+          showOk('student-ok', '✓ Password created! Please sign in with your new password.');
+          resetStudentLoginUI();
+          var senEl = document.getElementById('s-sen');
+          if (senEl) senEl.value = sen;
+        }
+      } catch (alErr) {
+        showOk('student-ok', '✓ Password created! Please sign in with your new password.');
         resetStudentLoginUI();
-        var senEl = document.getElementById('s-sen');
-        if (senEl) senEl.value = sen;
+        var senEl2 = document.getElementById('s-sen');
+        if (senEl2) senEl2.value = sen;
       }
       return;
     }
 
-    // ── Step 2b: Password exists — verify ─────────────────────────────────────
-    var passInput = sanitize(document.getElementById('s-pass').value);
-    if (!passInput) {
-      showErr('student-err', 'Please enter your password.', ['s-pass']);
-      return;
-    }
+    // ── Returning / First-Click: POST login directly to backend ───────────────
+    var passInput = sanitize((document.getElementById('s-pass') || {}).value || '');
 
-    var inputHash = await hashPwd(passInput);
-    var loginResult = await gasJsonp(
-      gasUrl + '?action=login&sen=' + encodeURIComponent(sen) + '&hash=' + encodeURIComponent(inputHash)
-    );
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Signing in…'; }
 
-    if (loginResult && loginResult.success && loginResult.student) {
+    var response = await fetch(GAS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'login', sen: sen, password: passInput })
+    });
+    var result = await response.json();
+
+    if (result && result.status === 'success' && result.student) {
+      // ── Successful login ───────────────────────────────────────────────────
       clearAttempts('stu_' + sen);
-      currentStudent = loginResult.student;
+      currentStudent = result.student;
       renderStudentDash(currentStudent);
       showPage('student-dash');
       var loginSec = document.getElementById('loginSection');
       if (loginSec) loginSec.style.display = 'none';
       var dashEl = document.getElementById('student-dash');
-      if (dashEl) {
-        dashEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    } else if (loginResult && loginResult.error === 'WRONG_PASSWORD') {
+      if (dashEl) dashEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    } else if (
+      result && result.status === 'error' &&
+      (result.code === 'FIRST_TIME' || (result.message && result.message.toLowerCase().includes('first')))
+    ) {
+      // ── First-time user: reveal password creation fields ───────────────────
+      isNewUser = true;
+      var pf = document.getElementById('s-pass-field');
+      var nf = document.getElementById('s-newpass-fields');
+      if (pf) pf.style.display = 'none';
+      if (nf) nf.style.display = 'block';
+      if (btn) btn.textContent = 'Create Password & Login →';
+      showOk('student-ok', result.message || 'First-time login detected. Please create your password below.');
+      setTimeout(function () {
+        var np = document.getElementById('s-newpass');
+        if (np) { np.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(function () { np.focus(); }, 150); }
+      }, 100);
+
+    } else if (result && result.status === 'error') {
+      // ── Backend returned a specific error (wrong password, SEN not found, etc.) ─
       recordFailedAttempt('stu_' + sen);
-      showErr('student-err', '⚠ Wrong password. Please try again.', ['s-pass']);
-      document.getElementById('s-pass').value = '';
+      showErr('student-err', '⚠ ' + (result.message || 'Login failed. Please try again.'), ['s-pass']);
+      var passEl = document.getElementById('s-pass');
+      if (passEl) passEl.value = '';
+
     } else {
+      // ── Unexpected / malformed response ───────────────────────────────────
       recordFailedAttempt('stu_' + sen);
-      var errMsg = (loginResult && loginResult.message) || 'Login failed. Please try again.';
-      showErr('student-err', errMsg, ['s-pass']);
+      showErr('student-err', '⚠ Unexpected response from server. Please try again.');
     }
 
   } catch (err) {
     console.error('Login error:', err);
-    showErr('student-err', '⚠ Could not reach the portal server. Check your connection and try again.');
+    showErr('student-err', '✗ Could not reach the portal server. Check your connection and try again.');
   } finally {
     var b = document.getElementById('s-login-btn');
     if (b) {

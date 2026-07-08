@@ -2235,23 +2235,41 @@ async function handleFileUpload(files) {
 
   setAlert('info', '<span class="spinner"></span>Consolidated ' + finalStudentsList.length + ' students. Sending to backend…');
 
-  try {
-    var adminPassword = sessionStorage.getItem(ADMIN_SESSION) || '';
-    await gasPost({ action: 'upsert', students: finalStudentsList, adminPassword: adminPassword });
-    setAlert('ok', '✓ Consolidated ' + finalStudentsList.length + ' student record(s) from ' + fileList.length + ' file(s) sent to the backend (upsert). Refresh to see updated data.');
-    
-    var container = document.getElementById('file-tagging-container');
-    if (container) container.innerHTML = '';
-    var btnTag = document.getElementById('btn-upload-process');
-    if (btnTag) btnTag.style.display = 'none';
-    window.selectedUploadFiles = [];
-    window.selectedUploadTags = [];
-    
-    setTimeout(loadAdminData, 2000);
-  } catch (postErr) {
-    setAlert('warn', '⚠ Data sent (no-cors mode — cannot confirm receipt). Backend should have processed it. Refresh to verify.');
-    setTimeout(loadAdminData, 3000);
+  var mainAdminPassword = sessionStorage.getItem(ADMIN_SESSION) || '';
+  if (!mainAdminPassword) {
+    mainAdminPassword = prompt("Please enter your Admin Password to authorize this upload:");
   }
+  if (!mainAdminPassword) {
+    setAlert('err', "❌ Upload canceled: Admin Password is required.");
+    return;
+  }
+
+  fetch(GAS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'upsert', adminPassword: mainAdminPassword, students: finalStudentsList })
+  })
+  .then(function(res) { return res.json(); })
+  .then(function(data) {
+      if (data.status === 'success') {
+          alert("✅ SUCCESS: " + data.message + " (" + finalStudentsList.length + " records saved).");
+          
+          var container = document.getElementById('file-tagging-container');
+          if (container) container.innerHTML = '';
+          var btnTag = document.getElementById('btn-upload-process');
+          if (btnTag) btnTag.style.display = 'none';
+          window.selectedUploadFiles = [];
+          window.selectedUploadTags = [];
+          
+          window.location.reload();
+      } else {
+          alert("❌ UPLOAD FAILED: " + data.message); 
+      }
+  })
+  .catch(function(err) {
+      alert("❌ NETWORK ERROR: Could not reach the database.");
+      console.error(err);
+  });
 
   var fi = document.getElementById('excel-upload');
   if (fi) fi.value = '';
@@ -2492,13 +2510,9 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
 async function clearAllRecords() {
   var statusEl = document.getElementById('clear-all-status');
   var btn = document.getElementById('btn-clear-all');
-  var adminPassInput = document.getElementById('admin-password-input');
-  var adminPass = adminPassInput ? adminPassInput.value.trim() : '';
 
-  if (!adminPass) {
-    alert("Please enter the Admin Password to confirm database wipe.");
-    return;
-  }
+  var adminPass = prompt("Security Check: Please enter the Admin Password to confirm this destructive action:");
+  if (!adminPass) return; // Stop if they click cancel or leave it blank
 
   // Double-confirmation
   if (!confirm('⚠️ WARNING: This will permanently delete ALL student records from the database.\n\nPasswords will also be wiped. This cannot be undone.\n\nAre you sure you want to continue?')) return;

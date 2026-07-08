@@ -1120,13 +1120,14 @@ function renderFacultyTable(studentsArray) {
       '<td style="font-family:var(--mono);font-size:0.88rem;color:var(--gold)">' + esc(cgpaDisplay) + '</td>',
       '<td style="font-family:var(--mono);font-size:0.8rem;color:var(--green)">' + esc(String(creditsDisplay)) + '</td>',
       '<td>' + backlogCell + '</td>',
-      '<td><button onclick="facultyViewStudent(' + JSON.stringify(student.sen) + ')" ' +
+      '<td><button onclick="window.openFacultyStudentView(\'' + esc(student.sen) + '\')" ' +
         'style="font-family:var(--mono);font-size:0.7rem;padding:0.25rem 0.7rem;border-radius:5px;' +
         'border:1px solid var(--accent);background:rgba(2,132,199,0.07);color:var(--accent);cursor:pointer;' +
         'transition:all 0.15s;" onmouseover="this.style.background=\'var(--accent)\';this.style.color=\'#fff\'" ' +
         'onmouseout="this.style.background=\'rgba(2,132,199,0.07)\';this.style.color=\'var(--accent)\'">View Results →</button></td>'
     ].join('');
     tbody.appendChild(tr);
+
   });
 }
 
@@ -1209,6 +1210,32 @@ function facultyBackToDirectory() {
   if (ctrlPanel)  ctrlPanel.style.display = 'flex';
 }
 
+// ── Global Faculty Student View Routing (V8.1 Core Fix) ──────────────────────
+/**
+ * openFacultyStudentView — globally scoped handler triggered by the inline
+ * onclick on each "View Results" button in the faculty data table.
+ * Hides the table wrapper and shows the injected student detail view.
+ */
+window.openFacultyStudentView = function(sen) {
+  var student = (window.students || []).find(function(s) { return s.sen === sen; });
+  if (!student) return;
+  document.getElementById('faculty-table-wrapper').style.display = 'none';
+  document.getElementById('faculty-student-detail-view').style.display = 'block';
+  // Render the full student dashboard inside the faculty injected container
+  renderStudentDashboard(student, 'faculty-injected-student-data');
+};
+
+/**
+ * closeFacultyStudentView — globally scoped handler triggered by the
+ * "← Back to Directory" button inside the faculty detail view.
+ * Clears the injected content and restores the table wrapper.
+ */
+window.closeFacultyStudentView = function() {
+  document.getElementById('faculty-student-detail-view').style.display = 'none';
+  document.getElementById('faculty-table-wrapper').style.display = 'block';
+  document.getElementById('faculty-injected-student-data').innerHTML = ''; // Clear memory
+};
+
 // ── Legacy single-SEN search (kept for backward compat if needed) ─────────────
 async function facultySearchStudent() {
   var rawSen = (document.getElementById('faculty-sen-input') || {}).value || '';
@@ -1243,8 +1270,155 @@ async function facultySearchStudent() {
 }
 
 /**
+ * renderStudentDashboard — Dynamic Rendering Engine (V8.1 Core Fix).
+ *
+ * Renders the full tabbed student profile UI (profile card, Smart Backlog tabs,
+ * semester tabs, course table) into ANY target container element.
+ *
+ * @param {object} student         - The student data object.
+ * @param {string} [targetContainerId] - ID of the container to render into.
+ *   Defaults to 'student-dash-content' for the student login flow.
+ *   Pass 'faculty-injected-student-data' to draw inside the faculty detail view
+ *   without interfering with the student login DOM.
+ */
+function renderStudentDashboard(student, targetContainerId) {
+  targetContainerId = targetContainerId || 'student-dash-content';
+  var container = document.getElementById(targetContainerId);
+  if (!container) return;
+
+  // ── Build the complete HTML structure for the student view ──────────────────
+  var FAIL_GRADES = ['F', 'FAIL', 'AB'];
+  var validCourses = (student.courses || []).filter(function(c) {
+    return c && c.code && c.code !== 'nan' && c.code.trim() !== '';
+  });
+
+  var cgpaVal = parseFloat(student.cgpa);
+  var cgpa = (!isNaN(cgpaVal) && cgpaVal !== 0) ? cgpaVal.toFixed(2) : 'N/A';
+  var creditsVal = parseFloat(student.totalCredits || student.totalCreditEarned);
+  var credits = (!isNaN(creditsVal) && creditsVal !== 0) ? String(creditsVal) : 'N/A';
+  var initials = (student.name || 'S').charAt(0);
+
+  // Generate unique prefix to avoid ID conflicts when rendering in faculty view
+  var pfx = (targetContainerId === 'faculty-injected-student-data') ? 'finj-' : 'sdash-';
+
+  container.innerHTML = [
+    '<div class="profile-card">',
+      '<div class="avatar">' + esc(initials) + '</div>',
+      '<div style="flex:1;min-width:0">',
+        '<div class="pinfo-name">' + esc(student.name) + '</div>',
+        '<div class="pinfo-meta">',
+          '<span>' + esc(student.program || '') + '</span>',
+          '<span>' + (student.school ? ' · ' + esc(student.school) : '') + '</span>',
+        '</div>',
+      '</div>',
+      '<div class="stat-row">',
+        '<div class="stat-chip"><div class="stat-val gold">' + esc(cgpa) + '</div><div class="stat-lbl">CGPA</div></div>',
+        '<div class="stat-chip"><div class="stat-val green">' + esc(credits) + '</div><div class="stat-lbl">Credits Earned</div></div>',
+        '<div class="stat-chip"><div class="stat-val blue">' + validCourses.length + '</div><div class="stat-lbl">Courses</div></div>',
+      '</div>',
+    '</div>',
+    '<div class="sem-tabs" id="' + pfx + 'sem-tabs"></div>',
+    '<div class="sem-summary-banner" id="' + pfx + 'sem-summary-banner"></div>',
+    '<div class="card">',
+      '<div class="card-head">',
+        '<div class="card-title" id="' + pfx + 'tbl-title">All Courses</div>',
+        '<div class="badge" id="' + pfx + 'tbl-badge">—</div>',
+      '</div>',
+      '<div class="tbl-wrap"><table>',
+        '<thead><tr>',
+          '<th>Code</th><th>Course Title</th><th>Type</th><th>Cr.</th>',
+          '<th>Marks /100</th><th>Grade</th><th>Gr. Pts</th><th>Cr. Earned</th>',
+        '</tr></thead>',
+        '<tbody id="' + pfx + 'courses-tbody"></tbody>',
+      '</table></div>',
+    '</div>'
+  ].join('');
+
+  // ── Smart Backlog Engine ────────────────────────────────────────────────────
+  var courseGroups = {};
+  validCourses.forEach(function(c) {
+    var key = String(c.code || '').trim().toUpperCase();
+    if (!courseGroups[key]) courseGroups[key] = [];
+    courseGroups[key].push(c);
+  });
+
+  var activeBacklogs = [];
+  var clearedBacklogs = [];
+
+  Object.keys(courseGroups).forEach(function(code) {
+    var attempts = courseGroups[code];
+    var hasFail = attempts.some(function(c) { return FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); });
+    var hasPass = attempts.some(function(c) { return !FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); });
+    if (hasFail && !hasPass) {
+      var latest = attempts.filter(function(c) { return FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); });
+      activeBacklogs.push(latest[latest.length - 1]);
+    } else if (hasFail && hasPass) {
+      attempts.filter(function(c) { return !FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); })
+              .forEach(function(c) { clearedBacklogs.push(c); });
+    }
+  });
+
+  // ── Unique Semesters ────────────────────────────────────────────────────────
+  var seen = {};
+  var uniqueSems = [];
+  (student.courses || []).forEach(function(c) {
+    if (c.sem && !seen[c.sem]) { seen[c.sem] = true; uniqueSems.push(c.sem); }
+  });
+
+  // ── Render Tabs ─────────────────────────────────────────────────────────────
+  var tabsEl = document.getElementById(pfx + 'sem-tabs');
+  if (!tabsEl) return;
+  tabsEl.innerHTML = '';
+
+  function makeInjectedTab(label, isAll, clickedSem, backlogType) {
+    var btn = document.createElement('button');
+    btn.className = 'tab' + (isAll ? ' active' : '');
+    btn.textContent = label;
+    btn.onclick = function() {
+      tabsEl.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+      btn.classList.add('active');
+      var banner = document.getElementById(pfx + 'backlog-info-banner');
+      if (banner) banner.remove();
+      if (backlogType === 'active') {
+        renderCourses(activeBacklogs, '\uD83D\uDD34 Active Backlogs', 'all', pfx);
+        var b = document.createElement('div');
+        b.id = pfx + 'backlog-info-banner';
+        b.style.cssText = 'background:rgba(220,38,38,0.08);border:1px solid rgba(220,38,38,0.25);border-radius:8px;padding:0.75rem 1rem;color:#dc2626;font-size:0.88rem;font-weight:600;margin-bottom:0.75rem;';
+        b.textContent = '\u26A0 These courses require re-examination.';
+        var tblTitle = document.getElementById(pfx + 'tbl-title');
+        if (tblTitle && tblTitle.parentNode) tblTitle.parentNode.insertBefore(b, tblTitle);
+      } else if (backlogType === 'cleared') {
+        renderCourses(clearedBacklogs, '\uD83D\uDFE2 Cleared Backlogs', 'all', pfx);
+        var b = document.createElement('div');
+        b.id = pfx + 'backlog-info-banner';
+        b.style.cssText = 'background:rgba(22,163,74,0.08);border:1px solid rgba(22,163,74,0.25);border-radius:8px;padding:0.75rem 1rem;color:#16a34a;font-size:0.88rem;font-weight:600;margin-bottom:0.75rem;';
+        b.textContent = '\u2713 Historical backlogs successfully cleared.';
+        var tblTitle = document.getElementById(pfx + 'tbl-title');
+        if (tblTitle && tblTitle.parentNode) tblTitle.parentNode.insertBefore(b, tblTitle);
+      } else if (isAll) {
+        renderCourses(student.courses, 'All Semesters', 'all', pfx);
+      } else {
+        var filtered = student.courses.filter(function(c) { return c.sem === clickedSem; });
+        renderCourses(filtered, label, clickedSem, pfx);
+      }
+    };
+    return btn;
+  }
+
+  tabsEl.appendChild(makeInjectedTab('All Semesters', true));
+  uniqueSems.forEach(function(s) {
+    tabsEl.appendChild(makeInjectedTab(SEM_MAP[s] || s, false, s));
+  });
+  if (activeBacklogs.length > 0) tabsEl.appendChild(makeInjectedTab('\uD83D\uDD34 Active Backlogs', false, null, 'active'));
+  if (clearedBacklogs.length > 0) tabsEl.appendChild(makeInjectedTab('\uD83D\uDFE2 Cleared Backlogs', false, null, 'cleared'));
+
+  renderCourses(student.courses, 'All Semesters', 'all', pfx);
+}
+
+/**
  * renderFacultyStudentView — mirrors renderStudentDash but targets the faculty-prefixed DOM elements.
  * V8.0: Ensures 'Back to Directory' button is injected into the detail container + full Smart Backlog Engine.
+ * V8.1: Kept for backward compat; primary path now uses renderStudentDashboard via openFacultyStudentView.
  */
 function renderFacultyStudentView(student) {
   // ── Inject / refresh Back button at the top of detail view ────────────────

@@ -1092,7 +1092,7 @@
     <header>
       <div class="header-left">
         <span style="color: var(--text); font-size: 0.9rem; font-weight: 500;">Developed by <strong style="color: var(--accent2);">Dr. GOPAL RAJENDRAN</strong></span>
-        <span style="font-size: 0.75rem; color: var(--muted); font-family: var(--mono);">V8.0</span>
+        <span style="font-size: 0.75rem; color: var(--muted); font-family: var(--mono);">V8.1</span>
       </div>
       <div class="header-center">
         <div style="font-size: 0.8rem; font-weight: 700; letter-spacing: 2px; color: var(--gold); margin-bottom: 8px; text-transform: uppercase; font-family: var(--mono);">
@@ -1317,128 +1317,86 @@
     </div>
     <div class="dash-body">
 
-      <!-- ── CONTROL PANEL ─────────────────────────────────────────────────── -->
-      <div id="faculty-control-panel" style="display:flex;gap:0.6rem;flex-wrap:wrap;align-items:center;margin-bottom:1.5rem;">
-        <input type="text" id="faculty-search-input"
-          placeholder="Search SEN or Name…"
-          style="flex:1;min-width:200px;padding:0.7rem 1rem;background:var(--s2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:0.9rem;outline:none;transition:border-color 0.15s;"
-          oninput="facultyFilterSearch()"
-          onfocus="this.style.borderColor='var(--accent)'"
-          onblur="this.style.borderColor='var(--border)'">
+      <!-- ── FACULTY TABLE WRAPPER (search/filters + directory table) ──────── -->
+      <div id="faculty-table-wrapper">
 
-        <button class="btn-sm primary" id="faculty-view-all-btn" onclick="facultyViewAll()"
-          style="padding:0.65rem 1.1rem;font-family:var(--sans);font-size:0.82rem;font-weight:600;border-radius:8px;">
-          📋 View All Students
-        </button>
+        <!-- ── CONTROL PANEL ───────────────────────────────────────────────── -->
+        <div id="faculty-control-panel" style="display:flex;gap:0.6rem;flex-wrap:wrap;align-items:center;margin-bottom:1.5rem;">
+          <input type="text" id="faculty-search-input"
+            placeholder="Search SEN or Name…"
+            style="flex:1;min-width:200px;padding:0.7rem 1rem;background:var(--s2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:0.9rem;outline:none;transition:border-color 0.15s;"
+            oninput="facultyFilterSearch()"
+            onfocus="this.style.borderColor='var(--accent)'"
+            onblur="this.style.borderColor='var(--border)'">
 
-        <button id="faculty-backlog-btn" onclick="facultyFilterBacklogs()"
-          style="padding:0.65rem 1.1rem;font-family:var(--sans);font-size:0.82rem;font-weight:600;border-radius:8px;border:1px solid rgba(220,38,38,0.5);background:rgba(220,38,38,0.08);color:#dc2626;cursor:pointer;transition:all 0.2s;"
-          onmouseover="this.style.background='rgba(220,38,38,0.18)'"
-          onmouseout="this.style.background='rgba(220,38,38,0.08)'">
-          ⚠️ Filter: Has Backlogs
-        </button>
-
-        <div style="display:flex;align-items:center;gap:0.4rem;">
-          <input type="number" id="faculty-credit-input"
-            placeholder="Credits below…"
-            style="width:130px;padding:0.65rem 0.8rem;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:0.85rem;outline:none;"
-            onfocus="this.style.borderColor='var(--orange)'"
-            onblur="this.style.borderColor='var(--border)'"
-            onkeydown="if(event.key==='Enter')facultyFilterCredits()">
-          <button onclick="facultyFilterCredits()"
-            style="padding:0.65rem 1rem;font-family:var(--sans);font-size:0.82rem;font-weight:600;border-radius:8px;border:1px solid rgba(234,88,12,0.5);background:rgba(234,88,12,0.08);color:var(--orange);cursor:pointer;transition:all 0.2s;"
-            onmouseover="this.style.background='rgba(234,88,12,0.18)'"
-            onmouseout="this.style.background='rgba(234,88,12,0.08)'">
-            🎓 Filter Credits
+          <button class="btn-sm primary" id="faculty-view-all-btn" onclick="facultyViewAll()"
+            style="padding:0.65rem 1.1rem;font-family:var(--sans);font-size:0.82rem;font-weight:600;border-radius:8px;">
+            📋 View All Students
           </button>
-        </div>
-      </div>
 
-      <div class="alert err" id="faculty-search-err" style="display:none"></div>
-      <div class="alert info" id="faculty-search-info" style="display:none"></div>
+          <button id="faculty-backlog-btn" onclick="facultyFilterBacklogs()"
+            style="padding:0.65rem 1.1rem;font-family:var(--sans);font-size:0.82rem;font-weight:600;border-radius:8px;border:1px solid rgba(220,38,38,0.5);background:rgba(220,38,38,0.08);color:#dc2626;cursor:pointer;transition:all 0.2s;"
+            onmouseover="this.style.background='rgba(220,38,38,0.18)'"
+            onmouseout="this.style.background='rgba(220,38,38,0.08)'">
+            ⚠️ Filter: Has Backlogs
+          </button>
 
-      <!-- ── STUDENT DATA TABLE ────────────────────────────────────────────── -->
-      <div id="faculty-directory-view">
-        <div class="card">
-          <div class="card-head">
-            <div class="card-title">Student Directory</div>
-            <div class="badge" id="faculty-dir-badge">0 students</div>
-          </div>
-          <div class="tbl-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>SEN</th>
-                  <th>Name</th>
-                  <th>CGPA</th>
-                  <th>Earned Credits</th>
-                  <th>Backlogs</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody id="faculty-dir-tbody">
-                <tr><td colspan="6" style="text-align:center;padding:2.5rem;color:var(--muted);">
-                  Click <strong>View All Students</strong> or use filters to load the directory.
-                </td></tr>
-              </tbody>
-            </table>
+          <div style="display:flex;align-items:center;gap:0.4rem;">
+            <input type="number" id="faculty-credit-input"
+              placeholder="Credits below…"
+              style="width:130px;padding:0.65rem 0.8rem;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:0.85rem;outline:none;"
+              onfocus="this.style.borderColor='var(--orange)'"
+              onblur="this.style.borderColor='var(--border)'"
+              onkeydown="if(event.key==='Enter')facultyFilterCredits()">
+            <button onclick="facultyFilterCredits()"
+              style="padding:0.65rem 1rem;font-family:var(--sans);font-size:0.82rem;font-weight:600;border-radius:8px;border:1px solid rgba(234,88,12,0.5);background:rgba(234,88,12,0.08);color:var(--orange);cursor:pointer;transition:all 0.2s;"
+              onmouseover="this.style.background='rgba(234,88,12,0.18)'"
+              onmouseout="this.style.background='rgba(234,88,12,0.08)'">
+              🎓 Filter Credits
+            </button>
           </div>
         </div>
-      </div>
 
-      <!-- ── STUDENT DETAIL VIEW ────────────────────────────────────────────── -->
+        <div class="alert err" id="faculty-search-err" style="display:none"></div>
+        <div class="alert info" id="faculty-search-info" style="display:none"></div>
+
+        <!-- ── STUDENT DATA TABLE ──────────────────────────────────────────── -->
+        <div id="faculty-directory-view">
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title">Student Directory</div>
+              <div class="badge" id="faculty-dir-badge">0 students</div>
+            </div>
+            <div class="tbl-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>SEN</th>
+                    <th>Name</th>
+                    <th>CGPA</th>
+                    <th>Earned Credits</th>
+                    <th>Backlogs</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="faculty-dir-tbody">
+                  <tr><td colspan="6" style="text-align:center;padding:2.5rem;color:var(--muted);">
+                    Click <strong>View All Students</strong> or use filters to load the directory.
+                  </td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /#faculty-table-wrapper -->
+
+      <!-- ── STUDENT DETAIL VIEW (injected by openFacultyStudentView) ──────── -->
       <div id="faculty-student-detail-view" style="display:none;">
-        <button onclick="facultyBackToDirectory()"
-          style="margin-bottom:1.2rem;display:inline-flex;align-items:center;gap:0.4rem;font-family:var(--mono);font-size:0.72rem;color:var(--muted);cursor:pointer;background:none;border:none;padding:0;transition:color 0.15s;"
-          onmouseover="this.style.color='var(--accent)'"
-          onmouseout="this.style.color='var(--muted)'">
-          ← Back to Directory
-        </button>
+        <button onclick="closeFacultyStudentView()" class="back-btn">← Back to Directory</button>
 
-        <!-- Profile card (reuses student-dash layout) -->
-        <div class="profile-card">
-          <div class="avatar" id="faculty-dash-avatar"></div>
-          <div style="flex:1;min-width:0">
-            <div class="pinfo-name" id="faculty-dash-name"></div>
-            <div class="pinfo-meta"><span id="faculty-dash-program"></span><span id="faculty-dash-school"></span></div>
-          </div>
-          <div class="stat-row">
-            <div class="stat-chip">
-              <div class="stat-val gold" id="faculty-dash-cgpa">—</div>
-              <div class="stat-lbl">CGPA</div>
-            </div>
-            <div class="stat-chip">
-              <div class="stat-val green" id="faculty-dash-ce">—</div>
-              <div class="stat-lbl">Credits Earned</div>
-            </div>
-            <div class="stat-chip">
-              <div class="stat-val blue" id="faculty-dash-nc">—</div>
-              <div class="stat-lbl">Courses</div>
-            </div>
-          </div>
-        </div>
-        <div class="sem-tabs" id="faculty-sem-tabs"></div>
-        <div class="sem-summary-banner" id="faculty-sem-summary">
-          Completed Credits: <span id="faculty-completed-credits">0</span>
-          &nbsp;|&nbsp; Backlog / Failed Courses: <span class="fail-count" id="faculty-backlog-count">0</span>
-        </div>
-        <div class="card">
-          <div class="card-head">
-            <div class="card-title" id="faculty-tbl-title">All Courses</div>
-            <div class="badge" id="faculty-tbl-badge">—</div>
-          </div>
-          <div class="tbl-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Code</th><th>Course Title</th><th>Type</th><th>Cr.</th>
-                  <th>Marks /100</th><th>Grade</th><th>Gr. Pts</th><th>Cr. Earned</th>
-                </tr>
-              </thead>
-              <tbody id="faculty-courses-tbody"></tbody>
-            </table>
-          </div>
-        </div>
+        <!-- Injected student data goes here -->
+        <div id="faculty-injected-student-data"></div>
       </div>
 
     </div><!-- end .dash-body -->

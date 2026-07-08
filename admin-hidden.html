@@ -622,7 +622,7 @@
   <!-- VERSION TAG -->
   <div
     style="position:fixed;top:0;left:0;z-index:300;padding:0.35rem 1rem;font-size:0.68rem;color:var(--muted);pointer-events:none;font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-right-radius:6px;">
-    Version <strong style="color:var(--accent)">V8.1</strong>
+    Version <strong style="color:var(--accent)">V9.0</strong>
   </div>
 
   <!-- DEVELOPER CREDIT -->
@@ -695,6 +695,14 @@
         </div>
         <div id="reset-status" style="font-size:0.78rem;color:var(--sub);margin-top:0.5rem;font-family:var(--mono)">
         </div>
+        <!-- Clear ALL Passwords (V9.0) -->
+        <button id="btn-clear-all-passwords"
+          style="margin-top:10px;background-color:#dc2626;color:#fff;font-family:var(--mono);font-size:0.78rem;padding:0.5rem 1.2rem;border:none;border-radius:6px;cursor:pointer;width:100%;font-weight:700;letter-spacing:0.04em;transition:opacity 0.15s;"
+          onmouseover="this.style.opacity='0.85'"
+          onmouseout="this.style.opacity='1'">
+          🔥 Clear ALL Student Passwords
+        </button>
+        <div id="clear-all-passwords-status" style="font-size:0.78rem;color:var(--sub);margin-top:0.4rem;font-family:var(--mono)"></div>
       </div>
 
       <!-- Clear All Records Danger Zone -->
@@ -753,6 +761,36 @@
   <script src="script.js"></script>
   <script>
     // ── Admin-page-specific boot ─────────────────────────────────────────────────
+
+    // V9.0: Clear ALL Student Passwords handler
+    document.getElementById('btn-clear-all-passwords').addEventListener('click', async function() {
+      var adminPass = sessionStorage.getItem('coe_admin_auth') || '';
+      if (!adminPass) return alert('Please log in with your admin password first.');
+      if (!confirm('WARNING: This will instantly delete EVERY student password in the database. All students will need to create a new password on next login. Are you absolutely sure?')) return;
+
+      var statusEl = document.getElementById('clear-all-passwords-status');
+      var btn = document.getElementById('btn-clear-all-passwords');
+      if (btn) btn.disabled = true;
+      if (statusEl) statusEl.textContent = '\u23F3 Clearing all passwords\u2026';
+
+      try {
+        var resp = await fetch(GAS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({ action: 'clearallpasswords', adminPassword: adminPass })
+        });
+        var result = await resp.json();
+        if (result && result.status === 'success') {
+          if (statusEl) statusEl.innerHTML = '<span style="color:#4ade80">\u2713 ' + (result.message || 'All student passwords have been cleared.') + '</span>';
+        } else {
+          if (statusEl) statusEl.innerHTML = '<span style="color:#f87171">\u26A0 ' + ((result && result.message) || 'Backend did not confirm. Check admin password and try again.') + '</span>';
+        }
+      } catch (err) {
+        if (statusEl) statusEl.innerHTML = '<span style="color:#f87171">\u2717 Connection error: ' + err.message + '</span>';
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    });
   </script>
 </body>
 

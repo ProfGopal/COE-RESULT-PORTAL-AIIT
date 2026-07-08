@@ -1092,7 +1092,7 @@
     <header>
       <div class="header-left">
         <span style="color: var(--text); font-size: 0.9rem; font-weight: 500;">Developed by <strong style="color: var(--accent2);">Dr. GOPAL RAJENDRAN</strong></span>
-        <span style="font-size: 0.75rem; color: var(--muted); font-family: var(--mono);">V8.1</span>
+        <span style="font-size: 0.75rem; color: var(--muted); font-family: var(--mono);">V9.0</span>
       </div>
       <div class="header-center">
         <div style="font-size: 0.8rem; font-weight: 700; letter-spacing: 2px; color: var(--gold); margin-bottom: 8px; text-transform: uppercase; font-family: var(--mono);">
@@ -1316,6 +1316,7 @@
       </div>
     </div>
     <div class="dash-body">
+      <div id="faculty-dashboard-container">
 
       <!-- ── FACULTY TABLE WRAPPER (search/filters + directory table) ──────── -->
       <div id="faculty-table-wrapper">
@@ -1325,9 +1326,23 @@
           <input type="text" id="faculty-search-input"
             placeholder="Search SEN or Name…"
             style="flex:1;min-width:200px;padding:0.7rem 1rem;background:var(--s2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:0.9rem;outline:none;transition:border-color 0.15s;"
-            oninput="facultyFilterSearch()"
+            oninput="applyFilters()"
             onfocus="this.style.borderColor='var(--accent)'"
             onblur="this.style.borderColor='var(--border)'">
+
+          <!-- Batch filter dropdown -->
+          <select id="filter-batch"
+            style="padding:0.65rem 0.8rem;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:0.82rem;outline:none;cursor:pointer;"
+            onchange="applyFilters()">
+            <option value="">All Batches</option>
+          </select>
+
+          <!-- Program filter dropdown -->
+          <select id="filter-program"
+            style="padding:0.65rem 0.8rem;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:0.82rem;outline:none;cursor:pointer;"
+            onchange="applyFilters()">
+            <option value="">All Programs</option>
+          </select>
 
           <button class="btn-sm primary" id="faculty-view-all-btn" onclick="facultyViewAll()"
             style="padding:0.65rem 1.1rem;font-family:var(--sans);font-size:0.82rem;font-weight:600;border-radius:8px;">
@@ -1399,6 +1414,7 @@
         <div id="faculty-injected-student-data"></div>
       </div>
 
+      </div><!-- /#faculty-dashboard-container -->
     </div><!-- end .dash-body -->
   </div>
 

@@ -222,24 +222,24 @@ function goAdmin() {
 function logout() {
   currentStudent = null;
   isNewUser = false;
-  
+
   // Hide student dashboard page and remove display if overridden
   var dash = document.getElementById('student-dash');
   if (dash) {
     dash.classList.remove('active');
     dash.style.display = 'none';
   }
-  
+
   // Show landing page
   var landing = document.getElementById('landing');
   if (landing) {
     landing.classList.add('active');
     landing.style.display = 'block';
   }
-  
+
   // Ensure student login is shown (not faculty login container)
   showStudentLoginUI();
-  
+
   // Clear the SEN/Password input fields and hide alerts
   resetStudentLoginUI();
 }
@@ -298,9 +298,9 @@ async function requestOtpReset() {
   var sen = sanitize(rawSen).toUpperCase();
   hideAlerts('student');
 
-  if (!sen) { 
-    showErr('student-err', 'Please enter your SEN number first.', ['s-sen']); 
-    return; 
+  if (!sen) {
+    showErr('student-err', 'Please enter your SEN number first.', ['s-sen']);
+    return;
   }
 
   var btn = document.getElementById('s-login-btn');
@@ -407,7 +407,7 @@ function cancelOtpResetUI() {
   document.getElementById('s-otp-fields').style.display = 'none';
   document.getElementById('s-login-btn').style.display = 'block';
   document.getElementById('s-otp-buttons').style.display = 'none';
-  
+
   // Clear OTP input values
   ['s-otp', 's-otp-newpass', 's-otp-confirmpass'].forEach(function (id) {
     var el = document.getElementById(id);
@@ -443,7 +443,7 @@ async function studentLoginStep() {
   try {
     // ── New User: Password Creation Flow ─────────────────────────────────────
     if (isNewUser) {
-      var newpass  = sanitize((document.getElementById('s-newpass')     || {}).value || '');
+      var newpass = sanitize((document.getElementById('s-newpass') || {}).value || '');
       var confpass = sanitize((document.getElementById('s-confirmpass') || {}).value || '');
 
       if (!newpass) {
@@ -463,7 +463,7 @@ async function studentLoginStep() {
 
       // POST setpassword directly to backend — no local array dependency
       try {
-        var spResp   = await fetch(GAS_URL, {
+        var spResp = await fetch(GAS_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain' },
           body: JSON.stringify({ action: 'setpassword', sen: sen, newPassword: newpass })
@@ -482,7 +482,7 @@ async function studentLoginStep() {
 
       // Auto-login with the new password
       try {
-        var alResp   = await fetch(GAS_URL, {
+        var alResp = await fetch(GAS_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain' },
           body: JSON.stringify({ action: 'login', sen: sen, password: newpass })
@@ -522,8 +522,8 @@ async function studentLoginStep() {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({
-        action:   'login',
-        sen:      (document.getElementById('s-sen').value || '').trim().toUpperCase(),
+        action: 'login',
+        sen: (document.getElementById('s-sen').value || '').trim().toUpperCase(),
         password: passInput.trim()
       })
     });
@@ -602,7 +602,7 @@ function renderStudentDash(student) {
 
   var cgpaVal = parseFloat(student.cgpa);
   var cgpa = (!isNaN(cgpaVal) && cgpaVal !== 0 && student.cgpa !== null && student.cgpa !== undefined) ? cgpaVal.toFixed(2) : "N/A";
-  
+
   var creditsVal = parseFloat(student.totalCredits || student.totalCreditEarned);
   var credits = (!isNaN(creditsVal) && creditsVal !== 0 && (student.totalCredits || student.totalCreditEarned) !== null && (student.totalCredits || student.totalCreditEarned) !== undefined) ? String(creditsVal) : "N/A";
 
@@ -624,13 +624,13 @@ function renderStudentDash(student) {
     courseGroups[key].push(c);
   });
 
-  var activeBacklogs  = [];  // Failed, never passed
+  var activeBacklogs = [];  // Failed, never passed
   var clearedBacklogs = [];  // Had fails but later passed
 
   Object.keys(courseGroups).forEach(function (code) {
     var attempts = courseGroups[code];
-    var hasFail  = attempts.some(function (c) { return FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); });
-    var hasPass  = attempts.some(function (c) { return !FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); });
+    var hasFail = attempts.some(function (c) { return FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); });
+    var hasPass = attempts.some(function (c) { return !FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); });
 
     if (hasFail && !hasPass) {
       // Active Backlog — pick the latest failed attempt
@@ -639,7 +639,7 @@ function renderStudentDash(student) {
     } else if (hasFail && hasPass) {
       // Cleared Backlog — push the passed attempt(s)
       attempts.filter(function (c) { return !FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); })
-              .forEach(function (c) { clearedBacklogs.push(c); });
+        .forEach(function (c) { clearedBacklogs.push(c); });
     }
     // Standard (only passes) — no special handling needed
   });
@@ -743,7 +743,7 @@ function updateSummaryBanner(courses, semesterFilter, idPrefix) {
 
   // Locate the banner container (handles both ID conventions)
   var bannerEl = document.getElementById(idPrefix + 'sem-summary-banner') ||
-                 document.getElementById(idPrefix + 'sem-summary');
+    document.getElementById(idPrefix + 'sem-summary');
 
   if (bannerEl) {
     bannerEl.style.display = 'flex';
@@ -754,12 +754,12 @@ function updateSummaryBanner(courses, semesterFilter, idPrefix) {
 
     bannerEl.innerHTML = [
       '<div class="summary-badge-btn earned" title="Total credits earned in selected semester(s)">',
-        '<span>🎓 Credits Earned:</span>',
-        '<strong>' + earned + '</strong>',
+      '<span>🎓 Credits Earned:</span>',
+      '<strong>' + earned + '</strong>',
       '</div>',
       '<div class="summary-badge-btn backlog" title="Total backlog credits in selected semester(s)">',
-        '<span>⚠️ Backlog Credits:</span>',
-        '<strong>' + backlogs + '</strong>',
+      '<span>⚠️ Backlog Credits:</span>',
+      '<strong>' + backlogs + '</strong>',
       '</div>'
     ].join('');
   }
@@ -771,17 +771,17 @@ function renderDedicatedBacklogBanner(courses, semesterFilter, idPrefix) {
   idPrefix = idPrefix || '';
   var backlogContainerId = idPrefix + 'dedicated-backlog-container';
   var backlogContainer = document.getElementById(backlogContainerId);
-  
+
   // Find the summary banner element to insert after
   var bannerEl = document.getElementById(idPrefix + 'sem-summary-banner') ||
-                 document.getElementById(idPrefix + 'sem-summary');
-  
+    document.getElementById(idPrefix + 'sem-summary');
+
   if (!backlogContainer) {
     backlogContainer = document.createElement('div');
     backlogContainer.id = backlogContainerId;
     backlogContainer.style.marginTop = '1rem';
     backlogContainer.style.marginBottom = '1rem';
-    
+
     if (bannerEl) {
       bannerEl.parentNode.insertBefore(backlogContainer, bannerEl.nextSibling);
     }
@@ -805,35 +805,35 @@ function renderDedicatedBacklogBanner(courses, semesterFilter, idPrefix) {
   if (backlogs.length > 0) {
     var html = [
       '<div style="background:rgba(220,38,38,0.08); border:1px solid rgba(220,38,38,0.25); border-radius:8px; padding:1.2rem; color:#dc2626; font-family:var(--sans); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">',
-        '<div style="display:flex; align-items:center; gap:0.6rem; font-weight:700; font-size:0.98rem; margin-bottom:0.6rem;">',
-          '<span>⚠️ Dedicated Backlog Alert:</span>',
-          '<span style="background:#dc2626; color:#ffffff; font-size:0.75rem; padding:0.2rem 0.65rem; border-radius:12px; font-family:var(--mono); font-weight:700;">' + backlogs.length + ' Subject' + (backlogs.length !== 1 ? 's' : '') + '</span>',
-        '</div>',
-        '<div style="font-size:0.85rem; color:var(--sub); margin-bottom:0.8rem;">The following course(s) require re-examination or registration:</div>',
-        '<div style="overflow-x:auto;">',
-          '<table style="width:100%; border-collapse:collapse; font-size:0.85rem; text-align:left;">',
-            '<thead>',
-              '<tr style="border-bottom:1px solid rgba(220,38,38,0.15); color:var(--text); font-weight:600;">',
-                '<th style="padding:0.4rem 0.6rem; width:120px;">Course Code</th>',
-                '<th style="padding:0.4rem 0.6rem;">Course Title</th>',
-                '<th style="padding:0.4rem 0.6rem; width:80px; text-align:center;">Grade</th>',
-              '</tr>',
-            '</thead>',
-            '<tbody>'
+      '<div style="display:flex; align-items:center; gap:0.6rem; font-weight:700; font-size:0.98rem; margin-bottom:0.6rem;">',
+      '<span>⚠️ Dedicated Backlog Alert:</span>',
+      '<span style="background:#dc2626; color:#ffffff; font-size:0.75rem; padding:0.2rem 0.65rem; border-radius:12px; font-family:var(--mono); font-weight:700;">' + backlogs.length + ' Subject' + (backlogs.length !== 1 ? 's' : '') + '</span>',
+      '</div>',
+      '<div style="font-size:0.85rem; color:var(--sub); margin-bottom:0.8rem;">The following course(s) require re-examination or registration:</div>',
+      '<div style="overflow-x:auto;">',
+      '<table style="width:100%; border-collapse:collapse; font-size:0.85rem; text-align:left;">',
+      '<thead>',
+      '<tr style="border-bottom:1px solid rgba(220,38,38,0.15); color:var(--text); font-weight:600;">',
+      '<th style="padding:0.4rem 0.6rem; width:120px;">Course Code</th>',
+      '<th style="padding:0.4rem 0.6rem;">Course Title</th>',
+      '<th style="padding:0.4rem 0.6rem; width:80px; text-align:center;">Grade</th>',
+      '</tr>',
+      '</thead>',
+      '<tbody>'
     ];
     backlogs.forEach(function (c) {
       html.push(
         '<tr style="border-bottom:1px solid rgba(220,38,38,0.06); color:var(--text);">',
-          '<td style="padding:0.5rem 0.6rem; font-family:var(--mono); font-weight:600;">' + esc(c.code) + '</td>',
-          '<td style="padding:0.5rem 0.6rem;">' + esc(c.title || '-') + '</td>',
-          '<td style="padding:0.5rem 0.6rem; text-align:center;"><span class="grade g-F" style="padding:0.1rem 0.4rem; font-size:0.75rem;">' + esc(c.grade) + '</span></td>',
+        '<td style="padding:0.5rem 0.6rem; font-family:var(--mono); font-weight:600;">' + esc(c.code) + '</td>',
+        '<td style="padding:0.5rem 0.6rem;">' + esc(c.title || '-') + '</td>',
+        '<td style="padding:0.5rem 0.6rem; text-align:center;"><span class="grade g-F" style="padding:0.1rem 0.4rem; font-size:0.75rem;">' + esc(c.grade) + '</span></td>',
         '</tr>'
       );
     });
     html.push(
-            '</tbody>',
-          '</table>',
-        '</div>',
+      '</tbody>',
+      '</table>',
+      '</div>',
       '</div>'
     );
     backlogContainer.innerHTML = html.join('');
@@ -894,7 +894,7 @@ function renderCourses(courses, title, semesterFilter, idPrefix) {
 
     var marksCell = (marksDisplay !== '-' && marksDisplay !== '')
       ? '<div class="bar-wrap"><span class="bar-num">' + esc(marksDisplay) + '</span>' +
-        '<div class="bar-bg"><div class="bar-fill" style="width:' + pct + '%"></div></div></div>'
+      '<div class="bar-bg"><div class="bar-fill" style="width:' + pct + '%"></div></div></div>'
       : '<span style="color:var(--muted);font-size:0.78rem;font-family:var(--mono)">-</span>';
 
     var row = document.createElement('tr');
@@ -929,9 +929,9 @@ function showFacultyLoginUI() {
   if (fac) fac.style.display = 'block';
   var emailEl = document.getElementById('f-email');
   var errEl = document.getElementById('faculty-err');
-  var okEl  = document.getElementById('faculty-ok');
+  var okEl = document.getElementById('faculty-ok');
   if (errEl) errEl.style.display = 'none';
-  if (okEl)  okEl.style.display  = 'none';
+  if (okEl) okEl.style.display = 'none';
   if (emailEl) { emailEl.value = ''; setTimeout(function () { emailEl.focus(); }, 150); }
   var passEl = document.getElementById('f-pass');
   if (passEl) passEl.value = '';
@@ -957,26 +957,26 @@ function showFacultyLogin() {
   }
   // Fallback: show the standalone faculty-login page
   var emailEl = document.getElementById('f-email');
-  var passEl  = document.getElementById('f-pass');
+  var passEl = document.getElementById('f-pass');
   if (emailEl) emailEl.value = '';
-  if (passEl)  passEl.value  = '';
+  if (passEl) passEl.value = '';
   var errEl = document.getElementById('faculty-err');
-  var okEl  = document.getElementById('faculty-ok');
+  var okEl = document.getElementById('faculty-ok');
   if (errEl) errEl.style.display = 'none';
-  if (okEl)  okEl.style.display  = 'none';
+  if (okEl) okEl.style.display = 'none';
   showPage('faculty-login');
   setTimeout(function () { if (emailEl) emailEl.focus(); }, 150);
 }
 
 async function facultyLoginStep() {
   var emailRaw = (document.getElementById('f-email').value || '').trim().toLowerCase();
-  var passRaw  = (document.getElementById('f-pass').value  || '').trim();
+  var passRaw = (document.getElementById('f-pass').value || '').trim();
   var errEl = document.getElementById('faculty-err');
-  var okEl  = document.getElementById('faculty-ok');
-  var btn   = document.getElementById('f-login-btn');
+  var okEl = document.getElementById('faculty-ok');
+  var btn = document.getElementById('f-login-btn');
 
   if (errEl) errEl.style.display = 'none';
-  if (okEl)  okEl.style.display  = 'none';
+  if (okEl) okEl.style.display = 'none';
 
   if (!emailRaw) {
     if (errEl) { errEl.textContent = 'Please enter your institutional email.'; errEl.className = 'alert err'; errEl.style.display = 'block'; }
@@ -1004,11 +1004,19 @@ async function facultyLoginStep() {
       if (errEl) errEl.style.display = 'none';
       var labelEl = document.getElementById('faculty-email-label');
       if (labelEl) labelEl.textContent = emailRaw;
-      // Hide the inline faculty login container completely
+      // Hide the inline faculty login container completely (removes empty space)
       var facContainer = document.getElementById('faculty-login-container');
       if (facContainer) facContainer.style.display = 'none';
       // Navigate to faculty dashboard
       showPage('faculty-dash');
+      // Show the faculty dashboard container and smooth-scroll into view
+      var dashContainer = document.getElementById('faculty-dashboard-container');
+      if (dashContainer) {
+        dashContainer.style.display = 'block';
+        setTimeout(function() {
+          dashContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
+      }
       // Load all students for the analytics dashboard
       facultyLoadAllStudents();
     } else {
@@ -1042,9 +1050,9 @@ function facultyLogout() {
 // ── Load all students into window.students (called on faculty login) ──────────
 async function facultyLoadAllStudents() {
   var infoEl = document.getElementById('faculty-search-info');
-  var errEl  = document.getElementById('faculty-search-err');
+  var errEl = document.getElementById('faculty-search-err');
   if (infoEl) { infoEl.innerHTML = '<span class="spinner"></span> Loading student directory…'; infoEl.style.display = 'block'; }
-  if (errEl)  errEl.style.display = 'none';
+  if (errEl) errEl.style.display = 'none';
 
   try {
     // 1. Try live backend first via action=load JSONP (populates window.students with fresh data)
@@ -1054,8 +1062,9 @@ async function facultyLoadAllStudents() {
     if (students && students.length) {
       window.students = students;
       // Refresh local cache with latest backend data
-      try { localStorage.setItem(LOCAL_STU_KEY, JSON.stringify(students)); } catch(e) {}
+      try { localStorage.setItem(LOCAL_STU_KEY, JSON.stringify(students)); } catch (e) { }
       if (infoEl) infoEl.style.display = 'none';
+      populateFilterDropdowns(window.students);
       renderFacultyTable(window.students);
       return;
     }
@@ -1069,24 +1078,25 @@ async function facultyLoadAllStudents() {
     var cached = localStorage.getItem(LOCAL_STU_KEY);
     var students = [];
     if (cached) {
-      try { students = JSON.parse(cached); } catch(e) { students = []; }
+      try { students = JSON.parse(cached); } catch (e) { students = []; }
     }
     window.students = students;
     if (infoEl) infoEl.style.display = 'none';
+    populateFilterDropdowns(window.students);
     renderFacultyTable(window.students);
     if (students.length === 0) {
       if (errEl) { errEl.textContent = '⚠ No cached data found. Ensure the backend is reachable and data has been uploaded.'; errEl.style.display = 'block'; }
     }
   } catch (err) {
     if (infoEl) infoEl.style.display = 'none';
-    if (errEl)  { errEl.textContent = '✗ Could not load students: ' + err.message; errEl.style.display = 'block'; }
+    if (errEl) { errEl.textContent = '✗ Could not load students: ' + err.message; errEl.style.display = 'block'; }
   }
 }
 
 // ── Render Faculty Directory Table ────────────────────────────────────────────
 function renderFacultyTable(studentsArray) {
-  var tbody  = document.getElementById('faculty-dir-tbody');
-  var badge  = document.getElementById('faculty-dir-badge');
+  var tbody = document.getElementById('faculty-dir-tbody');
+  var badge = document.getElementById('faculty-dir-badge');
   if (!tbody) return;
 
   if (badge) badge.textContent = (studentsArray.length) + ' student' + (studentsArray.length !== 1 ? 's' : '');
@@ -1121,14 +1131,73 @@ function renderFacultyTable(studentsArray) {
       '<td style="font-family:var(--mono);font-size:0.8rem;color:var(--green)">' + esc(String(creditsDisplay)) + '</td>',
       '<td>' + backlogCell + '</td>',
       '<td><button onclick="window.openFacultyStudentView(\'' + esc(student.sen) + '\')" ' +
-        'style="font-family:var(--mono);font-size:0.7rem;padding:0.25rem 0.7rem;border-radius:5px;' +
-        'border:1px solid var(--accent);background:rgba(2,132,199,0.07);color:var(--accent);cursor:pointer;' +
-        'transition:all 0.15s;" onmouseover="this.style.background=\'var(--accent)\';this.style.color=\'#fff\'" ' +
-        'onmouseout="this.style.background=\'rgba(2,132,199,0.07)\';this.style.color=\'var(--accent)\'">View Results →</button></td>'
+      'style="font-family:var(--mono);font-size:0.7rem;padding:0.25rem 0.7rem;border-radius:5px;' +
+      'border:1px solid var(--accent);background:rgba(2,132,199,0.07);color:var(--accent);cursor:pointer;' +
+      'transition:all 0.15s;" onmouseover="this.style.background=\'var(--accent)\';this.style.color=\'#fff\'" ' +
+      'onmouseout="this.style.background=\'rgba(2,132,199,0.07)\';this.style.color=\'var(--accent)\'">View Results →</button></td>'
     ].join('');
     tbody.appendChild(tr);
 
   });
+}
+
+// ── Populate Batch & Program Filter Dropdowns (V9.0) ────────────────────
+/**
+ * populateFilterDropdowns — extracts unique batch and program values from
+ * studentsArray, sorts them alphabetically, and injects <option> tags into the
+ * #filter-batch and #filter-program <select> elements.
+ */
+function populateFilterDropdowns(studentsArray) {
+  var batches  = {};
+  var programs = {};
+  (studentsArray || []).forEach(function(s) {
+    if (s.batch   && s.batch   !== 'Unknown Batch')   batches[s.batch]     = true;
+    if (s.program && s.program !== 'Unknown Program') programs[s.program]  = true;
+  });
+
+  var batchSel   = document.getElementById('filter-batch');
+  var programSel = document.getElementById('filter-program');
+
+  if (batchSel) {
+    batchSel.innerHTML = '<option value="">All Batches</option>';
+    Object.keys(batches).sort().forEach(function(b) {
+      var opt = document.createElement('option');
+      opt.value = b; opt.textContent = b;
+      batchSel.appendChild(opt);
+    });
+  }
+
+  if (programSel) {
+    programSel.innerHTML = '<option value="">All Programs</option>';
+    Object.keys(programs).sort().forEach(function(p) {
+      var opt = document.createElement('option');
+      opt.value = p; opt.textContent = p;
+      programSel.appendChild(opt);
+    });
+  }
+}
+
+// ── Master Faculty Filter (V9.0) ───────────────────────────────────────
+/**
+ * applyFilters — master filter function. Reads the search text input and the
+ * batch/program dropdowns, then renders the filtered student list. This is the
+ * single source of truth for all faculty directory filtering.
+ */
+function applyFilters() {
+  var searchVal  = ((document.getElementById('faculty-search-input') || {}).value || '').trim().toLowerCase();
+  var batchVal   = ((document.getElementById('filter-batch')   || {}).value || '').trim();
+  var programVal = ((document.getElementById('filter-program') || {}).value || '').trim();
+
+  var filtered = (window.students || []).filter(function(s) {
+    var matchSearch = !searchVal ||
+      (s.sen  || '').toLowerCase().includes(searchVal) ||
+      (s.name || '').toLowerCase().includes(searchVal);
+    var matchBatch   = !batchVal   || (s.batch   || '') === batchVal;
+    var matchProgram = !programVal || (s.program || '') === programVal;
+    return matchSearch && matchBatch && matchProgram;
+  });
+
+  renderFacultyTable(filtered);
 }
 
 // ── Filter: View All ──────────────────────────────────────────────────────────
@@ -1139,6 +1208,10 @@ function facultyViewAll() {
   }
   var searchEl = document.getElementById('faculty-search-input');
   if (searchEl) searchEl.value = '';
+  var batchSel = document.getElementById('filter-batch');
+  if (batchSel) batchSel.value = '';
+  var programSel = document.getElementById('filter-program');
+  if (programSel) programSel.value = '';
   var creditEl = document.getElementById('faculty-credit-input');
   if (creditEl) creditEl.value = '';
   renderFacultyTable(window.students);
@@ -1146,12 +1219,8 @@ function facultyViewAll() {
 
 // ── Filter: Search by SEN or Name ─────────────────────────────────────────────
 function facultyFilterSearch() {
-  var val = (document.getElementById('faculty-search-input').value || '').trim();
-  if (!val) { renderFacultyTable(window.students || []); return; }
-  var filtered = (window.students || []).filter(function (s) {
-    return s.sen.includes(val.toUpperCase()) || s.name.toLowerCase().includes(val.toLowerCase());
-  });
-  renderFacultyTable(filtered);
+  // Delegates to the master applyFilters() so all filters stay in sync
+  applyFilters();
 }
 
 // ── Filter: Has Backlogs ──────────────────────────────────────────────────────
@@ -1190,11 +1259,11 @@ function facultyViewStudent(sen) {
   var student = (window.students || []).find(function (s) { return s.sen === sen; });
   if (!student) return;
   // Hide directory table, show detail view
-  var dirView    = document.getElementById('faculty-directory-view');
+  var dirView = document.getElementById('faculty-directory-view');
   var detailView = document.getElementById('faculty-student-detail-view');
-  var ctrlPanel  = document.getElementById('faculty-control-panel');
-  if (dirView)    dirView.style.display = 'none';
-  if (ctrlPanel)  ctrlPanel.style.display = 'none';
+  var ctrlPanel = document.getElementById('faculty-control-panel');
+  if (dirView) dirView.style.display = 'none';
+  if (ctrlPanel) ctrlPanel.style.display = 'none';
   if (detailView) detailView.style.display = 'block';
   // Render the student detail exactly as the student sees it
   renderFacultyStudentView(student);
@@ -1202,12 +1271,12 @@ function facultyViewStudent(sen) {
 
 // ── Back to Directory ─────────────────────────────────────────────────────────
 function facultyBackToDirectory() {
-  var dirView    = document.getElementById('faculty-directory-view');
+  var dirView = document.getElementById('faculty-directory-view');
   var detailView = document.getElementById('faculty-student-detail-view');
-  var ctrlPanel  = document.getElementById('faculty-control-panel');
+  var ctrlPanel = document.getElementById('faculty-control-panel');
   if (detailView) detailView.style.display = 'none';
-  if (dirView)    dirView.style.display = 'block';
-  if (ctrlPanel)  ctrlPanel.style.display = 'flex';
+  if (dirView) dirView.style.display = 'block';
+  if (ctrlPanel) ctrlPanel.style.display = 'flex';
 }
 
 // ── Global Faculty Student View Routing (V8.1 Core Fix) ──────────────────────
@@ -1216,8 +1285,8 @@ function facultyBackToDirectory() {
  * onclick on each "View Results" button in the faculty data table.
  * Hides the table wrapper and shows the injected student detail view.
  */
-window.openFacultyStudentView = function(sen) {
-  var student = (window.students || []).find(function(s) { return s.sen === sen; });
+window.openFacultyStudentView = function (sen) {
+  var student = (window.students || []).find(function (s) { return s.sen === sen; });
   if (!student) return;
   document.getElementById('faculty-table-wrapper').style.display = 'none';
   document.getElementById('faculty-student-detail-view').style.display = 'block';
@@ -1230,7 +1299,7 @@ window.openFacultyStudentView = function(sen) {
  * "← Back to Directory" button inside the faculty detail view.
  * Clears the injected content and restores the table wrapper.
  */
-window.closeFacultyStudentView = function() {
+window.closeFacultyStudentView = function () {
   document.getElementById('faculty-student-detail-view').style.display = 'none';
   document.getElementById('faculty-table-wrapper').style.display = 'block';
   document.getElementById('faculty-injected-student-data').innerHTML = ''; // Clear memory
@@ -1244,11 +1313,11 @@ async function facultySearchStudent() {
   var student = (window.students || []).find(function (s) { return s.sen === sen; });
   if (student) { facultyViewStudent(sen); return; }
   // Fallback server lookup
-  var errEl  = document.getElementById('faculty-search-err');
+  var errEl = document.getElementById('faculty-search-err');
   var infoEl = document.getElementById('faculty-search-info');
-  var email  = sessionStorage.getItem(FACULTY_SESSION) || currentFacultyEmail || '';
+  var email = sessionStorage.getItem(FACULTY_SESSION) || currentFacultyEmail || '';
   if (infoEl) { infoEl.innerHTML = '<span class="spinner"></span> Fetching student data…'; infoEl.style.display = 'block'; }
-  if (errEl)  errEl.style.display = 'none';
+  if (errEl) errEl.style.display = 'none';
   try {
     var result = await gasJsonp(
       GAS_URL + '?action=facultylookup&facultyEmail=' + encodeURIComponent(email) + '&sen=' + encodeURIComponent(sen), 12000
@@ -1259,7 +1328,7 @@ async function facultySearchStudent() {
     } else if (result.success && result.student) {
       // Inject into window.students for future use
       if (!window.students) window.students = [];
-      var existing = window.students.findIndex(function(s){ return s.sen === result.student.sen; });
+      var existing = window.students.findIndex(function (s) { return s.sen === result.student.sen; });
       if (existing === -1) window.students.push(result.student); else window.students[existing] = result.student;
       facultyViewStudent(result.student.sen);
     }
@@ -1288,7 +1357,7 @@ function renderStudentDashboard(student, targetContainerId) {
 
   // ── Build the complete HTML structure for the student view ──────────────────
   var FAIL_GRADES = ['F', 'FAIL', 'AB'];
-  var validCourses = (student.courses || []).filter(function(c) {
+  var validCourses = (student.courses || []).filter(function (c) {
     return c && c.code && c.code !== 'nan' && c.code.trim() !== '';
   });
 
@@ -1303,40 +1372,40 @@ function renderStudentDashboard(student, targetContainerId) {
 
   container.innerHTML = [
     '<div class="profile-card">',
-      '<div class="avatar">' + esc(initials) + '</div>',
-      '<div style="flex:1;min-width:0">',
-        '<div class="pinfo-name">' + esc(student.name) + '</div>',
-        '<div class="pinfo-meta">',
-          '<span>' + esc(student.program || '') + '</span>',
-          '<span>' + (student.school ? ' · ' + esc(student.school) : '') + '</span>',
-        '</div>',
-      '</div>',
-      '<div class="stat-row">',
-        '<div class="stat-chip"><div class="stat-val gold">' + esc(cgpa) + '</div><div class="stat-lbl">CGPA</div></div>',
-        '<div class="stat-chip"><div class="stat-val green">' + esc(credits) + '</div><div class="stat-lbl">Credits Earned</div></div>',
-        '<div class="stat-chip"><div class="stat-val blue">' + validCourses.length + '</div><div class="stat-lbl">Courses</div></div>',
-      '</div>',
+    '<div class="avatar">' + esc(initials) + '</div>',
+    '<div style="flex:1;min-width:0">',
+    '<div class="pinfo-name">' + esc(student.name) + '</div>',
+    '<div class="pinfo-meta">',
+    '<span>' + esc(student.program || '') + '</span>',
+    '<span>' + (student.school ? ' · ' + esc(student.school) : '') + '</span>',
+    '</div>',
+    '</div>',
+    '<div class="stat-row">',
+    '<div class="stat-chip"><div class="stat-val gold">' + esc(cgpa) + '</div><div class="stat-lbl">CGPA</div></div>',
+    '<div class="stat-chip"><div class="stat-val green">' + esc(credits) + '</div><div class="stat-lbl">Credits Earned</div></div>',
+    '<div class="stat-chip"><div class="stat-val blue">' + validCourses.length + '</div><div class="stat-lbl">Courses</div></div>',
+    '</div>',
     '</div>',
     '<div class="sem-tabs" id="' + pfx + 'sem-tabs"></div>',
     '<div class="sem-summary-banner" id="' + pfx + 'sem-summary-banner"></div>',
     '<div class="card">',
-      '<div class="card-head">',
-        '<div class="card-title" id="' + pfx + 'tbl-title">All Courses</div>',
-        '<div class="badge" id="' + pfx + 'tbl-badge">—</div>',
-      '</div>',
-      '<div class="tbl-wrap"><table>',
-        '<thead><tr>',
-          '<th>Code</th><th>Course Title</th><th>Type</th><th>Cr.</th>',
-          '<th>Marks /100</th><th>Grade</th><th>Gr. Pts</th><th>Cr. Earned</th>',
-        '</tr></thead>',
-        '<tbody id="' + pfx + 'courses-tbody"></tbody>',
-      '</table></div>',
+    '<div class="card-head">',
+    '<div class="card-title" id="' + pfx + 'tbl-title">All Courses</div>',
+    '<div class="badge" id="' + pfx + 'tbl-badge">—</div>',
+    '</div>',
+    '<div class="tbl-wrap"><table>',
+    '<thead><tr>',
+    '<th>Code</th><th>Course Title</th><th>Type</th><th>Cr.</th>',
+    '<th>Marks /100</th><th>Grade</th><th>Gr. Pts</th><th>Cr. Earned</th>',
+    '</tr></thead>',
+    '<tbody id="' + pfx + 'courses-tbody"></tbody>',
+    '</table></div>',
     '</div>'
   ].join('');
 
   // ── Smart Backlog Engine ────────────────────────────────────────────────────
   var courseGroups = {};
-  validCourses.forEach(function(c) {
+  validCourses.forEach(function (c) {
     var key = String(c.code || '').trim().toUpperCase();
     if (!courseGroups[key]) courseGroups[key] = [];
     courseGroups[key].push(c);
@@ -1345,23 +1414,23 @@ function renderStudentDashboard(student, targetContainerId) {
   var activeBacklogs = [];
   var clearedBacklogs = [];
 
-  Object.keys(courseGroups).forEach(function(code) {
+  Object.keys(courseGroups).forEach(function (code) {
     var attempts = courseGroups[code];
-    var hasFail = attempts.some(function(c) { return FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); });
-    var hasPass = attempts.some(function(c) { return !FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); });
+    var hasFail = attempts.some(function (c) { return FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); });
+    var hasPass = attempts.some(function (c) { return !FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); });
     if (hasFail && !hasPass) {
-      var latest = attempts.filter(function(c) { return FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); });
+      var latest = attempts.filter(function (c) { return FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); });
       activeBacklogs.push(latest[latest.length - 1]);
     } else if (hasFail && hasPass) {
-      attempts.filter(function(c) { return !FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); })
-              .forEach(function(c) { clearedBacklogs.push(c); });
+      attempts.filter(function (c) { return !FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); })
+        .forEach(function (c) { clearedBacklogs.push(c); });
     }
   });
 
   // ── Unique Semesters ────────────────────────────────────────────────────────
   var seen = {};
   var uniqueSems = [];
-  (student.courses || []).forEach(function(c) {
+  (student.courses || []).forEach(function (c) {
     if (c.sem && !seen[c.sem]) { seen[c.sem] = true; uniqueSems.push(c.sem); }
   });
 
@@ -1374,8 +1443,8 @@ function renderStudentDashboard(student, targetContainerId) {
     var btn = document.createElement('button');
     btn.className = 'tab' + (isAll ? ' active' : '');
     btn.textContent = label;
-    btn.onclick = function() {
-      tabsEl.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+    btn.onclick = function () {
+      tabsEl.querySelectorAll('.tab').forEach(function (t) { t.classList.remove('active'); });
       btn.classList.add('active');
       var banner = document.getElementById(pfx + 'backlog-info-banner');
       if (banner) banner.remove();
@@ -1398,7 +1467,7 @@ function renderStudentDashboard(student, targetContainerId) {
       } else if (isAll) {
         renderCourses(student.courses, 'All Semesters', 'all', pfx);
       } else {
-        var filtered = student.courses.filter(function(c) { return c.sem === clickedSem; });
+        var filtered = student.courses.filter(function (c) { return c.sem === clickedSem; });
         renderCourses(filtered, label, clickedSem, pfx);
       }
     };
@@ -1406,7 +1475,7 @@ function renderStudentDashboard(student, targetContainerId) {
   }
 
   tabsEl.appendChild(makeInjectedTab('All Semesters', true));
-  uniqueSems.forEach(function(s) {
+  uniqueSems.forEach(function (s) {
     tabsEl.appendChild(makeInjectedTab(SEM_MAP[s] || s, false, s));
   });
   if (activeBacklogs.length > 0) tabsEl.appendChild(makeInjectedTab('\uD83D\uDD34 Active Backlogs', false, null, 'active'));
@@ -1438,14 +1507,14 @@ function renderFacultyStudentView(student) {
       'transition:all 0.15s;'
     ].join('');
     backBtn.onmouseover = function () { this.style.background = 'var(--accent)'; this.style.color = '#fff'; };
-    backBtn.onmouseout  = function () { this.style.background = 'rgba(2,132,199,0.08)'; this.style.color = 'var(--accent)'; };
+    backBtn.onmouseout = function () { this.style.background = 'rgba(2,132,199,0.08)'; this.style.color = 'var(--accent)'; };
     backBtn.onclick = facultyBackToDirectory;
     detailView.insertBefore(backBtn, detailView.firstChild);
   }
-  document.getElementById('faculty-dash-avatar').textContent  = (student.name || 'S').charAt(0);
-  document.getElementById('faculty-dash-name').textContent    = student.name;
+  document.getElementById('faculty-dash-avatar').textContent = (student.name || 'S').charAt(0);
+  document.getElementById('faculty-dash-name').textContent = student.name;
   document.getElementById('faculty-dash-program').textContent = student.program || '';
-  document.getElementById('faculty-dash-school').textContent  = student.school ? ' · ' + student.school : '';
+  document.getElementById('faculty-dash-school').textContent = student.school ? ' · ' + student.school : '';
 
   var cgpaVal = parseFloat(student.cgpa);
   document.getElementById('faculty-dash-cgpa').textContent =
@@ -1469,20 +1538,20 @@ function renderFacultyStudentView(student) {
     courseGroups[key].push(c);
   });
 
-  var activeBacklogs  = [];
+  var activeBacklogs = [];
   var clearedBacklogs = [];
 
   Object.keys(courseGroups).forEach(function (code) {
     var attempts = courseGroups[code];
-    var hasFail  = attempts.some(function (c) { return FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); });
-    var hasPass  = attempts.some(function (c) { return !FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); });
+    var hasFail = attempts.some(function (c) { return FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); });
+    var hasPass = attempts.some(function (c) { return !FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); });
 
     if (hasFail && !hasPass) {
       var latest = attempts.filter(function (c) { return FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); });
       activeBacklogs.push(latest[latest.length - 1]);
     } else if (hasFail && hasPass) {
       attempts.filter(function (c) { return !FAIL_GRADES.includes(String(c.grade || '').toUpperCase().trim()); })
-              .forEach(function (c) { clearedBacklogs.push(c); });
+        .forEach(function (c) { clearedBacklogs.push(c); });
     }
   });
 
@@ -1759,10 +1828,10 @@ async function clearPassword() {
     var adminPassword = sessionStorage.getItem(ADMIN_SESSION) || '';
 
     // Use readable POST (not no-cors) so we can confirm success/failure from backend
-    var resp   = await fetch(GAS_URL, {
-      method:  'POST',
+    var resp = await fetch(GAS_URL, {
+      method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
-      body:    JSON.stringify({ action: 'clearpassword', sen: sen, adminPassword: adminPassword })
+      body: JSON.stringify({ action: 'clearpassword', sen: sen, adminPassword: adminPassword })
     });
     var result = await resp.json();
 
@@ -1825,15 +1894,13 @@ async function handleFileUpload(files) {
       var file = fileList[f];
       setAlert('info', '<span class="spinner"></span>[' + (f + 1) + '/' + fileList.length + '] Reading ' + esc(file.name) + '…');
 
-      // ── Filename Parsing: robust extraction of Batch & Program (V8.0) ──────────
-      // Searches the FULL filename for batch token — no pre-split on '-' which was
-      // silently truncating names like "2024 Batch MCA - FS 24-25.xlsx".
-      var fileName = file.name;
-      var batchMatch = fileName.match(/20\d{2}\s*Batch/i);
-      var extractedBatch   = batchMatch ? batchMatch[0].trim() : 'Unknown Batch';
-      var extractedProgram = fileName.replace(extractedBatch, '').split('-')[0].replace(/\.xlsx?|\.csv/gi, '').trim() || 'Unknown Program';
-      var fileBatch   = extractedBatch;
-      var fileProgram = extractedProgram;
+      // ── Filename Parsing: precise extraction of Batch & Program (V9.0) ──────────
+      // Splits on '-' first so trailing suffixes like " - FS 24-25" are excluded,
+      // then matches the exact "YYYY Batch" token and derives program from remainder.
+      var cleanName = file.name.split('-')[0].replace(/\.xlsx?|\.csv/gi, '').trim();
+      var batchMatch = cleanName.match(/(20\d{2})\s*Batch/i);
+      var fileBatch   = batchMatch ? batchMatch[0].trim() : 'Unknown Batch';
+      var fileProgram = cleanName.replace(/(20\d{2})\s*Batch/i, '').trim() || 'Unknown Program';
 
 
       var arrayBuffer = await file.arrayBuffer();
@@ -1849,7 +1916,7 @@ async function handleFileUpload(files) {
             sen: sen,
             name: s.name,
             program: fileProgram || s.program,
-            batch:   fileBatch   || s.batch   || '',
+            batch: fileBatch || s.batch || '',
             school: s.school,
             cgpa: s.cgpa || 0,
             totalCredits: s.totalCredits || 0,
@@ -1861,9 +1928,9 @@ async function handleFileUpload(files) {
         if (s.name) target.name = s.name;
         // Filename data takes priority; fall back to row data
         target.program = fileProgram || target.program || s.program;
-        target.batch   = fileBatch   || target.batch   || s.batch || '';
+        target.batch = fileBatch || target.batch || s.batch || '';
         if (s.school) target.school = s.school;
-        
+
         var sCgpa = parseFloat(s.cgpa || 0);
         var targetCgpa = parseFloat(target.cgpa || 0);
         if (!isNaN(sCgpa) && sCgpa > targetCgpa) {
@@ -1880,13 +1947,13 @@ async function handleFileUpload(files) {
         }
 
         s.courses.forEach(function (c) {
-          var semKey  = String(c.semester || c.sem || '').trim();
+          var semKey = String(c.semester || c.sem || '').trim();
           var codeKey = String(c.code || '').trim().toLowerCase();
 
           // Composite key: Course Code + Semester (allows same course in different sems,
           // and retaken F-grade courses in the same sem to both appear)
           var isDuplicate = target.courses.some(function (existC) {
-            var existSem  = String(existC.semester || existC.sem || '').trim();
+            var existSem = String(existC.semester || existC.sem || '').trim();
             var existCode = String(existC.code || '').trim().toLowerCase();
             return existCode === codeKey && existSem === semKey;
           });
@@ -1940,13 +2007,13 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
   function collapseKey(k) { return String(k || '').toLowerCase().replace(/[\s\-]+/g, '').trim(); }
   function fuzzyFindKey(rowKeys, target) {
     var t1 = collapseKey(target);
-    var found = rowKeys.find(function(k) { return collapseKey(k) === t1; });
-    return found || rowKeys.find(function(k) { return collapseKey(k).includes(t1); }) || null;
+    var found = rowKeys.find(function (k) { return collapseKey(k) === t1; });
+    return found || rowKeys.find(function (k) { return collapseKey(k).includes(t1); }) || null;
   }
   function findNumberedField(rowKeys, idx, suffixes) {
     for (var s = 0; s < suffixes.length; s++) {
       var target = idx + suffixes[s].toLowerCase().replace(/[\s\-]+/g, '').trim();
-      var f = rowKeys.find(function(k) { var ck = collapseKey(k); return ck === target || ck.includes(target); });
+      var f = rowKeys.find(function (k) { var ck = collapseKey(k); return ck === target || ck.includes(target); });
       if (f) return f;
     }
     return null;

@@ -39,16 +39,14 @@ var SEM_MAP = {
  *   codes       — course codes that count toward this bucket
  */
 const CURRICULUM_RULES = {
-  '2024': {
-    'MCA': [
-      { bucket: 'A. School Core',    minCredits: 17, codes: ['CSE5129','MAT5005','ENG5004','CSE6004','CSE6005','CSE6006'] },
-      { bucket: 'B. Foreign Languages', minCredits: 2,  codes: ['FRE1001','GER1001','SPA1001'] },
-      { bucket: 'C. Soft Skills',    minCredits: 2,  codes: ['SSK2002','SSK3002'] },
-      { bucket: 'D. Program Core',   minCredits: 29, codes: ['CSE5067','CSE5002','CSE5005','CSE5004','CSE5012','CSE5011','CSE5013','CSE5017','CSE5009','CSE5010'] },
-      { bucket: 'E. Core Elective',  minCredits: 6,  codes: ['CSE5006','CSE5007','CSE5008','CSE5019','CSE5024','CSE5046'] },
-      { bucket: 'G. AI & GenAI',     minCredits: 3,  codes: ['CSE5029','CSE5032','CSE5033'] }
-    ]
-  }
+  "2024_MCA": [
+    { bucket: "A+B+C. Core, Languages & Soft Skills", minCredits: 17, codes: ["CSE5129", "MAT5005", "ENG5004", "CSE6004", "CSE6005", "CSE6006", "FRE1001", "GER1001", "SPA1001", "SSK2002", "SSK3002"] },
+    { bucket: "D. Program Core", minCredits: 29, codes: ["CSE5067", "CSE5002", "CSE5005", "CSE5004", "CSE5012", "CSE5011", "CSE5013", "CSE5017", "CSE5009", "CSE5010"] },
+    { bucket: "I. Cyber Security", minCredits: 3, codes: ["CSE5028", "CSE5039", "CSE5040", "CSE5041", "CSE5042", "CSE5043", "CSE5044"] },
+    { bucket: "J. Data Analytics", minCredits: 3, codes: ["CSE5045", "CSE5046", "CSE5047", "CSE5048", "MGT5007", "MAT5006"] },
+    { bucket: "K. Cloud Computing", minCredits: 3, codes: ["CSE5052", "CSE5053", "CSE5034"] }
+    // Note: The IDE/User can expand this object for additional electives/buckets (totaling 80 credits) as needed.
+  ]
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1385,56 +1383,73 @@ async function facultySearchStudent() {
  * @returns {{ isEligible: boolean, message: string, buckets: Array }}
  */
 function evaluateDegree(student) {
-  var batchKey   = String(student.batch   || '').match(/(20\d{2})/);  // e.g. "2024 Batch" → "2024"
-  var batchYear  = batchKey ? batchKey[1] : String(student.batch || '').trim();
-  var programKey = String(student.program || '').trim();
+  const batchClean = String(student.batch || '').match(/(20\d{2})/) ? String(student.batch).match(/(20\d{2})/)[1] : String(student.batch || '').trim();
+  const ruleKey = `${batchClean}_${student.program}`;
+  const rules = CURRICULUM_RULES[ruleKey];
+  if (!rules) return { isSupported: false, isEligible: false };
 
-  var yearRules = CURRICULUM_RULES[batchYear];
-  if (!yearRules) return { isEligible: false, message: 'Curriculum not mapped for batch: ' + (batchYear || 'Unknown'), buckets: [] };
-  var rules = yearRules[programKey];
-  if (!rules) return { isEligible: false, message: 'Curriculum not mapped for program: ' + (programKey || 'Unknown'), buckets: [] };
-
-  var FAIL_GRADES = ['F', 'FAIL', 'AB'];
-
-  // Build a map of passed course codes → credits earned
-  var passedCredits = {};
-  (student.courses || []).forEach(function (c) {
-    var code  = String(c.code  || '').trim().toUpperCase();
-    var grade = String(c.grade || '').trim().toUpperCase();
-    if (!code || FAIL_GRADES.includes(grade)) return;
-    var cr = parseFloat(c.credits || c.creditEarned || 0);
-    if (isNaN(cr)) cr = 0;
-    // Keep the highest earned credits per code (handles re-takes)
-    if (!passedCredits[code] || cr > passedCredits[code]) passedCredits[code] = cr;
+  let audit = rules.map(r => ({ ...r, earned: 0 }));
+  let totalEarnedInBuckets = 0;
+  
+  // 1. Filter to PASSED courses only
+  const passedCourses = (student.courses || []).filter(c => !['F', 'FAIL', 'AB'].includes(String(c.grade).toUpperCase()));
+  
+  // 2. Deduplicate (ensure retaken passed subjects only count once)
+  const uniquePassed = [];
+  const seenCodes = new Set();
+  passedCourses.forEach(c => {
+    if (!seenCodes.has(c.code)) {
+      uniquePassed.push(c);
+      seenCodes.add(c.code);
+    }
   });
 
-  var allMet = true;
-  var buckets = rules.map(function (rule) {
-    var earned = 0;
-    var passedCodes  = [];
-    var missingCodes = [];
-    rule.codes.forEach(function (code) {
-      var cr = passedCredits[code.toUpperCase()];
-      if (cr !== undefined) {
-        earned += cr;
-        passedCodes.push(code);
-      } else {
-        missingCodes.push(code);
-      }
-    });
-    var met = earned >= rule.minCredits;
-    if (!met) allMet = false;
-    return {
-      bucket:       rule.bucket,
-      minCredits:   rule.minCredits,
-      earned:       earned,
-      met:          met,
-      missingCodes: missingCodes
-    };
+  // 3. Drop into Buckets
+  uniquePassed.forEach(c => {
+    let bucketIndex = audit.findIndex(b => b.codes.includes(c.code));
+    if (bucketIndex !== -1) {
+      audit[bucketIndex].earned += (parseFloat(c.credits) || 0);
+      totalEarnedInBuckets += (parseFloat(c.credits) || 0);
+    }
   });
 
-  return { isEligible: allMet, message: allMet ? 'Eligible for degree award.' : 'Not yet eligible.', buckets: buckets };
+  // 4. Determine overall eligibility (For 2024 MCA, grand total must be >= 80, and all individual buckets must meet minCredits)
+  let allBucketsMet = audit.every(b => b.earned >= b.minCredits);
+  let isEligible = allBucketsMet && (totalEarnedInBuckets >= 80);
+
+  return { isSupported: true, audit, isEligible, totalEarnedInBuckets };
 }
+
+window.showTab = function(tabId) {
+  // Determine prefix based on visible container
+  var pfx = 'sdash-';
+  var facDetail = document.getElementById('faculty-student-detail-view');
+  if (facDetail && facDetail.style.display !== 'none') {
+    pfx = 'finj-';
+  }
+  
+  var targetTab = document.getElementById(pfx + tabId);
+  var otherTab = document.getElementById(pfx + 'courses-tab');
+  
+  if (targetTab && otherTab) {
+    otherTab.style.display = 'none';
+    targetTab.style.display = 'block';
+  }
+  
+  // Update button active styling
+  var tabsEl = document.getElementById(pfx + 'sem-tabs');
+  if (tabsEl) {
+    tabsEl.querySelectorAll('.tab, .tab-btn').forEach(function (t) { t.classList.remove('active'); });
+    // Find the button with onclick containing the tabId
+    var activeBtn = Array.from(tabsEl.querySelectorAll('.tab, .tab-btn')).find(function (btn) {
+      var oc = btn.getAttribute('onclick');
+      return oc && oc.includes(tabId);
+    });
+    if (activeBtn) {
+      activeBtn.classList.add('active');
+    }
+  }
+};
 
 /**
  * renderStudentDashboard — Dynamic Rendering Engine (V8.1 Core Fix).
@@ -1486,19 +1501,26 @@ function renderStudentDashboard(student, targetContainerId) {
     '</div>',
     '<div class="sem-tabs" id="' + pfx + 'sem-tabs"></div>',
     '<div class="sem-summary-banner" id="' + pfx + 'sem-summary-banner"></div>',
-    '<div class="card">',
-    '<div class="card-head">',
-    '<div class="card-title" id="' + pfx + 'tbl-title">All Courses</div>',
-    '<div class="badge" id="' + pfx + 'tbl-badge">—</div>',
+    
+    // Tab Pane for Courses Table
+    '<div id="' + pfx + 'courses-tab" class="tab-content" style="display:block;">',
+    '  <div class="card">',
+    '    <div class="card-head">',
+    '      <div class="card-title" id="' + pfx + 'tbl-title">All Courses</div>',
+    '      <div class="badge" id="' + pfx + 'tbl-badge">—</div>',
+    '    </div>',
+    '    <div class="tbl-wrap"><table>',
+    '      <thead><tr>',
+    '        <th>Code</th><th>Course Title</th><th>Type</th><th>Cr.</th>',
+    '        <th>Marks /100</th><th>Grade</th><th>Gr. Pts</th><th>Cr. Earned</th>',
+    '      </tr></thead>',
+    '      <tbody id="' + pfx + 'courses-tbody"></tbody>',
+    '    </table></div>',
+    '  </div>',
     '</div>',
-    '<div class="tbl-wrap"><table>',
-    '<thead><tr>',
-    '<th>Code</th><th>Course Title</th><th>Type</th><th>Cr.</th>',
-    '<th>Marks /100</th><th>Grade</th><th>Gr. Pts</th><th>Cr. Earned</th>',
-    '</tr></thead>',
-    '<tbody id="' + pfx + 'courses-tbody"></tbody>',
-    '</table></div>',
-    '</div>'
+
+    // Tab Pane for Degree Audit
+    '<div id="' + pfx + 'audit-tab" class="tab-content" style="display:none;"></div>'
   ].join('');
 
   // ── Smart Backlog Engine ────────────────────────────────────────────────────
@@ -1542,8 +1564,15 @@ function renderStudentDashboard(student, targetContainerId) {
     btn.className = 'tab' + (isAll ? ' active' : '');
     btn.textContent = label;
     btn.onclick = function () {
-      tabsEl.querySelectorAll('.tab').forEach(function (t) { t.classList.remove('active'); });
+      tabsEl.querySelectorAll('.tab, .tab-btn').forEach(function (t) { t.classList.remove('active'); });
       btn.classList.add('active');
+
+      // Hide audit-tab, show courses-tab
+      var coursesTab = document.getElementById(pfx + 'courses-tab');
+      var auditTab = document.getElementById(pfx + 'audit-tab');
+      if (coursesTab) coursesTab.style.display = 'block';
+      if (auditTab) auditTab.style.display = 'none';
+
       var banner = document.getElementById(pfx + 'backlog-info-banner');
       if (banner) banner.remove();
       if (backlogType === 'active') {
@@ -1579,64 +1608,74 @@ function renderStudentDashboard(student, targetContainerId) {
   if (activeBacklogs.length > 0) tabsEl.appendChild(makeInjectedTab('\uD83D\uDD34 Active Backlogs', false, null, 'active'));
   if (clearedBacklogs.length > 0) tabsEl.appendChild(makeInjectedTab('\uD83D\uDFE2 Cleared Backlogs', false, null, 'cleared'));
 
-  // ── Degree Audit Tab (V10.0) ────────────────────────────────────────────────
+  // ── Degree Audit Tab Button (V12.0) ──────────────────────────────────────────
   var auditBtn = document.createElement('button');
-  auditBtn.className = 'tab';
-  auditBtn.textContent = '\uD83C\uDF93 Degree Audit';
-  auditBtn.onclick = function () {
-    tabsEl.querySelectorAll('.tab').forEach(function (t) { t.classList.remove('active'); });
-    auditBtn.classList.add('active');
-    var banner = document.getElementById(pfx + 'backlog-info-banner');
-    if (banner) banner.remove();
-
-    var audit = evaluateDegree(student);
-    var tblTitle = document.getElementById(pfx + 'tbl-title');
-    var tblBadge = document.getElementById(pfx + 'tbl-badge');
-    var tbody    = document.getElementById(pfx + 'courses-tbody');
-    if (!tblTitle || !tbody) return;
-
-    tblTitle.textContent = '\uD83C\uDF93 Degree Audit';
-    if (tblBadge) {
-      tblBadge.textContent = audit.isEligible ? '\u2705 Eligible' : '\u274C Not Eligible';
-      tblBadge.style.background = audit.isEligible ? 'rgba(22,163,74,0.15)' : 'rgba(220,38,38,0.15)';
-      tblBadge.style.color = audit.isEligible ? '#16a34a' : '#dc2626';
-    }
-
-    if (!audit.buckets || !audit.buckets.length) {
-      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--muted);">' +
-        esc(audit.message) + '</td></tr>';
-      return;
-    }
-
-    // Re-render thead for the audit table
-    var table = tbody.closest('table');
-    if (table) {
-      var thead = table.querySelector('thead tr');
-      if (thead) thead.innerHTML = '<th>Bucket</th><th>Required Cr.</th><th>Earned Cr.</th><th>Status</th><th>Missing Courses</th>';
-    }
-
-    tbody.innerHTML = '';
-    audit.buckets.forEach(function (b) {
-      var tr = document.createElement('tr');
-      var statusBadge = b.met
-        ? '<span style="background:rgba(22,163,74,0.15);color:#16a34a;font-family:var(--mono);font-size:0.75rem;padding:0.2rem 0.6rem;border-radius:10px;font-weight:700;">\u2705 Completed</span>'
-        : '<span style="background:rgba(220,38,38,0.12);color:#dc2626;font-family:var(--mono);font-size:0.75rem;padding:0.2rem 0.6rem;border-radius:10px;font-weight:700;">\u274C Missing ' + (b.minCredits - b.earned).toFixed(0) + ' Cr.</span>';
-      var missingHtml = b.missingCodes.length
-        ? b.missingCodes.map(function (c) {
-            return '<code style="background:rgba(220,38,38,0.08);color:#f87171;font-size:0.72rem;padding:0.1rem 0.4rem;border-radius:4px;margin:0.1rem;display:inline-block;">' + esc(c) + '</code>';
-          }).join(' ')
-        : '<span style="color:var(--green);font-size:0.78rem;">\u2014 None</span>';
-      tr.innerHTML = [
-        '<td style="font-weight:600;font-size:0.85rem;">' + esc(b.bucket) + '</td>',
-        '<td style="font-family:var(--mono);font-size:0.85rem;color:var(--gold);">' + b.minCredits + '</td>',
-        '<td style="font-family:var(--mono);font-size:0.85rem;color:' + (b.met ? 'var(--green)' : '#f87171') + ';font-weight:700;">' + b.earned.toFixed(1) + '</td>',
-        '<td>' + statusBadge + '</td>',
-        '<td style="font-size:0.82rem;line-height:1.8;">' + missingHtml + '</td>'
-      ].join('');
-      tbody.appendChild(tr);
-    });
-  };
+  auditBtn.className = 'tab-btn tab';
+  auditBtn.setAttribute('onclick', "showTab('audit-tab')");
+  auditBtn.textContent = '🎓 Degree Audit';
   tabsEl.appendChild(auditBtn);
+
+  // Populate Audit Tab Content
+  var auditTabEl = document.getElementById(pfx + 'audit-tab');
+  if (auditTabEl) {
+    const auditResult = evaluateDegree(student);
+    if (!auditResult.isSupported) {
+      auditTabEl.innerHTML = '<div style="padding:2.5rem; text-align:center; color:var(--muted); font-weight:500;">Curriculum mapping for ' + esc(student.batch) + ' ' + esc(student.program) + ' is pending.</div>';
+    } else {
+      var tableHtml = [
+        '<div class="card">',
+        '  <div class="card-head">',
+        '    <div class="card-title">Curriculum Degree Audit</div>',
+        '    <div class="badge" style="background: ' + (auditResult.isEligible ? 'rgba(22,163,74,0.15)' : 'rgba(220,38,38,0.15)') + '; color: ' + (auditResult.isEligible ? '#16a34a' : '#dc2626') + ';">' + (auditResult.isEligible ? 'Eligible' : 'Not Eligible') + '</div>',
+        '  </div>',
+        '  <div class="tbl-wrap">',
+        '    <table>',
+        '      <thead>',
+        '        <tr>',
+        '          <th>Category</th>',
+        '          <th>Required Credits</th>',
+        '          <th>Earned Credits</th>',
+        '          <th>Status</th>',
+        '        </tr>',
+        '      </thead>',
+        '      <tbody>'
+      ];
+
+      auditResult.audit.forEach(function(b) {
+        var statusHtml = '';
+        if (b.earned >= b.minCredits) {
+          statusHtml = '<span style="color: #16a34a; font-weight: bold;">✅ Cleared</span>';
+        } else {
+          var missing = b.minCredits - b.earned;
+          statusHtml = '<span style="color: #dc2626; font-weight: bold;">❌ Missing ' + missing + '</span>';
+        }
+        tableHtml.push(
+          '<tr>',
+          '  <td style="font-weight: 500;">' + esc(b.bucket) + '</td>',
+          '  <td style="font-family: var(--mono); color: var(--gold);">' + b.minCredits + '</td>',
+          '  <td style="font-family: var(--mono); font-weight: 700; color: ' + (b.earned >= b.minCredits ? 'var(--green)' : '#f87171') + '">' + b.earned.toFixed(1) + '</td>',
+          '  <td>' + statusHtml + '</td>',
+          '</tr>'
+        );
+      });
+
+      tableHtml.push(
+        '      </tbody>',
+        '    </table>',
+        '  </div>',
+        '</div>'
+      );
+
+      var bannerHtml = '';
+      if (auditResult.isEligible === true) {
+        bannerHtml = '<div style="margin-top: 1.5rem; background: rgba(22,163,74,0.1); border: 2px solid #16a34a; border-radius: 12px; padding: 1.25rem; color: #16a34a; text-align: center; font-weight: 800; font-size: 1.1rem; letter-spacing: 0.05em; text-transform: uppercase;">🎓 ELIGIBLE FOR DEGREE</div>';
+      } else {
+        bannerHtml = '<div style="margin-top: 1.5rem; background: rgba(220,38,38,0.08); border: 2px solid #dc2626; border-radius: 12px; padding: 1.25rem; color: #dc2626; text-align: center; font-weight: 800; font-size: 1.1rem; letter-spacing: 0.05em; text-transform: uppercase;">❌ NOT YET ELIGIBLE - Please clear missing bucket credits.</div>';
+      }
+
+      auditTabEl.innerHTML = tableHtml.join('') + bannerHtml;
+    }
+  }
 
   renderCourses(student.courses, 'All Semesters', 'all', pfx);
 }

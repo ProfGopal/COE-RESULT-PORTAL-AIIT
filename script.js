@@ -1,4 +1,4 @@
-﻿/**
+/**
  * script.js — AIIT COE Result Portal
  * Shared frontend logic for index.html and admin-hidden.html
  *
@@ -30,34 +30,17 @@ var SEM_MAP = {
   'V': 'Semester V', 'VI': 'Semester VI', 'VII': 'Semester VII', 'VIII': 'Semester VIII'
 };
 
-// ── Curriculum Evaluation Engine — Hierarchical Degree Audit Rules (V13.0) ─────
+// ── Curriculum Evaluation Engine — Hierarchical Degree Audit Rules (V14.0) ─────
 /**
- * CURRICULUM_RULES defines per-batch, per-program degree requirements.
- * Hierarchical 4-bucket structure for 2024 MCA batch.
- * Bucket 4 (Open Elective) auto-receives any passed courses not in Buckets 1-3.
+ * CURRICULUM_RULES: 4-category structure. Category 4 is a catch-all for Open Electives.
+ * Any passed course NOT listed in categories 1-3 is automatically assigned to category 4.
  */
 const CURRICULUM_RULES = {
   "2024_MCA": [
-    {
-      bucket: "1. School Core (Includes Languages & Soft Skills)",
-      minCredits: 17,
-      codes: ["CSE5129", "MAT5005", "ENG5004", "CSE6004", "CSE6005", "CSE6006", "FRE1001", "GER1001", "SPA1001", "SSK2002", "SSK3002"]
-    },
-    {
-      bucket: "2. Program Core",
-      minCredits: 29,
-      codes: ["CSE5067", "CSE5002", "CSE5005", "CSE5004", "CSE5012", "CSE5011", "CSE5013", "CSE5017", "CSE5009", "CSE5010"]
-    },
-    {
-      bucket: "3. Discipline Electives (Common & Specialized)",
-      minCredits: 28,
-      codes: ["CSE5029", "CSE5032", "CSE5033", "CSE5028", "CSE5039", "CSE5040", "CSE5041", "CSE5042", "CSE5043", "CSE5044", "CSE5045", "CSE5046", "CSE5047", "CSE5048", "MGT5007", "MAT5006", "CSE5052", "CSE5053", "CSE5034", "CSE5006", "CSE5007", "CSE5008", "CSE5019", "CSE5024"]
-    },
-    {
-      bucket: "4. Open Elective",
-      minCredits: 6,
-      codes: [] // Auto-populated: any passed course not in Buckets 1-3 falls here
-    }
+    { category: "1. School Core (Includes Languages & Soft Skills)", minCredits: 17, codes: ["CSE5129", "MAT5005", "ENG5004", "CSE6004", "CSE6005", "CSE6006", "FRE1001", "GER1001", "SPA1001", "SSK2002", "SSK3002"] },
+    { category: "2. Program Core", minCredits: 29, codes: ["CSE5067", "CSE5002", "CSE5005", "CSE5004", "CSE5012", "CSE5011", "CSE5013", "CSE5017", "CSE5009", "CSE5010"] },
+    { category: "3. Discipline Electives", minCredits: 28, codes: ["CSE5029", "CSE5032", "CSE5033", "CSE5028", "CSE5039", "CSE5040", "CSE5041", "CSE5042", "CSE5043", "CSE5044", "CSE5045", "CSE5046", "CSE5047", "CSE5048", "MGT5007", "MAT5006", "CSE5052", "CSE5053", "CSE5034", "CSE5006", "CSE5007", "CSE5008", "CSE5019", "CSE5024"] },
+    { category: "4. Open Elective", minCredits: 6, codes: ["OPEN_ELECTIVE_CATCHALL"] } // Anything not in 1,2,3 goes here
   ]
 };
 
@@ -675,8 +658,9 @@ function renderStudentDash(student) {
     // Standard (only passes) — no special handling needed
   });
 
-  // ── Step A: Extract Unique Semesters (filter out Unknown/blank) ──────────────
-  const uniqueSems = [...new Set(student.courses.map(c => c.sem))].filter(s => s && s !== 'Unknown' && s.trim() !== '');
+  // ── Step A: Extract Unique Semesters (aggressive Unknown/null/undefined filter) ───
+  const uniqueSems = [...new Set(student.courses.map(c => String(c.sem).trim()))]
+    .filter(s => s && s !== '' && s.toLowerCase() !== 'unknown' && s.toLowerCase() !== 'undefined' && s.toLowerCase() !== 'null');
 
   // ── Step B: Render Tabs ───────────────────────────────────────────────────────
   var tabsEl = document.getElementById('sem-tabs');
@@ -689,6 +673,12 @@ function renderStudentDash(student) {
     btn.onclick = function () {
       document.querySelectorAll('#sem-tabs .tab').forEach(function (t) { t.classList.remove('active'); });
       btn.classList.add('active');
+
+      // Hide audit-tab, show courses-tab
+      var coursesTab = document.getElementById('sdash-courses-tab');
+      var auditTab = document.getElementById('sdash-audit-tab');
+      if (coursesTab) coursesTab.style.display = 'block';
+      if (auditTab) auditTab.style.display = 'none';
 
       // Clear any backlog-mode info banner
       var infoBanner = document.getElementById('backlog-info-banner');
@@ -734,6 +724,39 @@ function renderStudentDash(student) {
   // Tab n+2: 🟢 Cleared Backlogs (only if any exist)
   if (clearedBacklogs.length > 0) {
     tabsEl.appendChild(makeTab('🟢 Cleared Backlogs', false, null, 'cleared'));
+  }
+
+  // ── Degree Audit Tab Button (V14.0) ──────────────────────────────────────────
+  var auditBtn = document.createElement('button');
+  auditBtn.className = 'tab-btn tab';
+  auditBtn.setAttribute('onclick', "showTab('audit-tab')");
+  auditBtn.textContent = '🎓 Degree Audit';
+  tabsEl.appendChild(auditBtn);
+
+  // Populate Audit Tab Content
+  var auditTabEl = document.getElementById('sdash-audit-tab');
+  if (auditTabEl) {
+    var auditResult = evaluateDegree(student);
+    if (!auditResult.isSupported) {
+      auditTabEl.innerHTML = '<div style="padding:2.5rem; text-align:center; color:var(--muted); font-weight:500;">Curriculum mapping for ' + esc(student.batch || '') + ' ' + esc(student.program || '') + ' is pending.</div>';
+    } else {
+      let auditHTML = `<h3>Curriculum Degree Audit (Min 80 Credits)</h3>`;
+      auditResult.audit.forEach(cat => {
+        const statusIcon = cat.earned >= cat.minCredits ? "✅ Cleared" : `❌ Missing ${cat.minCredits - cat.earned} Credits`;
+        auditHTML += `
+          <details style="margin-bottom: 10px; background: var(--s2); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
+            <summary style="font-weight: bold; cursor: pointer; list-style-position: inside;">
+              ${cat.category} | Required: ${cat.minCredits} | Earned: ${cat.earned} | Status: ${statusIcon}
+            </summary>
+            <div style="margin-top: 15px; padding-left: 20px; font-size: 0.9em;">
+              <p style="color: #16a34a;"><strong>✓ Completed Courses:</strong> ${cat.completedList.join(", ") || "None"}</p>
+              <p style="color: #dc2626;"><strong>⏳ Pending/Available Options:</strong> ${cat.pendingList.join(", ") || "None"}</p>
+            </div>
+          </details>
+        `;
+      });
+      auditTabEl.innerHTML = auditHTML;
+    }
   }
 
   renderCourses(student.courses, 'All Semesters', 'all');
@@ -1385,16 +1408,16 @@ async function facultySearchStudent() {
   }
 }
 
+
 /**
-/**
- * evaluateDegree — Hierarchical Curriculum Evaluation Engine (V13.0).
+ * evaluateDegree — Hierarchical Curriculum Evaluation Engine (V14.0).
  *
- * Checks a student's passed course credits against CURRICULUM_RULES.
- * Bucket 4 (Open Elective) auto-receives any passed course not in Buckets 1-3.
- * Returns a rich audit object with completedCourses and pendingCodes per bucket.
+ * Uses CURRICULUM_RULES with `category` property key.
+ * Category 4 is a catch-all: any passed course not in categories 1-3 goes here.
+ * Returns audit array with `completedList` (code strings) and `pendingList` (code strings).
  *
  * @param  {object} student
- * @returns {{ isSupported: boolean, isEligible: boolean, audit: Array, totalEarnedInBuckets: number }}
+ * @returns {{ isSupported, isEligible, audit, totalEarnedInBuckets }}
  */
 function evaluateDegree(student) {
   const batchClean = String(student.batch || '').match(/(20\d{2})/) ? String(student.batch).match(/(20\d{2})/)[1] : String(student.batch || '').trim();
@@ -1402,17 +1425,17 @@ function evaluateDegree(student) {
   const rules = CURRICULUM_RULES[ruleKey];
   if (!rules) return { isSupported: false, isEligible: false };
 
-  // Deep-clone rules so we don't mutate the global object
+  // Deep-clone rules with V14 field names
   let audit = rules.map(r => ({
-    bucket: r.bucket,
+    category: r.category,
     minCredits: r.minCredits,
     codes: r.codes.slice(),
     earned: 0,
-    completedCourses: [],  // { code, title, credits }
-    pendingCodes: r.codes.slice() // starts as all codes, removed as student completes them
+    completedList: [],  // course code strings that the student has passed
+    pendingList: r.codes.filter(c => c !== 'OPEN_ELECTIVE_CATCHALL').slice() // starts full, shrinks as student completes
   }));
-  // Bucket 4 is the catch-all Open Elective — pendingCodes starts empty (dynamic)
-  if (audit[3]) audit[3].pendingCodes = [];
+  // Category 4 (Open Elective) pendingList is dynamic
+  if (audit[3]) audit[3].pendingList = ['Choose any eligible open elective'];
 
   let totalEarnedInBuckets = 0;
 
@@ -1433,32 +1456,31 @@ function evaluateDegree(student) {
     }
   });
 
-  // Build a flat set of all codes covered by Buckets 1-3 for Open Elective detection
+  // Build a flat set of all codes in categories 1-3 for catch-all detection
   const knownCodes = new Set();
-  audit.slice(0, 3).forEach(b => b.codes.forEach(c => knownCodes.add(c.toUpperCase())));
+  audit.slice(0, 3).forEach(cat => cat.codes.forEach(c => knownCodes.add(c.toUpperCase())));
 
-  // 3. Drop into Buckets
+  // 3. Drop into categories
   Object.values(passedMap).forEach(pc => {
     const code = pc.code.toUpperCase();
-    let bucketIndex = audit.findIndex((b, i) => i < 3 && b.codes.some(bc => bc.toUpperCase() === code));
-    if (bucketIndex !== -1) {
-      // Falls into Bucket 1, 2, or 3
-      audit[bucketIndex].earned += pc.credits;
+    let catIndex = audit.findIndex((cat, i) => i < 3 && cat.codes.some(bc => bc.toUpperCase() === code));
+    if (catIndex !== -1) {
+      audit[catIndex].earned += pc.credits;
       totalEarnedInBuckets += pc.credits;
-      audit[bucketIndex].completedCourses.push(pc);
-      // Remove from pendingCodes
-      audit[bucketIndex].pendingCodes = audit[bucketIndex].pendingCodes.filter(c => c.toUpperCase() !== code);
+      audit[catIndex].completedList.push(pc.code);
+      // Remove from pendingList
+      audit[catIndex].pendingList = audit[catIndex].pendingList.filter(c => c.toUpperCase() !== code);
     } else if (!knownCodes.has(code) && audit[3]) {
-      // Not in any named bucket → auto-assign to Bucket 4 (Open Elective)
+      // Not in any named category → auto-assign to Category 4 (Open Elective)
       audit[3].earned += pc.credits;
       totalEarnedInBuckets += pc.credits;
-      audit[3].completedCourses.push(pc);
+      audit[3].completedList.push(pc.code);
     }
   });
 
   // 4. Determine overall eligibility
-  const allBucketsMet = audit.every(b => b.earned >= b.minCredits);
-  const isEligible = allBucketsMet && (totalEarnedInBuckets >= 80);
+  const allCategoriesMet = audit.every(cat => cat.earned >= cat.minCredits);
+  const isEligible = allCategoriesMet && (totalEarnedInBuckets >= 80);
 
   return { isSupported: true, audit, isEligible, totalEarnedInBuckets };
 }
@@ -1595,14 +1617,9 @@ function renderStudentDashboard(student, targetContainerId) {
   });
 
   // ── Unique Semesters (filter out Unknown/blank) ─────────────────────────────
-  var seen = {};
-  var uniqueSems = [];
-  (student.courses || []).forEach(function (c) {
-    if (c.sem && c.sem !== 'Unknown' && c.sem.trim() !== '' && !seen[c.sem]) {
-      seen[c.sem] = true;
-      uniqueSems.push(c.sem);
-    }
-  });
+  const uniqueSems = [...new Set(student.courses.map(c => String(c.sem).trim()))]
+    .filter(s => s && s !== '' && s.toLowerCase() !== 'unknown' && s.toLowerCase() !== 'undefined' && s.toLowerCase() !== 'null');
+
 
   // ── Render Tabs ─────────────────────────────────────────────────────────────
   var tabsEl = document.getElementById(pfx + 'sem-tabs');
@@ -1658,14 +1675,14 @@ function renderStudentDashboard(student, targetContainerId) {
   if (activeBacklogs.length > 0) tabsEl.appendChild(makeInjectedTab('\uD83D\uDD34 Active Backlogs', false, null, 'active'));
   if (clearedBacklogs.length > 0) tabsEl.appendChild(makeInjectedTab('\uD83D\uDFE2 Cleared Backlogs', false, null, 'cleared'));
 
-  // ── Degree Audit Tab Button (V13.0) ──────────────────────────────────────────
+  // ── Degree Audit Tab Button (V14.0) ──────────────────────────────────────────
   var auditBtn = document.createElement('button');
   auditBtn.className = 'tab-btn tab';
   auditBtn.setAttribute('onclick', "showTab('audit-tab')");
-  auditBtn.textContent = '\uD83C\uDF93 Degree Audit';
+  auditBtn.textContent = '🎓 Degree Audit';
   tabsEl.appendChild(auditBtn);
 
-  // ── Build Expandable Degree Audit Tab Content (V13.0) ───────────────────────
+  // ── Build Expandable Degree Audit Tab Content (V14.0) ───────────────────────
   var auditTabEl = document.getElementById(pfx + 'audit-tab');
   if (auditTabEl) {
     var auditResult = evaluateDegree(student);
@@ -1674,70 +1691,22 @@ function renderStudentDashboard(student, targetContainerId) {
         '<div style="padding:2.5rem; text-align:center; color:var(--muted); font-weight:500;">' +
         'Curriculum mapping for ' + esc(student.batch || '') + ' ' + esc(student.program || '') + ' is pending.</div>';
     } else {
-      var eligibleColor = auditResult.isEligible ? '#16a34a' : '#dc2626';
-      var eligibleBg    = auditResult.isEligible ? 'rgba(22,163,74,0.1)' : 'rgba(220,38,38,0.08)';
-      var eligibleBdr   = auditResult.isEligible ? '#16a34a' : '#dc2626';
-      var eligibleLabel = auditResult.isEligible
-        ? '\u2705 ELIGIBLE FOR DEGREE'
-        : '\u274C NOT YET ELIGIBLE \u2014 Please clear missing bucket credits.';
-
-      var summaryBanner =
-        '<div style="margin-bottom:1.25rem; background:' + eligibleBg + '; border:2px solid ' + eligibleBdr + '; border-radius:12px; padding:1rem 1.5rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.5rem;">' +
-        '  <span style="font-family:var(--mono); font-size:0.78rem; color:var(--muted);">\u26AB Minimum 80 Credits Required &nbsp;|&nbsp; Total Matched: ' + auditResult.totalEarnedInBuckets.toFixed(1) + ' Cr.</span>' +
-        '  <span style="font-weight:800; font-size:0.95rem; color:' + eligibleColor + '; letter-spacing:0.04em;">' + eligibleLabel + '</span>' +
-        '</div>';
-
-      var detailsHtml = auditResult.audit.map(function(b) {
-        var metColor   = b.earned >= b.minCredits ? '#16a34a' : '#dc2626';
-        var statusIcon = b.earned >= b.minCredits ? '\u2705' : '\u274C';
-        var missing    = Math.max(0, b.minCredits - b.earned);
-        var statusText = b.earned >= b.minCredits ? 'Cleared' : 'Missing ' + missing.toFixed(0) + ' Cr.';
-
-        var completedHtml = '';
-        if (b.completedCourses && b.completedCourses.length > 0) {
-          completedHtml =
-            '<div class="completed-courses" style="margin-top:0.75rem; padding:0.6rem 0.75rem; background:rgba(22,163,74,0.06); border-radius:8px; border-left:3px solid #16a34a;">' +
-            '<div style="font-weight:700; color:#16a34a; font-size:0.78rem; margin-bottom:0.4rem;">\u2705 Completed:</div>' +
-            b.completedCourses.map(function(c) {
-              return '<div style="font-size:0.78rem; color:var(--text); padding:0.15rem 0; font-family:var(--mono);">\u2022 ' + esc(c.code) + ' &mdash; <span style="color:var(--sub);">' + esc(c.title) + '</span> <span style="color:var(--green);font-weight:600;">(' + c.credits.toFixed(1) + ' Cr.)</span></div>';
-            }).join('') +
-            '</div>';
-        } else {
-          completedHtml = '<div style="margin-top:0.6rem; font-size:0.78rem; color:var(--muted); font-style:italic;">No courses completed in this bucket yet.</div>';
-        }
-
-        var pendingHtml = '';
-        if (b.pendingCodes && b.pendingCodes.length > 0) {
-          pendingHtml =
-            '<div class="pending-courses" style="margin-top:0.6rem; padding:0.6rem 0.75rem; background:rgba(234,179,8,0.06); border-radius:8px; border-left:3px solid #d97706;">' +
-            '<div style="font-weight:700; color:#d97706; font-size:0.78rem; margin-bottom:0.4rem;">\u23F3 Available / Pending:</div>' +
-            b.pendingCodes.map(function(code) {
-              return '<div style="font-size:0.78rem; color:var(--sub); padding:0.15rem 0; font-family:var(--mono);">\u2022 ' + esc(code) + '</div>';
-            }).join('') +
-            '</div>';
-        }
-
-        return [
-          '<details style="margin-bottom:0.75rem; border:1px solid var(--border); border-radius:10px; overflow:hidden;">',
-          '  <summary style="display:flex; align-items:center; justify-content:space-between; padding:0.9rem 1.25rem; cursor:pointer; background:var(--s2); list-style:none; gap:0.75rem; flex-wrap:wrap;">',
-          '    <div style="display:flex; align-items:center; gap:0.75rem; flex:1; min-width:0;">',
-          '      <span style="font-weight:600; font-size:0.88rem; color:var(--text);">' + esc(b.bucket) + '</span>',
-          '    </div>',
-          '    <div style="display:flex; align-items:center; gap:0.75rem; font-family:var(--mono); font-size:0.78rem; flex-shrink:0;">',
-          '      <span style="color:var(--muted);">Required: <strong style="color:var(--gold);">' + b.minCredits + '</strong></span>',
-          '      <span style="color:var(--muted);">Earned: <strong style="color:' + metColor + ';">' + b.earned.toFixed(1) + '</strong></span>',
-          '      <span style="background:' + (b.earned >= b.minCredits ? 'rgba(22,163,74,0.15)' : 'rgba(220,38,38,0.12)') + '; color:' + metColor + '; padding:0.2rem 0.65rem; border-radius:20px; font-weight:700;">' + statusIcon + ' ' + statusText + '</span>',
-          '    </div>',
-          '  </summary>',
-          '  <div style="padding:0.9rem 1.25rem; background:var(--s1);">',
-          completedHtml,
-          pendingHtml,
-          '  </div>',
-          '</details>'
-        ].join('');
-      }).join('');
-
-      auditTabEl.innerHTML = summaryBanner + detailsHtml;
+      let auditHTML = `<h3>Curriculum Degree Audit (Min 80 Credits)</h3>`;
+      auditResult.audit.forEach(cat => {
+        const statusIcon = cat.earned >= cat.minCredits ? "✅ Cleared" : `❌ Missing ${cat.minCredits - cat.earned} Credits`;
+        auditHTML += `
+          <details style="margin-bottom: 10px; background: var(--s2); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
+            <summary style="font-weight: bold; cursor: pointer; list-style-position: inside;">
+              ${cat.category} | Required: ${cat.minCredits} | Earned: ${cat.earned} | Status: ${statusIcon}
+            </summary>
+            <div style="margin-top: 15px; padding-left: 20px; font-size: 0.9em;">
+              <p style="color: #16a34a;"><strong>✓ Completed Courses:</strong> ${cat.completedList.join(", ") || "None"}</p>
+              <p style="color: #dc2626;"><strong>⏳ Pending/Available Options:</strong> ${cat.pendingList.join(", ") || "None"}</p>
+            </div>
+          </details>
+        `;
+      });
+      auditTabEl.innerHTML = auditHTML;
     }
   }
 
@@ -1816,12 +1785,9 @@ function renderFacultyStudentView(student) {
   });
 
   // ── Unique Semesters ──────────────────────────────────────────────────────────
-  var uniqueSems = [];
-  var seen = {};
-  (student.courses || []).forEach(function (c) {
-    var s = c.sem;
-    if (s && !seen[s]) { seen[s] = true; uniqueSems.push(s); }
-  });
+  const uniqueSems = [...new Set(student.courses.map(c => String(c.sem).trim()))]
+    .filter(s => s && s !== '' && s.toLowerCase() !== 'unknown' && s.toLowerCase() !== 'undefined' && s.toLowerCase() !== 'null');
+
 
   var tabsEl = document.getElementById('faculty-sem-tabs');
   tabsEl.innerHTML = '';
@@ -1926,6 +1892,7 @@ async function adminLogin() {
     if (data && data.status === 'success') {
       clearAttempts('admin');
       sessionStorage.setItem(ADMIN_SESSION, pass); // Store raw password dynamically in session cache
+      window.currentAdminPassword = pass;           // V14.0: global for instant wipes without re-prompting
       showPage('admin-dash');
       loadAdminData();
     } else {
@@ -2275,84 +2242,87 @@ async function handleFileUpload(files) {
   setAlert('info', '<span class="spinner"></span>Reading ' + fileList.length + ' Excel file(s)…');
 
   var consolidatedMap = {};
+  var filesReadCount = 0;
 
-  try {
-    for (var f = 0; f < fileList.length; f++) {
-      var file = fileList[f];
-      setAlert('info', '<span class="spinner"></span>[' + (f + 1) + '/' + fileList.length + '] Reading ' + esc(file.name) + '…');
+  fileList.forEach(function (file, index) {
+    // Capture synchronously before async FileReader call
+    const fileBatch = document.querySelectorAll('.file-year-select')[index].value.trim();
+    const fileProgram = document.querySelectorAll('.file-program-select')[index].value.trim();
 
-      var tag = (window.selectedUploadTags && window.selectedUploadTags[f]) || {};
-      var fileBatch = tag.batch || '';
-      var fileProgram = tag.program || '';
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      try {
+        var arrayBuffer = e.target.result;
+        var studentsArray = parseExcelToStudents(arrayBuffer, function (msg) {
+          setAlert('info', '<span class="spinner"></span>[' + (filesReadCount + 1) + '/' + fileList.length + '] ' + esc(file.name) + ': ' + msg);
+        });
 
-      if (!fileBatch || !fileProgram) {
-        setAlert('err', '❌ Missing tagging info for file: ' + file.name);
+        studentsArray.forEach(function (s) {
+          var sen = s.sen;
+          if (!consolidatedMap[sen]) {
+            consolidatedMap[sen] = {
+              sen: sen,
+              name: s.name,
+              program: fileProgram,
+              batch: fileBatch,
+              school: s.school,
+              cgpa: s.cgpa || 0,
+              totalCredits: s.totalCredits || 0,
+              totalCreditEarned: s.totalCreditEarned || 0,
+              courses: []
+            };
+          }
+          var target = consolidatedMap[sen];
+          if (s.name) target.name = s.name;
+          target.program = fileProgram;
+          target.batch = fileBatch;
+          if (s.school) target.school = s.school;
+
+          var sCgpa = parseFloat(s.cgpa || 0);
+          var targetCgpa = parseFloat(target.cgpa || 0);
+          if (!isNaN(sCgpa) && sCgpa > targetCgpa) {
+            target.cgpa = sCgpa;
+          } else if (!targetCgpa && !isNaN(sCgpa) && sCgpa > 0) {
+            target.cgpa = sCgpa;
+          }
+
+          var sCredits = parseInt(s.totalCredits || 0, 10);
+          var targetCredits = parseInt(target.totalCredits || 0, 10);
+          if (!isNaN(sCredits) && sCredits > targetCredits) {
+            target.totalCredits = sCredits;
+            target.totalCreditEarned = sCredits;
+          }
+
+          s.courses.forEach(function (c) {
+            var semKey = String(c.semester || c.sem || '').trim();
+            var codeKey = String(c.code || '').trim().toLowerCase();
+
+            var isDuplicate = target.courses.some(function (existC) {
+              var existSem = String(existC.semester || existC.sem || '').trim();
+              var existCode = String(existC.code || '').trim().toLowerCase();
+              return existCode === codeKey && existSem === semKey;
+            });
+
+            if (!isDuplicate) {
+              target.courses.push(c);
+            }
+          });
+        });
+      } catch (err) {
+        setAlert('err', '✗ Excel parse error: ' + err.message);
         return;
       }
 
-      var arrayBuffer = await file.arrayBuffer();
+      filesReadCount++;
+      if (filesReadCount === fileList.length) {
+        uploadConsolidated(consolidatedMap, setAlert);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
 
-      var studentsArray = parseExcelToStudents(arrayBuffer, function (msg) {
-        setAlert('info', '<span class="spinner"></span>[' + (f + 1) + '/' + fileList.length + '] ' + esc(file.name) + ': ' + msg);
-      });
-
-      studentsArray.forEach(function (s) {
-        var sen = s.sen;
-        if (!consolidatedMap[sen]) {
-          consolidatedMap[sen] = {
-            sen: sen,
-            name: s.name,
-            program: fileProgram,
-            batch: fileBatch,
-            school: s.school,
-            cgpa: s.cgpa || 0,
-            totalCredits: s.totalCredits || 0,
-            totalCreditEarned: s.totalCreditEarned || 0,
-            courses: []
-          };
-        }
-        var target = consolidatedMap[sen];
-        if (s.name) target.name = s.name;
-        target.program = fileProgram;
-        target.batch = fileBatch;
-        if (s.school) target.school = s.school;
-
-        var sCgpa = parseFloat(s.cgpa || 0);
-        var targetCgpa = parseFloat(target.cgpa || 0);
-        if (!isNaN(sCgpa) && sCgpa > targetCgpa) {
-          target.cgpa = sCgpa;
-        } else if (!targetCgpa && !isNaN(sCgpa) && sCgpa > 0) {
-          target.cgpa = sCgpa;
-        }
-
-        var sCredits = parseInt(s.totalCredits || 0, 10);
-        var targetCredits = parseInt(target.totalCredits || 0, 10);
-        if (!isNaN(sCredits) && sCredits > targetCredits) {
-          target.totalCredits = sCredits;
-          target.totalCreditEarned = sCredits;
-        }
-
-        s.courses.forEach(function (c) {
-          var semKey = String(c.semester || c.sem || '').trim();
-          var codeKey = String(c.code || '').trim().toLowerCase();
-
-          var isDuplicate = target.courses.some(function (existC) {
-            var existSem = String(existC.semester || existC.sem || '').trim();
-            var existCode = String(existC.code || '').trim().toLowerCase();
-            return existCode === codeKey && existSem === semKey;
-          });
-
-          if (!isDuplicate) {
-            target.courses.push(c);
-          }
-        });
-      });
-    }
-  } catch (err) {
-    setAlert('err', '✗ Excel parse error: ' + err.message);
-    return;
-  }
-
+function uploadConsolidated(consolidatedMap, setAlert) {
   var finalStudentsList = Object.values(consolidatedMap);
 
   if (finalStudentsList.length === 0) {
@@ -2362,12 +2332,10 @@ async function handleFileUpload(files) {
 
   setAlert('info', '<span class="spinner"></span>Consolidated ' + finalStudentsList.length + ' students. Sending to backend…');
 
-  var mainAdminPassword = sessionStorage.getItem(ADMIN_SESSION) || '';
+  // V14.0: Use stored global — no prompt
+  var mainAdminPassword = window.currentAdminPassword || sessionStorage.getItem(ADMIN_SESSION) || '';
   if (!mainAdminPassword) {
-    mainAdminPassword = prompt("Please enter your Admin Password to authorize this upload:");
-  }
-  if (!mainAdminPassword) {
-    setAlert('err', "❌ Upload canceled: Admin Password is required.");
+    setAlert('err', '❌ Upload canceled: Session expired. Please reload and log in again.');
     return;
   }
 
@@ -2638,10 +2606,14 @@ async function clearAllRecords() {
   var statusEl = document.getElementById('clear-all-status');
   var btn = document.getElementById('btn-clear-all');
 
-  var adminPass = prompt("Security Check: Please enter the Admin Password to confirm this destructive action:");
-  if (!adminPass) return; // Stop if they click cancel or leave it blank
+  // V14.0: Use stored session password — no prompt
+  var adminPass = window.currentAdminPassword || sessionStorage.getItem(ADMIN_SESSION) || '';
+  if (!adminPass) {
+    alert('Session expired. Please reload and log in again.');
+    return;
+  }
 
-  // Double-confirmation
+  // Double-confirmation still retained for safety
   if (!confirm('⚠️ WARNING: This will permanently delete ALL student records from the database.\n\nPasswords will also be wiped. This cannot be undone.\n\nAre you sure you want to continue?')) return;
   if (!confirm('FINAL WARNING: Click OK to delete every student record now.')) return;
 

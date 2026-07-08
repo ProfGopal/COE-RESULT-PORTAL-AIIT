@@ -622,7 +622,7 @@
   <!-- VERSION TAG -->
   <div
     style="position:fixed;top:0;left:0;z-index:300;padding:0.35rem 1rem;font-size:0.68rem;color:var(--muted);pointer-events:none;font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-right-radius:6px;">
-    Version <strong style="color:var(--accent)">V13.0</strong>
+    Version <strong style="color:var(--accent)">V14.0</strong>
   </div>
 
   <!-- DEVELOPER CREDIT -->
@@ -786,9 +786,13 @@
     // ── Admin-page-specific boot ─────────────────────────────────────────────────
 
     // V9.0: Clear ALL Student Passwords handler
+    // V14.0: No prompt — uses session password stored at login
     document.getElementById('btn-clear-all-passwords').addEventListener('click', async function() {
-      var adminPass = prompt("Security Check: Please enter the Admin Password to confirm this destructive action:");
-      if (!adminPass) return; // Stop if they click cancel or leave it blank
+      var adminPass = window.currentAdminPassword || sessionStorage.getItem('coe_admin_auth') || '';
+      if (!adminPass) {
+        alert('Session expired. Please reload and log in again.');
+        return;
+      }
       if (!confirm('WARNING: This will instantly delete EVERY student password in the database. All students will need to create a new password on next login. Are you absolutely sure?')) return;
 
       var statusEl = document.getElementById('clear-all-passwords-status');

@@ -622,7 +622,7 @@
   <!-- VERSION TAG -->
   <div
     style="position:fixed;top:0;left:0;z-index:300;padding:0.35rem 1rem;font-size:0.68rem;color:var(--muted);pointer-events:none;font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-right-radius:6px;">
-    Version <strong style="color:var(--accent)">V11.0</strong>
+    Version <strong style="color:var(--accent)">V11.1</strong>
   </div>
 
   <!-- DEVELOPER CREDIT -->
@@ -718,8 +718,6 @@
             <strong>This action cannot be undone.</strong>
           </div>
           <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
-            <input type="password" id="admin-password-input" placeholder="Confirm Admin Password"
-              style="padding:0.5rem;font-size:0.82rem;border-radius:6px;border:1px solid var(--border);background:var(--s2);color:var(--text);" required />
             <button class="btn-danger" id="btn-clear-all" onclick="clearAllRecords()"
               style="padding:0.5rem 1.2rem;font-size:0.82rem">
               🗑 Clear All Records
@@ -781,8 +779,8 @@
 
     // V9.0: Clear ALL Student Passwords handler
     document.getElementById('btn-clear-all-passwords').addEventListener('click', async function() {
-      var adminPass = sessionStorage.getItem('coe_admin_auth') || '';
-      if (!adminPass) return alert('Please log in with your admin password first.');
+      var adminPass = prompt("Security Check: Please enter the Admin Password to confirm this destructive action:");
+      if (!adminPass) return; // Stop if they click cancel or leave it blank
       if (!confirm('WARNING: This will instantly delete EVERY student password in the database. All students will need to create a new password on next login. Are you absolutely sure?')) return;
 
       var statusEl = document.getElementById('clear-all-passwords-status');

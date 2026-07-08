@@ -1885,6 +1885,7 @@ async function loadAdminData() {
     var data = await gasJsonp(gasUrl + '?action=load&adminPassword=' + encodeURIComponent(adminPassword), 15000);
     if (!Array.isArray(data)) throw new Error('Unexpected response from backend.');
     _allStudents = data;
+    populateFilterDropdowns(_allStudents);
     renderAdminTable(_allStudents);
   } catch (err) {
     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--red)">✗ Failed to load: ' + esc(err.message) + '</td></tr>';
@@ -1933,6 +1934,23 @@ function filterStudents(query) {
   var filtered = _allStudents.filter(function (s) {
     return s.name.toLowerCase().includes(lq) || s.sen.toLowerCase().includes(lq);
   });
+  renderAdminTable(filtered);
+}
+
+function applyAdminFilters() {
+  var query = ((document.getElementById('stu-search') || {}).value || '').trim().toLowerCase();
+  var batchVal = ((document.getElementById('filter-batch') || {}).value || '').trim();
+  var programVal = ((document.getElementById('filter-program') || {}).value || '').trim();
+
+  var filtered = (_allStudents || []).filter(function (s) {
+    var matchSearch = !query ||
+      (s.sen  || '').toLowerCase().includes(query) ||
+      (s.name || '').toLowerCase().includes(query);
+    var matchBatch   = !batchVal   || (s.batch   || '') === batchVal;
+    var matchProgram = !programVal || (s.program || '') === programVal;
+    return matchSearch && matchBatch && matchProgram;
+  });
+
   renderAdminTable(filtered);
 }
 
@@ -2027,7 +2045,92 @@ function handleFileDrop(e) {
   var zone = document.getElementById('upload-zone');
   if (zone) zone.classList.remove('drag');
   var files = e.dataTransfer.files;
-  if (files && files.length > 0) handleFileUpload(files);
+  if (files && files.length > 0) {
+    handleFilesSelected(files);
+  }
+}
+
+// V11.0: Store selected files globally for tagging
+window.selectedUploadFiles = [];
+window.selectedUploadTags = [];
+
+function handleFilesSelected(files) {
+  window.selectedUploadFiles = Array.from(files);
+  var container = document.getElementById('file-tagging-container');
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (window.selectedUploadFiles.length === 0) {
+    var btn = document.getElementById('btn-upload-process');
+    if (btn) btn.style.display = 'none';
+    return;
+  }
+
+  window.selectedUploadFiles.forEach(function (file, index) {
+    var row = document.createElement('div');
+    row.className = 'file-tag-row';
+    row.setAttribute('data-index', index);
+    row.style.cssText = 'padding: 10px; border: 1px solid var(--border); background: var(--s2); border-radius: 6px; margin-bottom: 5px;';
+    row.innerHTML = [
+      '<div style="font-weight: bold; margin-bottom: 5px;">📄 ' + esc(file.name) + '</div>',
+      '<div style="display: flex; gap: 10px;">',
+      '  <select class="file-year-select" required style="padding: 0.35rem 0.5rem; background: var(--s3); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: var(--mono); font-size: 0.8rem; cursor: pointer;">',
+      '    <option value="">-- Year --</option>',
+      '    <option value="2023">2023</option>',
+      '    <option value="2024">2024</option>',
+      '    <option value="2025">2025</option>',
+      '    <option value="2026">2026</option>',
+      '  </select>',
+      '  <select class="file-program-select" required style="padding: 0.35rem 0.5rem; background: var(--s3); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: var(--mono); font-size: 0.8rem; cursor: pointer;">',
+      '    <option value="">-- Program --</option>',
+      '    <option value="B.C.A">B.C.A</option>',
+      '    <option value="MCA">MCA</option>',
+      '    <option value="MSc DS">MSc DS</option>',
+      '    <option value="MSc CS">MSc CS</option>',
+      '  </select>',
+      '</div>'
+    ].join('\n');
+    container.appendChild(row);
+  });
+
+  var btn = document.getElementById('btn-upload-process');
+  if (btn) btn.style.display = 'block';
+}
+
+async function triggerTaggedUpload() {
+  if (!window.selectedUploadFiles || window.selectedUploadFiles.length === 0) {
+    alert("No files selected.");
+    return;
+  }
+
+  var container = document.getElementById('file-tagging-container');
+  var rows = container.querySelectorAll('.file-tag-row');
+  var allFilled = true;
+  var tags = [];
+
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i];
+    var idx = parseInt(row.getAttribute('data-index'), 10);
+    var yearSelect = row.querySelector('.file-year-select');
+    var programSelect = row.querySelector('.file-program-select');
+    var yearVal = yearSelect ? yearSelect.value : '';
+    var programVal = programSelect ? programSelect.value : '';
+
+    if (!yearVal || !programVal) {
+      allFilled = false;
+      break;
+    }
+
+    tags[idx] = { batch: yearVal, program: programVal };
+  }
+
+  if (!allFilled) {
+    alert("Please select Year and Program for all files before uploading!");
+    return;
+  }
+
+  window.selectedUploadTags = tags;
+  await handleFileUpload(window.selectedUploadFiles);
 }
 
 async function handleFileUpload(files) {
@@ -2051,22 +2154,14 @@ async function handleFileUpload(files) {
       var file = fileList[f];
       setAlert('info', '<span class="spinner"></span>[' + (f + 1) + '/' + fileList.length + '] Reading ' + esc(file.name) + '…');
 
-      // ── Inject Tags from UI Selectors (V10.0) ─────────────────────────────────
-      // Reads Year and Program tags directly from the admin upload dropdowns.
-      // These override any filename-based extraction, ensuring exact tagging.
-      var yearEl    = document.getElementById('upload-year');
-      var programEl = document.getElementById('upload-program');
-      var yearVal   = yearEl    ? yearEl.value.trim()    : '';
-      var progVal   = programEl ? programEl.value.trim() : '';
+      var tag = (window.selectedUploadTags && window.selectedUploadTags[f]) || {};
+      var fileBatch = tag.batch || '';
+      var fileProgram = tag.program || '';
 
-      if (!yearVal || !progVal) {
-        setAlert('err', '\u26A0 Please select a Year/Batch and Program before uploading!');
+      if (!fileBatch || !fileProgram) {
+        setAlert('err', '❌ Missing tagging info for file: ' + file.name);
         return;
       }
-
-      var fileBatch   = yearVal;
-      var fileProgram = progVal;
-
 
       var arrayBuffer = await file.arrayBuffer();
 
@@ -2080,8 +2175,8 @@ async function handleFileUpload(files) {
           consolidatedMap[sen] = {
             sen: sen,
             name: s.name,
-            program: fileProgram || s.program,
-            batch: fileBatch || s.batch || '',
+            program: fileProgram,
+            batch: fileBatch,
             school: s.school,
             cgpa: s.cgpa || 0,
             totalCredits: s.totalCredits || 0,
@@ -2091,9 +2186,8 @@ async function handleFileUpload(files) {
         }
         var target = consolidatedMap[sen];
         if (s.name) target.name = s.name;
-        // Filename data takes priority; fall back to row data
-        target.program = fileProgram || target.program || s.program;
-        target.batch = fileBatch || target.batch || s.batch || '';
+        target.program = fileProgram;
+        target.batch = fileBatch;
         if (s.school) target.school = s.school;
 
         var sCgpa = parseFloat(s.cgpa || 0);
@@ -2115,8 +2209,6 @@ async function handleFileUpload(files) {
           var semKey = String(c.semester || c.sem || '').trim();
           var codeKey = String(c.code || '').trim().toLowerCase();
 
-          // Composite key: Course Code + Semester (allows same course in different sems,
-          // and retaken F-grade courses in the same sem to both appear)
           var isDuplicate = target.courses.some(function (existC) {
             var existSem = String(existC.semester || existC.sem || '').trim();
             var existCode = String(existC.code || '').trim().toLowerCase();
@@ -2147,13 +2239,21 @@ async function handleFileUpload(files) {
     var adminPassword = sessionStorage.getItem(ADMIN_SESSION) || '';
     await gasPost({ action: 'upsert', students: finalStudentsList, adminPassword: adminPassword });
     setAlert('ok', '✓ Consolidated ' + finalStudentsList.length + ' student record(s) from ' + fileList.length + ' file(s) sent to the backend (upsert). Refresh to see updated data.');
+    
+    var container = document.getElementById('file-tagging-container');
+    if (container) container.innerHTML = '';
+    var btnTag = document.getElementById('btn-upload-process');
+    if (btnTag) btnTag.style.display = 'none';
+    window.selectedUploadFiles = [];
+    window.selectedUploadTags = [];
+    
     setTimeout(loadAdminData, 2000);
   } catch (postErr) {
     setAlert('warn', '⚠ Data sent (no-cors mode — cannot confirm receipt). Backend should have processed it. Refresh to verify.');
     setTimeout(loadAdminData, 3000);
   }
 
-  var fi = document.getElementById('fileInput');
+  var fi = document.getElementById('excel-upload');
   if (fi) fi.value = '';
 }
 
@@ -2392,6 +2492,13 @@ function parseExcelToStudents(arrayBuffer, progressCb) {
 async function clearAllRecords() {
   var statusEl = document.getElementById('clear-all-status');
   var btn = document.getElementById('btn-clear-all');
+  var adminPassInput = document.getElementById('admin-password-input');
+  var adminPass = adminPassInput ? adminPassInput.value.trim() : '';
+
+  if (!adminPass) {
+    alert("Please enter the Admin Password to confirm database wipe.");
+    return;
+  }
 
   // Double-confirmation
   if (!confirm('⚠️ WARNING: This will permanently delete ALL student records from the database.\n\nPasswords will also be wiped. This cannot be undone.\n\nAre you sure you want to continue?')) return;
@@ -2403,19 +2510,30 @@ async function clearAllRecords() {
   var gasUrl = GAS_URL;
 
   try {
-    var adminPassword = sessionStorage.getItem(ADMIN_SESSION) || '';
-    await gasPost({ action: 'deleteall', adminPassword: adminPassword });
-
-    // Aggressively wipe all local storage and session storage caches
-    localStorage.clear();
-    sessionStorage.clear();
-
-    _allStudents = [];
-    renderAdminTable([]);
-    if (statusEl) statusEl.textContent = '✓ All records deleted. Database and local cache cleared.';
+    fetch(gasUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'clearall', adminPassword: adminPass })
+    })
+    .then(function (res) { return res.json(); })
+    .then(function (data) {
+      if (data && data.status === 'success') {
+        window.students = [];
+        localStorage.clear();
+        sessionStorage.clear();
+        alert(data.message || 'Database successfully wiped.');
+        window.location.reload();
+      } else {
+        if (statusEl) statusEl.textContent = '✗ Error: ' + ((data && data.message) || 'Wipe request failed.');
+        if (btn) btn.disabled = false;
+      }
+    })
+    .catch(function (err) {
+      if (statusEl) statusEl.textContent = '✗ Error: ' + err.message;
+      if (btn) btn.disabled = false;
+    });
   } catch (err) {
     if (statusEl) statusEl.textContent = '✗ Error: ' + err.message;
-  } finally {
     if (btn) btn.disabled = false;
   }
 }
@@ -2460,5 +2578,22 @@ async function clearAllRecords() {
       });
   } else {
     if (hint) hint.textContent = '';
+  }
+})();
+
+// Register event listener for V11.0 dynamic file tagging UI on input change
+(function initUploadTagging() {
+  var bindEvent = function () {
+    var input = document.getElementById('excel-upload');
+    if (input) {
+      input.addEventListener('change', function (e) {
+        handleFilesSelected(e.target.files);
+      });
+    }
+  };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bindEvent);
+  } else {
+    bindEvent();
   }
 })();

@@ -622,7 +622,7 @@
   <!-- VERSION TAG -->
   <div
     style="position:fixed;top:0;left:0;z-index:300;padding:0.35rem 1rem;font-size:0.68rem;color:var(--muted);pointer-events:none;font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-right-radius:6px;">
-    Version <strong style="color:var(--accent)">V10.0</strong>
+    Version <strong style="color:var(--accent)">V11.0</strong>
   </div>
 
   <!-- DEVELOPER CREDIT -->
@@ -672,37 +672,7 @@
       <!-- Upload Section -->
       <div style="margin-bottom:2rem">
         <div class="section-label">Upload Result Excel</div>
-        <!-- Upload Tag Selectors (V10.0) -->
-        <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:0.75rem;align-items:center;">
-          <div style="display:flex;flex-direction:column;gap:0.25rem;">
-            <label style="font-family:var(--mono);font-size:0.72rem;color:var(--muted);font-weight:600;letter-spacing:0.04em;">YEAR / BATCH</label>
-            <select id="upload-year" required
-              style="padding:0.55rem 0.8rem;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:0.85rem;outline:none;min-width:160px;"
-              onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
-              <option value="">-- Select Year/Batch --</option>
-              <option value="2023">2023</option>
-              <option value="2024">2024</option>
-              <option value="2025">2025</option>
-              <option value="2026">2026</option>
-            </select>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:0.25rem;">
-            <label style="font-family:var(--mono);font-size:0.72rem;color:var(--muted);font-weight:600;letter-spacing:0.04em;">PROGRAM</label>
-            <select id="upload-program" required
-              style="padding:0.55rem 0.8rem;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:0.85rem;outline:none;min-width:160px;"
-              onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
-              <option value="">-- Select Program --</option>
-              <option value="B.C.A">B.C.A</option>
-              <option value="MCA">MCA</option>
-              <option value="MSc DS">MSc DS</option>
-              <option value="MSc CS">MSc CS</option>
-            </select>
-          </div>
-          <div style="font-size:0.72rem;color:var(--muted);font-family:var(--mono);align-self:flex-end;padding-bottom:0.5rem;">
-            ⚠️ Required before upload
-          </div>
-        </div>
-        <div class="upload-zone" id="upload-zone" onclick="document.getElementById('fileInput').click()"
+        <div class="upload-zone" id="upload-zone" onclick="document.getElementById('excel-upload').click()"
           ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')"
           ondrop="handleFileDrop(event)">
           <div class="upload-icon">📊</div>
@@ -710,8 +680,9 @@
           <div class="upload-hint">.xlsx format · Required columns: SEN, Name, Semester, Course Code, Course Title,
             Type, Credits, Marks, Grade, Grade Points</div>
         </div>
-        <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none" multiple
-          onchange="handleFileUpload(this.files)">
+        <input type="file" id="excel-upload" accept=".xlsx,.xls" style="display:none" multiple>
+        <div id="file-tagging-container" style="margin: 15px 0; display: flex; flex-direction: column; gap: 10px;"></div>
+        <button id="btn-upload-process" class="btn-primary" onclick="triggerTaggedUpload()" style="margin-top: 10px; display: none; width: 100%;">🚀 Process & Upload to Backend</button>
         <div class="alert" id="upload-alert"></div>
       </div>
 
@@ -747,6 +718,8 @@
             <strong>This action cannot be undone.</strong>
           </div>
           <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+            <input type="password" id="admin-password-input" placeholder="Confirm Admin Password"
+              style="padding:0.5rem;font-size:0.82rem;border-radius:6px;border:1px solid var(--border);background:var(--s2);color:var(--text);" required />
             <button class="btn-danger" id="btn-clear-all" onclick="clearAllRecords()"
               style="padding:0.5rem 1.2rem;font-size:0.82rem">
               🗑 Clear All Records
@@ -759,8 +732,22 @@
       <!-- Students Table -->
       <div>
         <div class="section-label">Enrolled Students (<span id="total-stu">0</span>)</div>
-        <input type="text" class="search-input" id="stu-search" placeholder="Search by name or SEN..."
-          oninput="filterStudents(this.value)">
+        <div style="display:flex;gap:0.6rem;flex-wrap:wrap;align-items:center;margin-bottom:1.5rem;">
+          <input type="text" class="search-input" id="stu-search" placeholder="Search by name or SEN..."
+            oninput="applyAdminFilters()" style="flex:1;min-width:200px;margin-bottom:0;padding:0.7rem 1rem;background:var(--s2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:0.9rem;outline:none;">
+          
+          <select id="filter-batch"
+            style="padding:0.65rem 0.8rem;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:0.82rem;outline:none;cursor:pointer;"
+            onchange="applyAdminFilters()">
+            <option value="">All Years</option>
+          </select>
+
+          <select id="filter-program"
+            style="padding:0.65rem 0.8rem;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:0.82rem;outline:none;cursor:pointer;"
+            onchange="applyAdminFilters()">
+            <option value="">All Programs</option>
+          </select>
+        </div>
         <div class="card">
           <div class="tbl-wrap">
             <table>

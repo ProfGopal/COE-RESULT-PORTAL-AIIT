@@ -30,6 +30,27 @@ var SEM_MAP = {
   'V': 'Semester V', 'VI': 'Semester VI', 'VII': 'Semester VII', 'VIII': 'Semester VIII'
 };
 
+// ── Curriculum Evaluation Engine — Degree Audit Rules (V10.0) ─────────────────
+/**
+ * CURRICULUM_RULES defines per-batch, per-program degree requirements.
+ * Each entry is an array of buckets, where each bucket has:
+ *   bucket      — human-readable category name
+ *   minCredits  — minimum earned credits required to satisfy the bucket
+ *   codes       — course codes that count toward this bucket
+ */
+const CURRICULUM_RULES = {
+  '2024': {
+    'MCA': [
+      { bucket: 'A. School Core',    minCredits: 17, codes: ['CSE5129','MAT5005','ENG5004','CSE6004','CSE6005','CSE6006'] },
+      { bucket: 'B. Foreign Languages', minCredits: 2,  codes: ['FRE1001','GER1001','SPA1001'] },
+      { bucket: 'C. Soft Skills',    minCredits: 2,  codes: ['SSK2002','SSK3002'] },
+      { bucket: 'D. Program Core',   minCredits: 29, codes: ['CSE5067','CSE5002','CSE5005','CSE5004','CSE5012','CSE5011','CSE5013','CSE5017','CSE5009','CSE5010'] },
+      { bucket: 'E. Core Elective',  minCredits: 6,  codes: ['CSE5006','CSE5007','CSE5008','CSE5019','CSE5024','CSE5046'] },
+      { bucket: 'G. AI & GenAI',     minCredits: 3,  codes: ['CSE5029','CSE5032','CSE5033'] }
+    ]
+  }
+};
+
 // ═══════════════════════════════════════════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1013,9 +1034,9 @@ async function facultyLoginStep() {
       var dashContainer = document.getElementById('faculty-dashboard-container');
       if (dashContainer) {
         dashContainer.style.display = 'block';
-        setTimeout(function() {
+        setTimeout(function () {
           dashContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 100);
+        }, 150);  // 150ms lets the DOM paint before scrolling
       }
       // Load all students for the analytics dashboard
       facultyLoadAllStudents();
@@ -1177,24 +1198,40 @@ function populateFilterDropdowns(studentsArray) {
   }
 }
 
-// ── Master Faculty Filter (V9.0) ───────────────────────────────────────
+// ── Master Faculty Filter (V10.0) ──────────────────────────────────────
 /**
- * applyFilters — master filter function. Reads the search text input and the
- * batch/program dropdowns, then renders the filtered student list. This is the
- * single source of truth for all faculty directory filtering.
+ * applyFilters — master filter function with hierarchical filtering (V10.0).
+ * Hierarchy: Year/Batch + Program are applied FIRST to create a cohort subset,
+ * then Search, Eligibility, and Credit filters are applied strictly to that subset.
  */
 function applyFilters() {
-  var searchVal  = ((document.getElementById('faculty-search-input') || {}).value || '').trim().toLowerCase();
-  var batchVal   = ((document.getElementById('filter-batch')   || {}).value || '').trim();
-  var programVal = ((document.getElementById('filter-program') || {}).value || '').trim();
+  var searchVal    = ((document.getElementById('faculty-search-input')  || {}).value || '').trim().toLowerCase();
+  var batchVal     = ((document.getElementById('filter-batch')          || {}).value || '').trim();
+  var programVal   = ((document.getElementById('filter-program')        || {}).value || '').trim();
+  var eligibility  = ((document.getElementById('filter-eligibility')    || {}).value || 'all').trim();
 
-  var filtered = (window.students || []).filter(function(s) {
-    var matchSearch = !searchVal ||
-      (s.sen  || '').toLowerCase().includes(searchVal) ||
-      (s.name || '').toLowerCase().includes(searchVal);
+  // Step 1: Apply Year/Program cohort filter FIRST
+  var cohort = (window.students || []).filter(function (s) {
     var matchBatch   = !batchVal   || (s.batch   || '') === batchVal;
     var matchProgram = !programVal || (s.program || '') === programVal;
-    return matchSearch && matchBatch && matchProgram;
+    return matchBatch && matchProgram;
+  });
+
+  // Step 2: Apply search, eligibility, and other filters to the cohort
+  var filtered = cohort.filter(function (s) {
+    // Search filter
+    if (searchVal) {
+      var matchSearch = (s.sen  || '').toLowerCase().includes(searchVal) ||
+                        (s.name || '').toLowerCase().includes(searchVal);
+      if (!matchSearch) return false;
+    }
+    // Eligibility filter
+    if (eligibility !== 'all') {
+      var audit = evaluateDegree(s);
+      if (eligibility === 'eligible'     && !audit.isEligible) return false;
+      if (eligibility === 'not_eligible' &&  audit.isEligible) return false;
+    }
+    return true;
   });
 
   renderFacultyTable(filtered);
@@ -1339,6 +1376,67 @@ async function facultySearchStudent() {
 }
 
 /**
+ * evaluateDegree — Curriculum Evaluation Engine (V10.0).
+ *
+ * Checks a student's passed course credits against CURRICULUM_RULES for their
+ * batch year and program. Returns a rich audit object.
+ *
+ * @param  {object} student
+ * @returns {{ isEligible: boolean, message: string, buckets: Array }}
+ */
+function evaluateDegree(student) {
+  var batchKey   = String(student.batch   || '').match(/(20\d{2})/);  // e.g. "2024 Batch" → "2024"
+  var batchYear  = batchKey ? batchKey[1] : String(student.batch || '').trim();
+  var programKey = String(student.program || '').trim();
+
+  var yearRules = CURRICULUM_RULES[batchYear];
+  if (!yearRules) return { isEligible: false, message: 'Curriculum not mapped for batch: ' + (batchYear || 'Unknown'), buckets: [] };
+  var rules = yearRules[programKey];
+  if (!rules) return { isEligible: false, message: 'Curriculum not mapped for program: ' + (programKey || 'Unknown'), buckets: [] };
+
+  var FAIL_GRADES = ['F', 'FAIL', 'AB'];
+
+  // Build a map of passed course codes → credits earned
+  var passedCredits = {};
+  (student.courses || []).forEach(function (c) {
+    var code  = String(c.code  || '').trim().toUpperCase();
+    var grade = String(c.grade || '').trim().toUpperCase();
+    if (!code || FAIL_GRADES.includes(grade)) return;
+    var cr = parseFloat(c.credits || c.creditEarned || 0);
+    if (isNaN(cr)) cr = 0;
+    // Keep the highest earned credits per code (handles re-takes)
+    if (!passedCredits[code] || cr > passedCredits[code]) passedCredits[code] = cr;
+  });
+
+  var allMet = true;
+  var buckets = rules.map(function (rule) {
+    var earned = 0;
+    var passedCodes  = [];
+    var missingCodes = [];
+    rule.codes.forEach(function (code) {
+      var cr = passedCredits[code.toUpperCase()];
+      if (cr !== undefined) {
+        earned += cr;
+        passedCodes.push(code);
+      } else {
+        missingCodes.push(code);
+      }
+    });
+    var met = earned >= rule.minCredits;
+    if (!met) allMet = false;
+    return {
+      bucket:       rule.bucket,
+      minCredits:   rule.minCredits,
+      earned:       earned,
+      met:          met,
+      missingCodes: missingCodes
+    };
+  });
+
+  return { isEligible: allMet, message: allMet ? 'Eligible for degree award.' : 'Not yet eligible.', buckets: buckets };
+}
+
+/**
  * renderStudentDashboard — Dynamic Rendering Engine (V8.1 Core Fix).
  *
  * Renders the full tabbed student profile UI (profile card, Smart Backlog tabs,
@@ -1480,6 +1578,65 @@ function renderStudentDashboard(student, targetContainerId) {
   });
   if (activeBacklogs.length > 0) tabsEl.appendChild(makeInjectedTab('\uD83D\uDD34 Active Backlogs', false, null, 'active'));
   if (clearedBacklogs.length > 0) tabsEl.appendChild(makeInjectedTab('\uD83D\uDFE2 Cleared Backlogs', false, null, 'cleared'));
+
+  // ── Degree Audit Tab (V10.0) ────────────────────────────────────────────────
+  var auditBtn = document.createElement('button');
+  auditBtn.className = 'tab';
+  auditBtn.textContent = '\uD83C\uDF93 Degree Audit';
+  auditBtn.onclick = function () {
+    tabsEl.querySelectorAll('.tab').forEach(function (t) { t.classList.remove('active'); });
+    auditBtn.classList.add('active');
+    var banner = document.getElementById(pfx + 'backlog-info-banner');
+    if (banner) banner.remove();
+
+    var audit = evaluateDegree(student);
+    var tblTitle = document.getElementById(pfx + 'tbl-title');
+    var tblBadge = document.getElementById(pfx + 'tbl-badge');
+    var tbody    = document.getElementById(pfx + 'courses-tbody');
+    if (!tblTitle || !tbody) return;
+
+    tblTitle.textContent = '\uD83C\uDF93 Degree Audit';
+    if (tblBadge) {
+      tblBadge.textContent = audit.isEligible ? '\u2705 Eligible' : '\u274C Not Eligible';
+      tblBadge.style.background = audit.isEligible ? 'rgba(22,163,74,0.15)' : 'rgba(220,38,38,0.15)';
+      tblBadge.style.color = audit.isEligible ? '#16a34a' : '#dc2626';
+    }
+
+    if (!audit.buckets || !audit.buckets.length) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--muted);">' +
+        esc(audit.message) + '</td></tr>';
+      return;
+    }
+
+    // Re-render thead for the audit table
+    var table = tbody.closest('table');
+    if (table) {
+      var thead = table.querySelector('thead tr');
+      if (thead) thead.innerHTML = '<th>Bucket</th><th>Required Cr.</th><th>Earned Cr.</th><th>Status</th><th>Missing Courses</th>';
+    }
+
+    tbody.innerHTML = '';
+    audit.buckets.forEach(function (b) {
+      var tr = document.createElement('tr');
+      var statusBadge = b.met
+        ? '<span style="background:rgba(22,163,74,0.15);color:#16a34a;font-family:var(--mono);font-size:0.75rem;padding:0.2rem 0.6rem;border-radius:10px;font-weight:700;">\u2705 Completed</span>'
+        : '<span style="background:rgba(220,38,38,0.12);color:#dc2626;font-family:var(--mono);font-size:0.75rem;padding:0.2rem 0.6rem;border-radius:10px;font-weight:700;">\u274C Missing ' + (b.minCredits - b.earned).toFixed(0) + ' Cr.</span>';
+      var missingHtml = b.missingCodes.length
+        ? b.missingCodes.map(function (c) {
+            return '<code style="background:rgba(220,38,38,0.08);color:#f87171;font-size:0.72rem;padding:0.1rem 0.4rem;border-radius:4px;margin:0.1rem;display:inline-block;">' + esc(c) + '</code>';
+          }).join(' ')
+        : '<span style="color:var(--green);font-size:0.78rem;">\u2014 None</span>';
+      tr.innerHTML = [
+        '<td style="font-weight:600;font-size:0.85rem;">' + esc(b.bucket) + '</td>',
+        '<td style="font-family:var(--mono);font-size:0.85rem;color:var(--gold);">' + b.minCredits + '</td>',
+        '<td style="font-family:var(--mono);font-size:0.85rem;color:' + (b.met ? 'var(--green)' : '#f87171') + ';font-weight:700;">' + b.earned.toFixed(1) + '</td>',
+        '<td>' + statusBadge + '</td>',
+        '<td style="font-size:0.82rem;line-height:1.8;">' + missingHtml + '</td>'
+      ].join('');
+      tbody.appendChild(tr);
+    });
+  };
+  tabsEl.appendChild(auditBtn);
 
   renderCourses(student.courses, 'All Semesters', 'all', pfx);
 }
@@ -1894,13 +2051,21 @@ async function handleFileUpload(files) {
       var file = fileList[f];
       setAlert('info', '<span class="spinner"></span>[' + (f + 1) + '/' + fileList.length + '] Reading ' + esc(file.name) + '…');
 
-      // ── Filename Parsing: precise extraction of Batch & Program (V9.0) ──────────
-      // Splits on '-' first so trailing suffixes like " - FS 24-25" are excluded,
-      // then matches the exact "YYYY Batch" token and derives program from remainder.
-      var cleanName = file.name.split('-')[0].replace(/\.xlsx?|\.csv/gi, '').trim();
-      var batchMatch = cleanName.match(/(20\d{2})\s*Batch/i);
-      var fileBatch   = batchMatch ? batchMatch[0].trim() : 'Unknown Batch';
-      var fileProgram = cleanName.replace(/(20\d{2})\s*Batch/i, '').trim() || 'Unknown Program';
+      // ── Inject Tags from UI Selectors (V10.0) ─────────────────────────────────
+      // Reads Year and Program tags directly from the admin upload dropdowns.
+      // These override any filename-based extraction, ensuring exact tagging.
+      var yearEl    = document.getElementById('upload-year');
+      var programEl = document.getElementById('upload-program');
+      var yearVal   = yearEl    ? yearEl.value.trim()    : '';
+      var progVal   = programEl ? programEl.value.trim() : '';
+
+      if (!yearVal || !progVal) {
+        setAlert('err', '\u26A0 Please select a Year/Batch and Program before uploading!');
+        return;
+      }
+
+      var fileBatch   = yearVal;
+      var fileProgram = progVal;
 
 
       var arrayBuffer = await file.arrayBuffer();

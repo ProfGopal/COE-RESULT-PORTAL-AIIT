@@ -622,7 +622,7 @@
   <!-- VERSION TAG -->
   <div
     style="position:fixed;top:0;left:0;z-index:300;padding:0.35rem 1rem;font-size:0.68rem;color:var(--muted);pointer-events:none;font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-right-radius:6px;">
-    Version <strong style="color:var(--accent)">V9.0</strong>
+    Version <strong style="color:var(--accent)">V10.0</strong>
   </div>
 
   <!-- DEVELOPER CREDIT -->
@@ -672,6 +672,36 @@
       <!-- Upload Section -->
       <div style="margin-bottom:2rem">
         <div class="section-label">Upload Result Excel</div>
+        <!-- Upload Tag Selectors (V10.0) -->
+        <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:0.75rem;align-items:center;">
+          <div style="display:flex;flex-direction:column;gap:0.25rem;">
+            <label style="font-family:var(--mono);font-size:0.72rem;color:var(--muted);font-weight:600;letter-spacing:0.04em;">YEAR / BATCH</label>
+            <select id="upload-year" required
+              style="padding:0.55rem 0.8rem;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:0.85rem;outline:none;min-width:160px;"
+              onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+              <option value="">-- Select Year/Batch --</option>
+              <option value="2023">2023</option>
+              <option value="2024">2024</option>
+              <option value="2025">2025</option>
+              <option value="2026">2026</option>
+            </select>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:0.25rem;">
+            <label style="font-family:var(--mono);font-size:0.72rem;color:var(--muted);font-weight:600;letter-spacing:0.04em;">PROGRAM</label>
+            <select id="upload-program" required
+              style="padding:0.55rem 0.8rem;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:0.85rem;outline:none;min-width:160px;"
+              onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+              <option value="">-- Select Program --</option>
+              <option value="B.C.A">B.C.A</option>
+              <option value="MCA">MCA</option>
+              <option value="MSc DS">MSc DS</option>
+              <option value="MSc CS">MSc CS</option>
+            </select>
+          </div>
+          <div style="font-size:0.72rem;color:var(--muted);font-family:var(--mono);align-self:flex-end;padding-bottom:0.5rem;">
+            ⚠️ Required before upload
+          </div>
+        </div>
         <div class="upload-zone" id="upload-zone" onclick="document.getElementById('fileInput').click()"
           ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')"
           ondrop="handleFileDrop(event)">

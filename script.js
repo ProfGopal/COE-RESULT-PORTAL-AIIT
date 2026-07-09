@@ -30,43 +30,46 @@ var SEM_MAP = {
   'V': 'Semester V', 'VI': 'Semester VI', 'VII': 'Semester VII', 'VIII': 'Semester VIII'
 };
 
-// ── Curriculum Evaluation Engine — Hierarchical Degree Audit Rules (V15.0) ─────
+// ── Curriculum Evaluation Engine — Hierarchical Degree Audit Rules (V16.0) ─────
 /**
- * COURSE_NAMES: Human-readable course title lookup by code.
- * Used to display names in Pending/Completed lists in the Degree Audit UI.
+ * COURSE_DICT: Robust course info lookup by code, including credits.
+ * Used to display names and credits in the Degree Audit UI.
  */
-const COURSE_NAMES = {
-  "MGT5101": "Digital Entrepreneurship",
-  "ENG5001": "Basic English / Communication",
-  "CSE6007": "MCA Project - 1",
-  "CSE6008": "MCA Project - 2",
-  "CSE6009": "MCA Project - 3",
-  "CSE5029": "Advance Machine Learning",
-  "CSE5032": "Digital Image Processing",
-  "CSE5129": "Computer Science Fundamentals (Bridge Course)",
-  "MAT5005": "Applied Statistical Methods",
-  "ENG5004": "Technical Proficiency and Career Building",
-  "CSE6004": "Research Paper",
-  "CSE6005": "MCA Capstone Project",
-  "CSE6006": "Corporateship",
-  "FRE1001": "Basic French",
-  "GER1001": "Basic German",
-  "SPA1001": "Basic Spanish",
-  "SSK2002": "Being Corporate ready",
-  "SSK3002": "Programming Skills for Employment"
+const COURSE_DICT = {
+  "MGT5101": { name: "Digital Entrepreneurship", credits: 2 },
+  "ENG5001": { name: "Basic English / Communication", credits: 1 },
+  "CSE6007": { name: "MCA Project - 1", credits: 2 },
+  "CSE6008": { name: "MCA Project - 2", credits: 2 },
+  "CSE6009": { name: "MCA Project - 3", credits: 2 },
+  "CSE5029": { name: "Advance Machine Learning", credits: 3 },
+  "CSE5032": { name: "Digital Image Processing", credits: 3 },
+  "CSE5129": { name: "Computer Science Fundamentals", credits: 0 },
+  "MAT5005": { name: "Applied Statistical Methods", credits: 3 },
+  "ENG5004": { name: "Technical Proficiency and Career Building", credits: 1 },
+  "CSE6004": { name: "Research Paper", credits: 2 },
+  "CSE6005": { name: "MCA Capstone Project", credits: 4 },
+  "CSE6006": { name: "Corporateship", credits: 3 },
+  "FRE1001": { name: "Basic French", credits: 1 },
+  "GER1001": { name: "Basic German", credits: 1 },
+  "SPA1001": { name: "Basic Spanish", credits: 2 },
+  "SSK2002": { name: "Being Corporate ready", credits: 1 },
+  "SSK3002": { name: "Programming Skills for Employment", credits: 1 },
+  "CSE3050": { name: "Programming Skills for Employment", credits: 1 } // ALIAS ADDED
 };
-const getCourseName = (code) => COURSE_NAMES[code] || 'Course Title';
+
+// Fallback logic for unknown courses (defaults to 3 credits if not found)
+const getCourseInfo = (code) => COURSE_DICT[code] || { name: "Course Title", credits: 3 };
 
 /**
- * CURRICULUM_RULES: 4-category structure (V15.0).
- * - Category 1: School Core — ENG5001 added.
+ * CURRICULUM_RULES: 4-category structure (V16.0).
+ * - Category 1: School Core — ENG5001 and CSE3050 (alias) added next to SSK3002.
  * - Category 2: Program Core — MGT5101, CSE6007/8/9, CSE5006/7/8 added.
  * - Category 3: Discipline Electives — CSE5029 and CSE5032 removed.
  * - Category 4: Open Elective — catch-all + explicit CSE5029, CSE5032.
  */
 const CURRICULUM_RULES = {
   "2024_MCA": [
-    { category: "1. School Core (Includes Languages & Soft Skills)", minCredits: 17, codes: ["CSE5129", "MAT5005", "ENG5004", "CSE6004", "CSE6005", "CSE6006", "FRE1001", "GER1001", "SPA1001", "SSK2002", "SSK3002", "ENG5001"] },
+    { category: "1. School Core (Includes Languages & Soft Skills)", minCredits: 17, codes: ["CSE5129", "MAT5005", "ENG5004", "CSE6004", "CSE6005", "CSE6006", "FRE1001", "GER1001", "SPA1001", "SSK2002", "SSK3002", "CSE3050", "ENG5001"] },
     { category: "2. Program Core", minCredits: 29, codes: ["CSE5067", "CSE5002", "CSE5005", "CSE5004", "CSE5012", "CSE5011", "CSE5013", "CSE5017", "CSE5009", "CSE5010", "CSE5008", "CSE5006", "CSE5007", "MGT5101", "CSE6007", "CSE6008", "CSE6009"] },
     { category: "3. Discipline Electives", minCredits: 28, codes: ["CSE5028", "CSE5039", "CSE5040", "CSE5041", "CSE5042", "CSE5043", "CSE5044", "CSE5045", "CSE5046", "CSE5047", "CSE5048", "MGT5007", "MAT5006", "CSE5052", "CSE5053", "CSE5034", "CSE5019", "CSE5024"] },
     { category: "4. Open Elective", minCredits: 6, codes: ["OPEN_ELECTIVE_CATCHALL", "CSE5029", "CSE5032"] }
@@ -1257,6 +1260,16 @@ function populateFilterDropdowns(studentsArray) {
       programSel.appendChild(opt);
     });
   }
+
+  // V16.0: Populate exact credit numbers dropdown
+  const uniqueCredits = [...new Set((studentsArray || []).map(s => parseInt(s.totalCredits)).filter(c => !isNaN(c)))].sort((a, b) => a - b);
+  const creditDropdown = document.getElementById('filter-credit-exact');
+  if (creditDropdown) {
+    creditDropdown.innerHTML = '<option value="">All Credits (Filter by Number)</option>';
+    uniqueCredits.forEach(cr => {
+      creditDropdown.innerHTML += `<option value="${cr}">${cr} Credits</option>`;
+    });
+  }
 }
 
 // ── Master Faculty Filter (V15.0 — trim-safe comparisons) ──────────────────────
@@ -1295,6 +1308,22 @@ function applyFilters() {
     }
     return true;
   });
+
+  // Apply Exact Credit Filter (V16.0)
+  const exactCreditDropdown = document.getElementById('filter-credit-exact');
+  const exactCredit = exactCreditDropdown ? exactCreditDropdown.value : "";
+  if (exactCredit !== "") {
+    filtered = filtered.filter(s => parseInt(s.totalCredits) === parseInt(exactCredit));
+  }
+
+  // Apply Sorting (V16.0) — Clone array before sorting
+  const sortCreditsDropdown = document.getElementById('sort-credits');
+  const sortOrder = sortCreditsDropdown ? sortCreditsDropdown.value : "";
+  if (sortOrder === "desc") {
+    filtered = [...filtered].sort((a, b) => parseFloat(b.totalCredits) - parseFloat(a.totalCredits));
+  } else if (sortOrder === "asc") {
+    filtered = [...filtered].sort((a, b) => parseFloat(a.totalCredits) - parseFloat(b.totalCredits));
+  }
 
   renderFacultyTable(filtered);
 }
@@ -1439,11 +1468,11 @@ async function facultySearchStudent() {
 
 
 /**
- * evaluateDegree — Hierarchical Curriculum Evaluation Engine (V15.0).
+ * evaluateDegree — Hierarchical Curriculum Evaluation Engine (V16.0).
  *
  * Uses CURRICULUM_RULES with `category` property key.
  * Category 4 is a catch-all: any passed course not in categories 1-3 goes here.
- * V15.0: completedList and pendingList now contain rich "CODE - Name" display strings.
+ * V16.0: completedList and pendingList now contain rich "CODE - Name (Credits Cr)" display strings.
  *
  * @param  {object} student
  * @returns {{ isSupported, isEligible, audit, totalEarnedInBuckets }}
@@ -1454,14 +1483,14 @@ function evaluateDegree(student) {
   const rules = CURRICULUM_RULES[ruleKey];
   if (!rules) return { isSupported: false, isEligible: false };
 
-  // Deep-clone rules with V15 field names
+  // Deep-clone rules with V16 field names
   let audit = rules.map(r => ({
     category: r.category,
     minCredits: r.minCredits,
     codes: r.codes.slice(),
     earned: 0,
-    completedList: [],  // rich "CODE - Name" strings for passed courses
-    pendingList: []     // rich "CODE - Name" strings for not-yet-completed courses
+    completedList: [],  // rich "CODE - Name (Credits Cr)" strings for passed courses
+    pendingList: []     // rich "CODE - Name (Credits Cr)" strings for not-yet-completed courses
   }));
 
   let totalEarnedInBuckets = 0;
@@ -1479,10 +1508,11 @@ function evaluateDegree(student) {
     if (!code) return;
     const cr = parseFloat(c.credits || c.creditEarned || 0) || 0;
     if (!passedMap[code] || cr > passedMap[code].credits) {
+      const cInfo = getCourseInfo(code);
       passedMap[code] = {
         code,
-        title: c.title || c.name || getCourseName(code),
-        credits: cr
+        title: c.title || c.name || cInfo.name,
+        credits: cr || cInfo.credits
       };
     }
   });
@@ -1491,10 +1521,14 @@ function evaluateDegree(student) {
   const knownCodes = new Set();
   audit.slice(0, 3).forEach(cat => cat.codes.forEach(c => knownCodes.add(c.toUpperCase())));
 
-  // 3. Drop into categories — V15.0: push rich display strings
+  // 3. Drop into categories — V16.0: push rich display strings
   Object.values(passedMap).forEach(pc => {
     const code = pc.code.toUpperCase();
-    const displayStr = `${pc.code} - ${pc.title}`;
+    const cInfo = getCourseInfo(pc.code);
+    const title = pc.title || cInfo.name;
+    const cred = pc.credits || cInfo.credits;
+    const displayStr = `${pc.code} - ${title} (${cred} Cr)`;
+
     let catIndex = audit.findIndex((cat, i) => i < 3 && cat.codes.some(bc => bc.toUpperCase() === code));
     if (catIndex !== -1) {
       audit[catIndex].earned += pc.credits;
@@ -1512,7 +1546,7 @@ function evaluateDegree(student) {
     }
   });
 
-  // 4. Build pendingLists — V15.0: rich "CODE - Name" strings
+  // 4. Build pendingLists — V16.0: rich "CODE - Name (Credits Cr)" strings
   // Buckets 1, 2, 3: any code whose display string is not in completedList
   audit.slice(0, 3).forEach(cat => {
     cat.codes.forEach(code => {
@@ -1520,7 +1554,9 @@ function evaluateDegree(student) {
       const codeUpper = code.toUpperCase();
       const alreadyCompleted = cat.completedList.some(str => str.startsWith(codeUpper + ' - ') || str.startsWith(code + ' - '));
       if (!alreadyCompleted) {
-        cat.pendingList.push(`${code} - ${getCourseName(code)}`);
+        const pInfo = getCourseInfo(code);
+        const pendingStr = `${code} - ${pInfo.name} (${pInfo.credits} Cr)`;
+        cat.pendingList.push(pendingStr);
       }
     });
   });
@@ -2093,10 +2129,26 @@ function applyAdminFilters() {
     var matchSearch = !query ||
       (s.sen  || '').toLowerCase().includes(query) ||
       (s.name || '').toLowerCase().includes(query);
-    var matchBatch   = !batchVal   || (s.batch   || '') === batchVal;
-    var matchProgram = !programVal || (s.program || '') === programVal;
+    var matchBatch   = !batchVal   || String(s.batch   || '').trim() === batchVal;
+    var matchProgram = !programVal || String(s.program || '').trim() === programVal;
     return matchSearch && matchBatch && matchProgram;
   });
+
+  // Apply Exact Credit Filter (V16.0)
+  const exactCreditDropdown = document.getElementById('filter-credit-exact');
+  const exactCredit = exactCreditDropdown ? exactCreditDropdown.value : "";
+  if (exactCredit !== "") {
+    filtered = filtered.filter(s => parseInt(s.totalCredits) === parseInt(exactCredit));
+  }
+
+  // Apply Sorting (V16.0) — Clone array before sorting
+  const sortCreditsDropdown = document.getElementById('sort-credits');
+  const sortOrder = sortCreditsDropdown ? sortCreditsDropdown.value : "";
+  if (sortOrder === "desc") {
+    filtered = [...filtered].sort((a, b) => parseFloat(b.totalCredits) - parseFloat(a.totalCredits));
+  } else if (sortOrder === "asc") {
+    filtered = [...filtered].sort((a, b) => parseFloat(a.totalCredits) - parseFloat(b.totalCredits));
+  }
 
   renderAdminTable(filtered);
 }

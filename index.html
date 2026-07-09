@@ -1092,7 +1092,7 @@
     <header>
       <div class="header-left">
         <span style="color: var(--text); font-size: 0.9rem; font-weight: 500;">Developed by <strong style="color: var(--accent2);">Dr. GOPAL RAJENDRAN</strong></span>
-        <span style="font-size: 0.75rem; color: var(--muted); font-family: var(--mono);">V15.0</span>
+        <span style="font-size: 0.75rem; color: var(--muted); font-family: var(--mono);">V16.0</span>
       </div>
       <div class="header-center">
         <div style="font-size: 0.8rem; font-weight: 700; letter-spacing: 2px; color: var(--gold); margin-bottom: 8px; text-transform: uppercase; font-family: var(--mono);">
@@ -1345,6 +1345,18 @@
             style="padding:0.65rem 0.8rem;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:0.82rem;outline:none;cursor:pointer;"
             onchange="applyFilters()">
             <option value="">All Programs</option>
+          </select>
+
+          <!-- Earned Credits Filters & Sorting UI (V16.0) -->
+          <select id="filter-credit-exact" onchange="applyFilters()"
+            style="padding:0.65rem 0.8rem;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:0.82rem;outline:none;cursor:pointer;">
+            <option value="">All Credits</option>
+          </select>
+          <select id="sort-credits" onchange="applyFilters()"
+            style="padding:0.65rem 0.8rem;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:0.82rem;outline:none;cursor:pointer;">
+            <option value="">Sort Credits: Default</option>
+            <option value="desc">High to Low (⬆️)</option>
+            <option value="asc">Low to High (⬇️)</option>
           </select>
 
           <!-- Eligibility filter dropdown (V10.0) -->

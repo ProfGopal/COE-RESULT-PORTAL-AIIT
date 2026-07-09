@@ -622,7 +622,7 @@
   <!-- VERSION TAG -->
   <div
     style="position:fixed;top:0;left:0;z-index:300;padding:0.35rem 1rem;font-size:0.68rem;color:var(--muted);pointer-events:none;font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-right-radius:6px;">
-    Version <strong style="color:var(--accent)">V15.0</strong>
+    Version <strong style="color:var(--accent)">V16.0</strong>
   </div>
 
   <!-- DEVELOPER CREDIT -->
@@ -744,6 +744,18 @@
             style="padding:0.65rem 0.8rem;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:0.82rem;outline:none;cursor:pointer;"
             onchange="applyAdminFilters()">
             <option value="">All Programs</option>
+          </select>
+
+          <!-- Earned Credits Filters & Sorting UI (V16.0) -->
+          <select id="filter-credit-exact" onchange="applyAdminFilters()"
+            style="padding:0.65rem 0.8rem;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:0.82rem;outline:none;cursor:pointer;">
+            <option value="">All Credits</option>
+          </select>
+          <select id="sort-credits" onchange="applyAdminFilters()"
+            style="padding:0.65rem 0.8rem;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:0.82rem;outline:none;cursor:pointer;">
+            <option value="">Sort Credits: Default</option>
+            <option value="desc">High to Low (⬆️)</option>
+            <option value="asc">Low to High (⬇️)</option>
           </select>
         </div>
         <div class="card">

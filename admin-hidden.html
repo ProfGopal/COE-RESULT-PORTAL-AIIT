@@ -622,7 +622,7 @@
   <!-- VERSION TAG -->
   <div
     style="position:fixed;top:0;left:0;z-index:300;padding:0.35rem 1rem;font-size:0.68rem;color:var(--muted);pointer-events:none;font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-right-radius:6px;">
-    Version <strong style="color:var(--accent)">V17.0</strong>
+    Version <strong style="color:var(--accent)">V18.0</strong>
   </div>
 
   <!-- DEVELOPER CREDIT -->
@@ -684,6 +684,28 @@
         <div id="file-tagging-container" style="margin: 15px 0; display: flex; flex-direction: column; gap: 10px;"></div>
         <button id="btn-upload-process" class="btn-primary" onclick="triggerTaggedUpload()" style="margin-top: 10px; display: none; width: 100%;">🚀 Process & Upload to Backend</button>
         <div class="alert" id="upload-alert"></div>
+      </div>
+
+      <!-- Dynamic Curriculum Manager (V18.0) -->
+      <div class="admin-panel-section" style="margin-top: 30px; padding: 20px; background: var(--s2); border-radius: 8px; border: 1px solid var(--border); margin-bottom: 2rem;">
+        <h2 style="color: #00d2ff; margin-top: 0; font-size: 1.4rem;">⚙️ Dynamic Curriculum Manager</h2>
+        <p style="font-size: 0.9em; margin-bottom: 10px; color: var(--sub);">Edit the core curriculum rules directly. Changes made here apply immediately to the Degree Audit engine for all users.</p>
+        
+        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+           <select id="curriculum-edit-key" style="padding: 8px; background: var(--s3); color: var(--text); border: 1px solid var(--border); border-radius: 6px; outline: none;">
+              <option value="2024_MCA">2024 MCA</option>
+              <option value="2025_MCA">2025 MCA</option>
+              <option value="2024_B.C.A">2024 B.C.A</option>
+           </select>
+           <button onclick="loadCurriculumEditor()" style="background: #2563eb; color: white; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Load Curriculum</button>
+        </div>
+        
+        <textarea id="curriculum-json-editor" style="width: 100%; height: 300px; font-family: monospace; padding: 10px; background: #0f172a; color: #10b981; border: 1px solid #334155; border-radius: 6px; margin-bottom: 10px; outline: none;"></textarea>
+        
+        <div style="display: flex; gap: 10px;">
+          <button onclick="saveCurriculumEditor()" style="background: #16a34a; color: white; padding: 10px 20px; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; transition: opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">💾 Save Curriculum Updates</button>
+          <button onclick="resetCurriculumEditor()" style="background: #dc2626; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; transition: opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">⚠️ Reset to Default</button>
+        </div>
       </div>
 
       <!-- Password Reset Utility -->
@@ -796,6 +818,10 @@
   <script src="script.js"></script>
   <script>
     // ── Admin-page-specific boot ─────────────────────────────────────────────────
+    // Initialize curriculum editor on load (V18.0)
+    if (typeof loadCurriculumEditor === 'function') {
+      loadCurriculumEditor();
+    }
 
     // V9.0: Clear ALL Student Passwords handler
     // V14.0: No prompt — uses session password stored at login

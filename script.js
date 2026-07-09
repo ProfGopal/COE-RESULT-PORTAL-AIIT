@@ -30,7 +30,7 @@ var SEM_MAP = {
   'V': 'Semester V', 'VI': 'Semester VI', 'VII': 'Semester VII', 'VIII': 'Semester VIII'
 };
 
-// ── Curriculum Evaluation Engine — Hierarchical Degree Audit Rules (V16.0) ─────
+// ── Curriculum Evaluation Engine — Hierarchical Degree Audit Rules (V18.0) ─────
 /**
  * COURSE_DICT: Robust course info lookup by code, including credits.
  * Used to display names and credits in the Degree Audit UI.
@@ -54,27 +54,54 @@ const COURSE_DICT = {
   "SPA1001": { name: "Basic Spanish", credits: 2 },
   "SSK2002": { name: "Being Corporate ready", credits: 1 },
   "SSK3002": { name: "Programming Skills for Employment", credits: 1 },
-  "CSE3050": { name: "Programming Skills for Employment", credits: 1 } // ALIAS ADDED
+  "CSE3050": { name: "Programming Skills for Employment", credits: 1 }, // ALIAS ADDED
+  "CSE5028": { name: "Network System Administration and Security", credits: 3 },
+  "CSE5039": { name: "Ethical Hacking Techniques", credits: 3 },
+  "CSE5040": { name: "Intrusion Detection System", credits: 3 },
+  "CSE5041": { name: "Penetration Testing & Forensics", credits: 3 },
+  "CSE5042": { name: "Blockchain Technology and Applications", credits: 3 },
+  "CSE5043": { name: "Malware Analysis", credits: 3 },
+  "CSE5044": { name: "Vulnerability Analysis", credits: 3 },
+  "CSE5045": { name: "Data Analytics using Python", credits: 3 },
+  "CSE5046": { name: "Data Handling and Visualization", credits: 3 },
+  "CSE5047": { name: "Analytics for Social Media", credits: 3 },
+  "CSE5048": { name: "Data Analytics Using R", credits: 3 },
+  "MGT5007": { name: "Business Analytics", credits: 3 },
+  "MAT5006": { name: "Time Series Analysis", credits: 3 },
+  "CSE5052": { name: "Data Center Operations and Management", credits: 3 },
+  "CSE5053": { name: "Cloud Infrastructure, Services and APIs", credits: 3 },
+  "CSE5034": { name: "DevOps Orchestration", credits: 3 },
+  "CSE5006": { name: "Relational Database", credits: 3 },
+  "CSE5007": { name: "Software Development Framework", credits: 3 },
+  "CSE5008": { name: "Data Communications and Networks", credits: 3 },
+  "CSE5019": { name: "Deep Learning Techniques", credits: 3 },
+  "CSE5024": { name: "Advanced Software Testing", credits: 3 },
+  "CSE5067": { name: "Advanced Data Structures and Algorithms", credits: 3 },
+  "CSE5002": { name: "Algorithm Design for Computer Applications", credits: 3 },
+  "CSE5005": { name: "Advanced Computer Architecture", credits: 3 },
+  "CSE5004": { name: "Distributed Operating Systems", credits: 3 },
+  "CSE5012": { name: "Problem Solving Using C and C++", credits: 2 },
+  "CSE5011": { name: "Advanced Java Programming", credits: 2 },
+  "CSE5013": { name: "C# and .NET Framework", credits: 2 },
+  "CSE5017": { name: "Full Stack Development", credits: 2 },
+  "CSE5009": { name: "Web Design and Development", credits: 3 },
+  "CSE5010": { name: "Advanced Python", credits: 2 }
 };
 
 // Fallback logic for unknown courses (defaults to 3 credits if not found)
 const getCourseInfo = (code) => COURSE_DICT[code] || { name: "Course Title", credits: 3 };
 
-/**
- * CURRICULUM_RULES: 4-category structure (V16.0).
- * - Category 1: School Core — ENG5001 and CSE3050 (alias) added next to SSK3002.
- * - Category 2: Program Core — MGT5101, CSE6007/8/9, CSE5006/7/8 added.
- * - Category 3: Discipline Electives — CSE5029 and CSE5032 removed.
- * - Category 4: Open Elective — catch-all + explicit CSE5029, CSE5032.
- */
-const CURRICULUM_RULES = {
+const BASE_CURRICULUM = {
   "2024_MCA": [
-    { category: "1. School Core (Includes Languages & Soft Skills)", minCredits: 17, codes: ["CSE5129", "MAT5005", "ENG5004", "CSE6004", "CSE6005", "CSE6006", "FRE1001", "GER1001", "SPA1001", "SSK2002", "SSK3002", "CSE3050", "ENG5001"] },
+    { category: "1. School Core (Includes Languages & Soft Skills)", minCredits: 17, codes: ["CSE5129", "MAT5005", "ENG5004", "CSE6004", "CSE6005", "CSE6006", "FRE1001", "GER1001", "SPA1001", "SSK2002", "SSK3002", "ENG5001", "CSE3050"] },
     { category: "2. Program Core", minCredits: 29, codes: ["CSE5067", "CSE5002", "CSE5005", "CSE5004", "CSE5012", "CSE5011", "CSE5013", "CSE5017", "CSE5009", "CSE5010", "CSE5008", "CSE5006", "CSE5007", "MGT5101", "CSE6007", "CSE6008", "CSE6009"] },
-    { category: "3. Discipline Electives", minCredits: 28, codes: ["CSE5028", "CSE5039", "CSE5040", "CSE5041", "CSE5042", "CSE5043", "CSE5044", "CSE5045", "CSE5046", "CSE5047", "CSE5048", "MGT5007", "MAT5006", "CSE5052", "CSE5053", "CSE5034", "CSE5019", "CSE5024"] },
-    { category: "4. Open Elective", minCredits: 6, codes: ["OPEN_ELECTIVE_CATCHALL", "CSE5029", "CSE5032"] }
+    { category: "3. Discipline Electives", minCredits: 28, codes: ["CSE5029", "CSE5032", "CSE5033", "CSE5028", "CSE5039", "CSE5040", "CSE5041", "CSE5042", "CSE5043", "CSE5044", "CSE5045", "CSE5046", "CSE5047", "CSE5048", "MGT5007", "MAT5006", "CSE5052", "CSE5053", "CSE5034", "CSE5019", "CSE5024"] },
+    { category: "4. Open Elective", minCredits: 6, codes: ["OPEN_ELECTIVE_CATCHALL"] } 
   ]
 };
+
+// Load custom rules from Admin, or fallback to BASE
+let CURRICULUM_RULES = JSON.parse(localStorage.getItem('AIIT_CUSTOM_CURRICULUM')) || BASE_CURRICULUM;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  STATE
@@ -2840,3 +2867,32 @@ async function clearAllRecords() {
     bindEvent();
   }
 })();
+
+// ── Admin Curriculum Editor Logic (V18.0) ──────────────────────────────────
+window.loadCurriculumEditor = function() {
+  const key = document.getElementById('curriculum-edit-key').value;
+  const currentRules = CURRICULUM_RULES[key] || [];
+  document.getElementById('curriculum-json-editor').value = JSON.stringify(currentRules, null, 2);
+};
+
+window.saveCurriculumEditor = function() {
+  try {
+    const key = document.getElementById('curriculum-edit-key').value;
+    const newRules = JSON.parse(document.getElementById('curriculum-json-editor').value);
+    CURRICULUM_RULES[key] = newRules;
+    localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(CURRICULUM_RULES));
+    alert("✅ Curriculum Updated Successfully! The Degree Audit engine is now using these rules.");
+  } catch (err) {
+    alert("❌ Invalid JSON Format. Please check your brackets and quotes.");
+  }
+};
+
+window.resetCurriculumEditor = function() {
+  if(confirm("Are you sure you want to delete all custom rules and reset to the factory defaults?")) {
+    localStorage.removeItem('AIIT_CUSTOM_CURRICULUM');
+    CURRICULUM_RULES = BASE_CURRICULUM;
+    loadCurriculumEditor();
+    alert("♻️ Curriculum reset to defaults.");
+  }
+};
+

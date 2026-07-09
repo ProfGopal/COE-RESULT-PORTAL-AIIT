@@ -775,14 +775,29 @@ function renderStudentDash(student) {
       let auditHTML = `<h3>Curriculum Degree Audit (Min 80 Credits)</h3>`;
       auditResult.audit.forEach(cat => {
         const statusIcon = cat.earned >= cat.minCredits ? "✅ Cleared" : `❌ Missing ${cat.minCredits - cat.earned} Credits`;
+
+        let completedRows = cat.completedList.map(c => `<tr><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.code)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.title)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.cred)}</td></tr>`).join('');
+        if (!completedRows) completedRows = `<tr><td colspan="3" style="border: 1px solid #ccc; padding: 6px; text-align:center; color: #666;">No courses completed yet</td></tr>`;
+        const compTable = `<table style="border-collapse: collapse; width: 100%; margin-bottom: 15px; font-size: 0.9em;">
+          <thead style="background: rgba(22, 163, 74, 0.1);"><tr><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Code</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Completed Course Name</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Credits</th></tr></thead>
+          <tbody>${completedRows}</tbody>
+        </table>`;
+
+        let pendingRows = cat.pendingList.map(c => `<tr><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.code)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.title)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.cred)}</td></tr>`).join('');
+        if (!pendingRows) pendingRows = `<tr><td colspan="3" style="border: 1px solid #ccc; padding: 6px; text-align:center; color: #666;">All requirements met for this bucket!</td></tr>`;
+        const pendTable = `<table style="border-collapse: collapse; width: 100%; margin-bottom: 5px; font-size: 0.9em;">
+          <thead style="background: rgba(220, 38, 38, 0.1);"><tr><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Code</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Pending / Available Course Name</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Credits</th></tr></thead>
+          <tbody>${pendingRows}</tbody>
+        </table>`;
+
         auditHTML += `
           <details style="margin-bottom: 10px; background: var(--s2); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
             <summary style="font-weight: bold; cursor: pointer; list-style-position: inside;">
               ${cat.category} | Required: ${cat.minCredits} | Earned: ${cat.earned} | Status: ${statusIcon}
             </summary>
             <div style="margin-top: 15px; padding-left: 20px; font-size: 0.9em;">
-              <p style="color: #16a34a;"><strong>✓ Completed Courses:</strong> ${cat.completedList.join(", ") || "None"}</p>
-              <p style="color: #dc2626;"><strong>⏳ Pending/Available Options:</strong> ${cat.pendingList.join(", ") || "None"}</p>
+              ${compTable}
+              ${pendTable}
             </div>
           </details>
         `;
@@ -1468,11 +1483,11 @@ async function facultySearchStudent() {
 
 
 /**
- * evaluateDegree — Hierarchical Curriculum Evaluation Engine (V16.0).
+ * evaluateDegree — Hierarchical Curriculum Evaluation Engine (V17.0).
  *
  * Uses CURRICULUM_RULES with `category` property key.
  * Category 4 is a catch-all: any passed course not in categories 1-3 goes here.
- * V16.0: completedList and pendingList now contain rich "CODE - Name (Credits Cr)" display strings.
+ * V17.0: completedList and pendingList now contain rich objects: { code, title, cred }.
  *
  * @param  {object} student
  * @returns {{ isSupported, isEligible, audit, totalEarnedInBuckets }}
@@ -1483,14 +1498,14 @@ function evaluateDegree(student) {
   const rules = CURRICULUM_RULES[ruleKey];
   if (!rules) return { isSupported: false, isEligible: false };
 
-  // Deep-clone rules with V16 field names
+  // Deep-clone rules with V17 field names
   let audit = rules.map(r => ({
     category: r.category,
     minCredits: r.minCredits,
     codes: r.codes.slice(),
     earned: 0,
-    completedList: [],  // rich "CODE - Name (Credits Cr)" strings for passed courses
-    pendingList: []     // rich "CODE - Name (Credits Cr)" strings for not-yet-completed courses
+    completedList: [],  // rich objects for completed courses
+    pendingList: []     // rich objects for pending courses
   }));
 
   let totalEarnedInBuckets = 0;
@@ -1521,19 +1536,18 @@ function evaluateDegree(student) {
   const knownCodes = new Set();
   audit.slice(0, 3).forEach(cat => cat.codes.forEach(c => knownCodes.add(c.toUpperCase())));
 
-  // 3. Drop into categories — V16.0: push rich display strings
+  // 3. Drop into categories — V17.0: push rich objects
   Object.values(passedMap).forEach(pc => {
     const code = pc.code.toUpperCase();
     const cInfo = getCourseInfo(pc.code);
     const title = pc.title || cInfo.name;
     const cred = pc.credits || cInfo.credits;
-    const displayStr = `${pc.code} - ${title} (${cred} Cr)`;
 
     let catIndex = audit.findIndex((cat, i) => i < 3 && cat.codes.some(bc => bc.toUpperCase() === code));
     if (catIndex !== -1) {
       audit[catIndex].earned += pc.credits;
       totalEarnedInBuckets += pc.credits;
-      audit[catIndex].completedList.push(displayStr);
+      audit[catIndex].completedList.push({ code: pc.code, title: title, cred: cred });
     } else if (audit[3]) {
       // Also check if explicitly in category 4 codes (CSE5029, CSE5032)
       const inCat4 = audit[3].codes.some(bc => bc.toUpperCase() === code);
@@ -1541,30 +1555,26 @@ function evaluateDegree(student) {
         // Assign to Category 4 (Open Elective)
         audit[3].earned += pc.credits;
         totalEarnedInBuckets += pc.credits;
-        audit[3].completedList.push(displayStr);
+        audit[3].completedList.push({ code: pc.code, title: title, cred: cred });
       }
     }
   });
 
-  // 4. Build pendingLists — V16.0: rich "CODE - Name (Credits Cr)" strings
+  // 4. Build pendingLists — V17.0: rich objects
   // Buckets 1, 2, 3: any code whose display string is not in completedList
   audit.slice(0, 3).forEach(cat => {
     cat.codes.forEach(code => {
       if (code === 'OPEN_ELECTIVE_CATCHALL') return;
-      const codeUpper = code.toUpperCase();
-      const alreadyCompleted = cat.completedList.some(str => str.startsWith(codeUpper + ' - ') || str.startsWith(code + ' - '));
-      if (!alreadyCompleted) {
+      // Check if code exists using .some() instead of string matching
+      if (!cat.completedList.some(comp => comp.code === code)) {
         const pInfo = getCourseInfo(code);
-        const pendingStr = `${code} - ${pInfo.name} (${pInfo.credits} Cr)`;
-        cat.pendingList.push(pendingStr);
+        cat.pendingList.push({ code: code, title: pInfo.name, cred: pInfo.credits });
       }
     });
   });
-  // Bucket 4 (Open Elective): fixed descriptive pending message
+  // Bucket 4 (Open Elective): fixed descriptive pending message as object
   if (audit[3]) {
-    audit[3].pendingList = [
-      'Choose any eligible open elective (e.g., CSE5029 - Advance Machine Learning, CSE5032 - Digital Image Processing)'
-    ];
+    audit[3].pendingList.push({ code: "OPEN_ELECTIVE", title: "Choose any eligible open elective (e.g., CSE5029, CSE5032)", cred: "Var" });
   }
 
   // 5. Determine overall eligibility
@@ -1783,14 +1793,29 @@ function renderStudentDashboard(student, targetContainerId) {
       let auditHTML = `<h3>Curriculum Degree Audit (Min 80 Credits)</h3>`;
       auditResult.audit.forEach(cat => {
         const statusIcon = cat.earned >= cat.minCredits ? "✅ Cleared" : `❌ Missing ${cat.minCredits - cat.earned} Credits`;
+
+        let completedRows = cat.completedList.map(c => `<tr><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.code)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.title)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.cred)}</td></tr>`).join('');
+        if (!completedRows) completedRows = `<tr><td colspan="3" style="border: 1px solid #ccc; padding: 6px; text-align:center; color: #666;">No courses completed yet</td></tr>`;
+        const compTable = `<table style="border-collapse: collapse; width: 100%; margin-bottom: 15px; font-size: 0.9em;">
+          <thead style="background: rgba(22, 163, 74, 0.1);"><tr><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Code</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Completed Course Name</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Credits</th></tr></thead>
+          <tbody>${completedRows}</tbody>
+        </table>`;
+
+        let pendingRows = cat.pendingList.map(c => `<tr><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.code)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.title)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.cred)}</td></tr>`).join('');
+        if (!pendingRows) pendingRows = `<tr><td colspan="3" style="border: 1px solid #ccc; padding: 6px; text-align:center; color: #666;">All requirements met for this bucket!</td></tr>`;
+        const pendTable = `<table style="border-collapse: collapse; width: 100%; margin-bottom: 5px; font-size: 0.9em;">
+          <thead style="background: rgba(220, 38, 38, 0.1);"><tr><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Code</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Pending / Available Course Name</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Credits</th></tr></thead>
+          <tbody>${pendingRows}</tbody>
+        </table>`;
+
         auditHTML += `
           <details style="margin-bottom: 10px; background: var(--s2); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
             <summary style="font-weight: bold; cursor: pointer; list-style-position: inside;">
               ${cat.category} | Required: ${cat.minCredits} | Earned: ${cat.earned} | Status: ${statusIcon}
             </summary>
             <div style="margin-top: 15px; padding-left: 20px; font-size: 0.9em;">
-              <p style="color: #16a34a;"><strong>✓ Completed Courses:</strong> ${cat.completedList.join(", ") || "None"}</p>
-              <p style="color: #dc2626;"><strong>⏳ Pending/Available Options:</strong> ${cat.pendingList.join(", ") || "None"}</p>
+              ${compTable}
+              ${pendTable}
             </div>
           </details>
         `;

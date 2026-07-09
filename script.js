@@ -100,8 +100,15 @@ const BASE_CURRICULUM = {
   ]
 };
 
-// Load custom rules from Admin, or fallback to BASE
-let CURRICULUM_RULES = JSON.parse(localStorage.getItem('AIIT_CUSTOM_CURRICULUM')) || BASE_CURRICULUM;
+let CURRICULUM_RULES;
+try {
+  const saved = localStorage.getItem('AIIT_CUSTOM_CURRICULUM');
+  CURRICULUM_RULES = saved ? JSON.parse(saved) : BASE_CURRICULUM;
+  if (typeof CURRICULUM_RULES !== 'object' || CURRICULUM_RULES === null) throw new Error("Corrupted format");
+} catch (e) {
+  console.warn("Curriculum load failed, reverting to base.", e);
+  CURRICULUM_RULES = BASE_CURRICULUM;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  STATE
@@ -2868,11 +2875,15 @@ async function clearAllRecords() {
   }
 })();
 
-// ── Admin Curriculum Editor Logic (V18.0) ──────────────────────────────────
+// ── Admin Curriculum Editor Logic (V18.1) ──────────────────────────────────
 window.loadCurriculumEditor = function() {
-  const key = document.getElementById('curriculum-edit-key').value;
+  const editor = document.getElementById('curriculum-json-editor');
+  const keyDropdown = document.getElementById('curriculum-edit-key');
+  if (!editor || !keyDropdown) return; // Failsafe if not on Admin page
+  
+  const key = keyDropdown.value;
   const currentRules = CURRICULUM_RULES[key] || [];
-  document.getElementById('curriculum-json-editor').value = JSON.stringify(currentRules, null, 2);
+  editor.value = JSON.stringify(currentRules, null, 2);
 };
 
 window.saveCurriculumEditor = function() {
@@ -2895,4 +2906,9 @@ window.resetCurriculumEditor = function() {
     alert("♻️ Curriculum reset to defaults.");
   }
 };
+
+// Auto-load curriculum editor if element exists on the page
+if (document.getElementById('curriculum-json-editor')) {
+  window.loadCurriculumEditor();
+}
 

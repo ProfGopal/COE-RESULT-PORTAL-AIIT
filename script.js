@@ -30,17 +30,46 @@ var SEM_MAP = {
   'V': 'Semester V', 'VI': 'Semester VI', 'VII': 'Semester VII', 'VIII': 'Semester VIII'
 };
 
-// ── Curriculum Evaluation Engine — Hierarchical Degree Audit Rules (V14.0) ─────
+// ── Curriculum Evaluation Engine — Hierarchical Degree Audit Rules (V15.0) ─────
 /**
- * CURRICULUM_RULES: 4-category structure. Category 4 is a catch-all for Open Electives.
- * Any passed course NOT listed in categories 1-3 is automatically assigned to category 4.
+ * COURSE_NAMES: Human-readable course title lookup by code.
+ * Used to display names in Pending/Completed lists in the Degree Audit UI.
+ */
+const COURSE_NAMES = {
+  "MGT5101": "Digital Entrepreneurship",
+  "ENG5001": "Basic English / Communication",
+  "CSE6007": "MCA Project - 1",
+  "CSE6008": "MCA Project - 2",
+  "CSE6009": "MCA Project - 3",
+  "CSE5029": "Advance Machine Learning",
+  "CSE5032": "Digital Image Processing",
+  "CSE5129": "Computer Science Fundamentals (Bridge Course)",
+  "MAT5005": "Applied Statistical Methods",
+  "ENG5004": "Technical Proficiency and Career Building",
+  "CSE6004": "Research Paper",
+  "CSE6005": "MCA Capstone Project",
+  "CSE6006": "Corporateship",
+  "FRE1001": "Basic French",
+  "GER1001": "Basic German",
+  "SPA1001": "Basic Spanish",
+  "SSK2002": "Being Corporate ready",
+  "SSK3002": "Programming Skills for Employment"
+};
+const getCourseName = (code) => COURSE_NAMES[code] || 'Course Title';
+
+/**
+ * CURRICULUM_RULES: 4-category structure (V15.0).
+ * - Category 1: School Core — ENG5001 added.
+ * - Category 2: Program Core — MGT5101, CSE6007/8/9, CSE5006/7/8 added.
+ * - Category 3: Discipline Electives — CSE5029 and CSE5032 removed.
+ * - Category 4: Open Elective — catch-all + explicit CSE5029, CSE5032.
  */
 const CURRICULUM_RULES = {
   "2024_MCA": [
-    { category: "1. School Core (Includes Languages & Soft Skills)", minCredits: 17, codes: ["CSE5129", "MAT5005", "ENG5004", "CSE6004", "CSE6005", "CSE6006", "FRE1001", "GER1001", "SPA1001", "SSK2002", "SSK3002"] },
-    { category: "2. Program Core", minCredits: 29, codes: ["CSE5067", "CSE5002", "CSE5005", "CSE5004", "CSE5012", "CSE5011", "CSE5013", "CSE5017", "CSE5009", "CSE5010"] },
-    { category: "3. Discipline Electives", minCredits: 28, codes: ["CSE5029", "CSE5032", "CSE5033", "CSE5028", "CSE5039", "CSE5040", "CSE5041", "CSE5042", "CSE5043", "CSE5044", "CSE5045", "CSE5046", "CSE5047", "CSE5048", "MGT5007", "MAT5006", "CSE5052", "CSE5053", "CSE5034", "CSE5006", "CSE5007", "CSE5008", "CSE5019", "CSE5024"] },
-    { category: "4. Open Elective", minCredits: 6, codes: ["OPEN_ELECTIVE_CATCHALL"] } // Anything not in 1,2,3 goes here
+    { category: "1. School Core (Includes Languages & Soft Skills)", minCredits: 17, codes: ["CSE5129", "MAT5005", "ENG5004", "CSE6004", "CSE6005", "CSE6006", "FRE1001", "GER1001", "SPA1001", "SSK2002", "SSK3002", "ENG5001"] },
+    { category: "2. Program Core", minCredits: 29, codes: ["CSE5067", "CSE5002", "CSE5005", "CSE5004", "CSE5012", "CSE5011", "CSE5013", "CSE5017", "CSE5009", "CSE5010", "CSE5008", "CSE5006", "CSE5007", "MGT5101", "CSE6007", "CSE6008", "CSE6009"] },
+    { category: "3. Discipline Electives", minCredits: 28, codes: ["CSE5028", "CSE5039", "CSE5040", "CSE5041", "CSE5042", "CSE5043", "CSE5044", "CSE5045", "CSE5046", "CSE5047", "CSE5048", "MGT5007", "MAT5006", "CSE5052", "CSE5053", "CSE5034", "CSE5019", "CSE5024"] },
+    { category: "4. Open Elective", minCredits: 6, codes: ["OPEN_ELECTIVE_CATCHALL", "CSE5029", "CSE5032"] }
   ]
 };
 
@@ -1195,26 +1224,25 @@ function renderFacultyTable(studentsArray) {
   });
 }
 
-// ── Populate Batch & Program Filter Dropdowns (V9.0) ────────────────────
+// ── Populate Batch & Program Filter Dropdowns (V15.0 — aggressive trimming) ────
 /**
  * populateFilterDropdowns — extracts unique batch and program values from
- * studentsArray, sorts them alphabetically, and injects <option> tags into the
- * #filter-batch and #filter-program <select> elements.
+ * studentsArray, aggressively trims whitespace, sorts alphabetically, and
+ * injects <option> tags into the #filter-batch and #filter-program <select>.
  */
 function populateFilterDropdowns(studentsArray) {
-  var batches  = {};
-  var programs = {};
-  (studentsArray || []).forEach(function(s) {
-    if (s.batch   && s.batch   !== 'Unknown Batch')   batches[s.batch]     = true;
-    if (s.program && s.program !== 'Unknown Program') programs[s.program]  = true;
-  });
+  // V15.0: Use Set + aggressive trim to prevent whitespace duplicates
+  const uniqueBatches  = [...new Set((studentsArray || []).map(s => String(s.batch   || '').trim()).filter(Boolean))]
+    .filter(b => b !== 'Unknown Batch').sort();
+  const uniquePrograms = [...new Set((studentsArray || []).map(s => String(s.program || '').trim()).filter(Boolean))]
+    .filter(p => p !== 'Unknown Program').sort();
 
   var batchSel   = document.getElementById('filter-batch');
   var programSel = document.getElementById('filter-program');
 
   if (batchSel) {
     batchSel.innerHTML = '<option value="">All Batches</option>';
-    Object.keys(batches).sort().forEach(function(b) {
+    uniqueBatches.forEach(function(b) {
       var opt = document.createElement('option');
       opt.value = b; opt.textContent = b;
       batchSel.appendChild(opt);
@@ -1223,7 +1251,7 @@ function populateFilterDropdowns(studentsArray) {
 
   if (programSel) {
     programSel.innerHTML = '<option value="">All Programs</option>';
-    Object.keys(programs).sort().forEach(function(p) {
+    uniquePrograms.forEach(function(p) {
       var opt = document.createElement('option');
       opt.value = p; opt.textContent = p;
       programSel.appendChild(opt);
@@ -1231,22 +1259,23 @@ function populateFilterDropdowns(studentsArray) {
   }
 }
 
-// ── Master Faculty Filter (V10.0) ──────────────────────────────────────
+// ── Master Faculty Filter (V15.0 — trim-safe comparisons) ──────────────────────
 /**
- * applyFilters — master filter function with hierarchical filtering (V10.0).
+ * applyFilters — master filter function with hierarchical filtering (V15.0).
  * Hierarchy: Year/Batch + Program are applied FIRST to create a cohort subset,
- * then Search, Eligibility, and Credit filters are applied strictly to that subset.
+ * then Search and Eligibility filters are applied strictly to that subset.
+ * V15.0: Both sides of batch/program comparisons are trimmed to prevent whitespace bugs.
  */
 function applyFilters() {
-  var searchVal    = ((document.getElementById('faculty-search-input')  || {}).value || '').trim().toLowerCase();
-  var batchVal     = ((document.getElementById('filter-batch')          || {}).value || '').trim();
-  var programVal   = ((document.getElementById('filter-program')        || {}).value || '').trim();
-  var eligibility  = ((document.getElementById('filter-eligibility')    || {}).value || 'all').trim();
+  var searchVal   = ((document.getElementById('faculty-search-input') || {}).value || '').trim().toLowerCase();
+  var batchVal    = ((document.getElementById('filter-batch')         || {}).value || '').trim();
+  var programVal  = ((document.getElementById('filter-program')       || {}).value || '').trim();
+  var eligibility = ((document.getElementById('filter-eligibility')   || {}).value || 'all').trim();
 
-  // Step 1: Apply Year/Program cohort filter FIRST
+  // Step 1: Apply Year/Program cohort filter FIRST — trim both sides (V15.0 fix)
   var cohort = (window.students || []).filter(function (s) {
-    var matchBatch   = !batchVal   || (s.batch   || '') === batchVal;
-    var matchProgram = !programVal || (s.program || '') === programVal;
+    var matchBatch   = !batchVal   || String(s.batch   || '').trim() === batchVal;
+    var matchProgram = !programVal || String(s.program || '').trim() === programVal;
     return matchBatch && matchProgram;
   });
 
@@ -1410,11 +1439,11 @@ async function facultySearchStudent() {
 
 
 /**
- * evaluateDegree — Hierarchical Curriculum Evaluation Engine (V14.0).
+ * evaluateDegree — Hierarchical Curriculum Evaluation Engine (V15.0).
  *
  * Uses CURRICULUM_RULES with `category` property key.
  * Category 4 is a catch-all: any passed course not in categories 1-3 goes here.
- * Returns audit array with `completedList` (code strings) and `pendingList` (code strings).
+ * V15.0: completedList and pendingList now contain rich "CODE - Name" display strings.
  *
  * @param  {object} student
  * @returns {{ isSupported, isEligible, audit, totalEarnedInBuckets }}
@@ -1425,17 +1454,15 @@ function evaluateDegree(student) {
   const rules = CURRICULUM_RULES[ruleKey];
   if (!rules) return { isSupported: false, isEligible: false };
 
-  // Deep-clone rules with V14 field names
+  // Deep-clone rules with V15 field names
   let audit = rules.map(r => ({
     category: r.category,
     minCredits: r.minCredits,
     codes: r.codes.slice(),
     earned: 0,
-    completedList: [],  // course code strings that the student has passed
-    pendingList: r.codes.filter(c => c !== 'OPEN_ELECTIVE_CATCHALL').slice() // starts full, shrinks as student completes
+    completedList: [],  // rich "CODE - Name" strings for passed courses
+    pendingList: []     // rich "CODE - Name" strings for not-yet-completed courses
   }));
-  // Category 4 (Open Elective) pendingList is dynamic
-  if (audit[3]) audit[3].pendingList = ['Choose any eligible open elective'];
 
   let totalEarnedInBuckets = 0;
 
@@ -1452,7 +1479,11 @@ function evaluateDegree(student) {
     if (!code) return;
     const cr = parseFloat(c.credits || c.creditEarned || 0) || 0;
     if (!passedMap[code] || cr > passedMap[code].credits) {
-      passedMap[code] = { code, title: c.title || c.courseName || code, credits: cr };
+      passedMap[code] = {
+        code,
+        title: c.title || c.name || getCourseName(code),
+        credits: cr
+      };
     }
   });
 
@@ -1460,25 +1491,47 @@ function evaluateDegree(student) {
   const knownCodes = new Set();
   audit.slice(0, 3).forEach(cat => cat.codes.forEach(c => knownCodes.add(c.toUpperCase())));
 
-  // 3. Drop into categories
+  // 3. Drop into categories — V15.0: push rich display strings
   Object.values(passedMap).forEach(pc => {
     const code = pc.code.toUpperCase();
+    const displayStr = `${pc.code} - ${pc.title}`;
     let catIndex = audit.findIndex((cat, i) => i < 3 && cat.codes.some(bc => bc.toUpperCase() === code));
     if (catIndex !== -1) {
       audit[catIndex].earned += pc.credits;
       totalEarnedInBuckets += pc.credits;
-      audit[catIndex].completedList.push(pc.code);
-      // Remove from pendingList
-      audit[catIndex].pendingList = audit[catIndex].pendingList.filter(c => c.toUpperCase() !== code);
-    } else if (!knownCodes.has(code) && audit[3]) {
-      // Not in any named category → auto-assign to Category 4 (Open Elective)
-      audit[3].earned += pc.credits;
-      totalEarnedInBuckets += pc.credits;
-      audit[3].completedList.push(pc.code);
+      audit[catIndex].completedList.push(displayStr);
+    } else if (audit[3]) {
+      // Also check if explicitly in category 4 codes (CSE5029, CSE5032)
+      const inCat4 = audit[3].codes.some(bc => bc.toUpperCase() === code);
+      if (inCat4 || !knownCodes.has(code)) {
+        // Assign to Category 4 (Open Elective)
+        audit[3].earned += pc.credits;
+        totalEarnedInBuckets += pc.credits;
+        audit[3].completedList.push(displayStr);
+      }
     }
   });
 
-  // 4. Determine overall eligibility
+  // 4. Build pendingLists — V15.0: rich "CODE - Name" strings
+  // Buckets 1, 2, 3: any code whose display string is not in completedList
+  audit.slice(0, 3).forEach(cat => {
+    cat.codes.forEach(code => {
+      if (code === 'OPEN_ELECTIVE_CATCHALL') return;
+      const codeUpper = code.toUpperCase();
+      const alreadyCompleted = cat.completedList.some(str => str.startsWith(codeUpper + ' - ') || str.startsWith(code + ' - '));
+      if (!alreadyCompleted) {
+        cat.pendingList.push(`${code} - ${getCourseName(code)}`);
+      }
+    });
+  });
+  // Bucket 4 (Open Elective): fixed descriptive pending message
+  if (audit[3]) {
+    audit[3].pendingList = [
+      'Choose any eligible open elective (e.g., CSE5029 - Advance Machine Learning, CSE5032 - Digital Image Processing)'
+    ];
+  }
+
+  // 5. Determine overall eligibility
   const allCategoriesMet = audit.every(cat => cat.earned >= cat.minCredits);
   const isEligible = allCategoriesMet && (totalEarnedInBuckets >= 80);
 

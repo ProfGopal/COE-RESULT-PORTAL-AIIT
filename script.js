@@ -812,17 +812,17 @@ function renderStudentDash(student) {
 
         let completedRows = cat.completedList.map(c => `<tr><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.code)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.title)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.cred)}</td></tr>`).join('');
         if (!completedRows) completedRows = `<tr><td colspan="3" style="border: 1px solid #ccc; padding: 6px; text-align:center; color: #666;">No courses completed yet</td></tr>`;
-        const compTable = `<table style="border-collapse: collapse; width: 100%; margin-bottom: 15px; font-size: 0.9em;">
+        const compTable = `<div class="table-responsive"><table style="border-collapse: collapse; width: 100%; margin-bottom: 15px; font-size: 0.9em;">
           <thead style="background: rgba(22, 163, 74, 0.1);"><tr><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Code</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Completed Course Name</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Credits</th></tr></thead>
           <tbody>${completedRows}</tbody>
-        </table>`;
+        </table></div>`;
 
         let pendingRows = cat.pendingList.map(c => `<tr><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.code)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.title)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.cred)}</td></tr>`).join('');
         if (!pendingRows) pendingRows = `<tr><td colspan="3" style="border: 1px solid #ccc; padding: 6px; text-align:center; color: #666;">All requirements met for this bucket!</td></tr>`;
-        const pendTable = `<table style="border-collapse: collapse; width: 100%; margin-bottom: 5px; font-size: 0.9em;">
+        const pendTable = `<div class="table-responsive"><table style="border-collapse: collapse; width: 100%; margin-bottom: 5px; font-size: 0.9em;">
           <thead style="background: rgba(220, 38, 38, 0.1);"><tr><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Code</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Pending / Available Course Name</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Credits</th></tr></thead>
           <tbody>${pendingRows}</tbody>
-        </table>`;
+        </table></div>`;
 
         auditHTML += `
           <details style="margin-bottom: 10px; background: var(--s2); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
@@ -1711,13 +1711,13 @@ function renderStudentDashboard(student, targetContainerId) {
     '      <div class="card-title" id="' + pfx + 'tbl-title">All Courses</div>',
     '      <div class="badge" id="' + pfx + 'tbl-badge">—</div>',
     '    </div>',
-    '    <div class="tbl-wrap"><table>',
+    '    <div class="tbl-wrap"><div class="table-responsive"><table>',
     '      <thead><tr>',
     '        <th>Code</th><th>Course Title</th><th>Type</th><th>Cr.</th>',
     '        <th>Marks /100</th><th>Grade</th><th>Gr. Pts</th><th>Cr. Earned</th>',
     '      </tr></thead>',
     '      <tbody id="' + pfx + 'courses-tbody"></tbody>',
-    '    </table></div>',
+    '    </table></div></div>',
     '  </div>',
     '</div>',
 
@@ -1830,17 +1830,17 @@ function renderStudentDashboard(student, targetContainerId) {
 
         let completedRows = cat.completedList.map(c => `<tr><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.code)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.title)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.cred)}</td></tr>`).join('');
         if (!completedRows) completedRows = `<tr><td colspan="3" style="border: 1px solid #ccc; padding: 6px; text-align:center; color: #666;">No courses completed yet</td></tr>`;
-        const compTable = `<table style="border-collapse: collapse; width: 100%; margin-bottom: 15px; font-size: 0.9em;">
+        const compTable = `<div class="table-responsive"><table style="border-collapse: collapse; width: 100%; margin-bottom: 15px; font-size: 0.9em;">
           <thead style="background: rgba(22, 163, 74, 0.1);"><tr><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Code</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Completed Course Name</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Credits</th></tr></thead>
           <tbody>${completedRows}</tbody>
-        </table>`;
+        </table></div>`;
 
         let pendingRows = cat.pendingList.map(c => `<tr><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.code)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.title)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.cred)}</td></tr>`).join('');
         if (!pendingRows) pendingRows = `<tr><td colspan="3" style="border: 1px solid #ccc; padding: 6px; text-align:center; color: #666;">All requirements met for this bucket!</td></tr>`;
-        const pendTable = `<table style="border-collapse: collapse; width: 100%; margin-bottom: 5px; font-size: 0.9em;">
+        const pendTable = `<div class="table-responsive"><table style="border-collapse: collapse; width: 100%; margin-bottom: 5px; font-size: 0.9em;">
           <thead style="background: rgba(220, 38, 38, 0.1);"><tr><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Code</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Pending / Available Course Name</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Credits</th></tr></thead>
           <tbody>${pendingRows}</tbody>
-        </table>`;
+        </table></div>`;
 
         auditHTML += `
           <details style="margin-bottom: 10px; background: var(--s2); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
@@ -2875,27 +2875,92 @@ async function clearAllRecords() {
   }
 })();
 
-// ── Admin Curriculum Editor Logic (V18.1) ──────────────────────────────────
+// ── Admin Curriculum Editor Logic (V19.0 — Visual GUI Builder) ──────────────
+window.currentEditingKey = "2024_MCA"; // Default
+
 window.loadCurriculumEditor = function() {
-  const editor = document.getElementById('curriculum-json-editor');
   const keyDropdown = document.getElementById('curriculum-edit-key');
-  if (!editor || !keyDropdown) return; // Failsafe if not on Admin page
+  if (!keyDropdown || !document.getElementById('curriculum-gui-container')) return;
   
-  const key = keyDropdown.value;
-  const currentRules = CURRICULUM_RULES[key] || [];
-  editor.value = JSON.stringify(currentRules, null, 2);
+  window.currentEditingKey = keyDropdown.value;
+  const rules = CURRICULUM_RULES[window.currentEditingKey] || [];
+  let html = "";
+  
+  rules.forEach((rule, index) => {
+    html += `
+      <div style="background: var(--s2, #1e293b); border: 1px solid var(--border, #334155); border-radius: 8px; padding: 15px; position: relative; margin-bottom: 10px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap;">
+          <h3 style="margin: 0; color: #38bdf8; font-size: 1.1em;">${esc(rule.category)}</h3>
+          <button onclick="editBucketName(${index})" style="background: #3b82f6; color: white; padding: 4px 8px; font-size: 0.8em; border-radius: 4px; border: none; cursor: pointer;">✏️ Edit Name</button>
+        </div>
+        <div style="margin-bottom: 10px;">
+          <strong>Minimum Credits Required:</strong> <span style="font-size: 1.2em; color: #10b981; margin-left: 5px;">${rule.minCredits}</span>
+          <button onclick="editBucketCredits(${index})" style="margin-left: 10px; background: #64748b; color: white; padding: 2px 6px; font-size: 0.7em; border-radius: 4px; border: none; cursor: pointer;">✏️ Edit Credits</button>
+        </div>
+        <div>
+          <strong style="display: block; margin-bottom: 5px;">Mapped Course Codes:</strong>
+          <div style="background: #0f172a; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 0.9em; word-wrap: break-word; color: #10b981;">
+            ${esc(rule.codes.join(', ')) || '<span style="color:var(--muted)">None</span>'}
+          </div>
+          <button onclick="editBucketCodes(${index})" style="margin-top: 8px; background: #64748b; color: white; padding: 4px 8px; font-size: 0.8em; border-radius: 4px; border: none; cursor: pointer;">✏️ Edit Mapped Courses</button>
+        </div>
+        <button onclick="deleteBucket(${index})" style="position: absolute; bottom: 15px; right: 15px; background: #ef4444; color: white; padding: 4px 8px; font-size: 0.8em; border-radius: 4px; border: none; cursor: pointer;">🗑️ Delete Bucket</button>
+      </div>
+    `;
+  });
+  
+  html += `<button onclick="addNewBucket()" style="background: #10b981; color: white; padding: 12px; font-size: 1em; border-radius: 6px; margin-top: 10px; font-weight: bold; border: none; cursor: pointer; width: 100%;">➕ Add New Bucket / Category</button>`;
+  document.getElementById('curriculum-gui-container').innerHTML = html;
+};
+
+// V19.0 GUI Edit Controllers
+function autoSaveCurriculum() {
+  localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(CURRICULUM_RULES));
+  loadCurriculumEditor(); // Re-render GUI
+}
+
+window.editBucketName = function(index) {
+  const rule = CURRICULUM_RULES[window.currentEditingKey][index];
+  const newName = prompt("Enter new Category Name:", rule.category);
+  if (newName !== null && newName.trim() !== "") { rule.category = newName.trim(); autoSaveCurriculum(); }
+};
+
+window.editBucketCredits = function(index) {
+  const rule = CURRICULUM_RULES[window.currentEditingKey][index];
+  const newCreds = prompt("Enter minimum credits required for this bucket:", rule.minCredits);
+  if (newCreds !== null && newCreds.trim() !== "" && !isNaN(newCreds)) {
+    rule.minCredits = parseFloat(newCreds);
+    autoSaveCurriculum();
+  }
+};
+
+window.editBucketCodes = function(index) {
+  const rule = CURRICULUM_RULES[window.currentEditingKey][index];
+  const newCodesStr = prompt("Enter course codes separated by commas (e.g., CSE101, CSE102):", rule.codes.join(', '));
+  if (newCodesStr !== null) { 
+    rule.codes = newCodesStr.split(',').map(c => c.trim().toUpperCase()).filter(c => c); 
+    autoSaveCurriculum(); 
+  }
+};
+
+window.addNewBucket = function() {
+  const name = prompt("Enter Name for new Bucket:");
+  if (!name) return;
+  if (!CURRICULUM_RULES[window.currentEditingKey]) CURRICULUM_RULES[window.currentEditingKey] = [];
+  CURRICULUM_RULES[window.currentEditingKey].push({ category: name.trim(), minCredits: 0, codes: [] });
+  autoSaveCurriculum();
+};
+
+window.deleteBucket = function(index) {
+  if(confirm("Are you sure you want to delete this entire bucket?")) {
+    CURRICULUM_RULES[window.currentEditingKey].splice(index, 1);
+    autoSaveCurriculum();
+  }
 };
 
 window.saveCurriculumEditor = function() {
-  try {
-    const key = document.getElementById('curriculum-edit-key').value;
-    const newRules = JSON.parse(document.getElementById('curriculum-json-editor').value);
-    CURRICULUM_RULES[key] = newRules;
-    localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(CURRICULUM_RULES));
-    alert("✅ Curriculum Updated Successfully! The Degree Audit engine is now using these rules.");
-  } catch (err) {
-    alert("❌ Invalid JSON Format. Please check your brackets and quotes.");
-  }
+  localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(CURRICULUM_RULES));
+  alert("✅ Curriculum Updated Successfully! The Degree Audit engine is now using these rules.");
 };
 
 window.resetCurriculumEditor = function() {
@@ -2908,7 +2973,7 @@ window.resetCurriculumEditor = function() {
 };
 
 // Auto-load curriculum editor if element exists on the page
-if (document.getElementById('curriculum-json-editor')) {
+if (document.getElementById('curriculum-gui-container')) {
   window.loadCurriculumEditor();
 }
 

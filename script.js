@@ -948,10 +948,20 @@ function renderStudentDash(student) {
   // Populate Audit Tab Content
   var auditTabEl = document.getElementById('sdash-audit-tab');
   if (auditTabEl) {
-    var auditResult = evaluateDegree(student);
-    if (!auditResult.isSupported) {
-      auditTabEl.innerHTML = '<div style="padding:2.5rem; text-align:center; color:var(--muted); font-weight:500;">Curriculum mapping for ' + esc(student.batch || '') + ' ' + esc(student.program || '') + ' is pending.</div>';
+    const ruleKey = `${student.batch}_${student.program}`;
+    const rules = CURRICULUM_RULES[ruleKey];
+    
+    if (!rules || rules.length === 0) {
+      let auditHTML = `
+        <div style="padding: 40px 20px; text-align: center; background: var(--s2, #1e293b); border: 2px dashed #475569; border-radius: 8px; margin-top: 20px;">
+          <h2 style="color: #94a3b8; margin-bottom: 10px;">📭 Curriculum Not Found</h2>
+          <p style="color: #cbd5e1; font-size: 1.1em;">No curriculum has been mapped for <strong>${student.batch} ${student.program}</strong>.</p>
+          <p style="color: #64748b; font-size: 0.9em; margin-top: 15px;">Administrators can resolve this by uploading the curriculum via the Admin Portal.</p>
+        </div>
+      `;
+      auditTabEl.innerHTML = auditHTML;
     } else {
+      var auditResult = evaluateDegree(student);
       // V2.0: Nested Hierarchical Degree Audit UI
       let auditHTML = `<h3>Curriculum Degree Audit</h3>`;
       auditResult.audit.forEach(main => {
@@ -2053,11 +2063,18 @@ function renderStudentDashboard(student, targetContainerId) {
   // ── Build Expandable Degree Audit Tab Content (V14.0) ───────────────────────
   var auditTabEl = document.getElementById(pfx + 'audit-tab');
   if (auditTabEl) {
-    var auditResult = evaluateDegree(student);
-    if (!auditResult.isSupported) {
-      auditTabEl.innerHTML =
-        '<div style="padding:2.5rem; text-align:center; color:var(--muted); font-weight:500;">' +
-        'Curriculum mapping for ' + esc(student.batch || '') + ' ' + esc(student.program || '') + ' is pending.</div>';
+    const ruleKey = `${student.batch}_${student.program}`;
+    const rules = CURRICULUM_RULES[ruleKey];
+    
+    if (!rules || rules.length === 0) {
+      let auditHTML = `
+        <div style="padding: 40px 20px; text-align: center; background: var(--s2, #1e293b); border: 2px dashed #475569; border-radius: 8px; margin-top: 20px;">
+          <h2 style="color: #94a3b8; margin-bottom: 10px;">📭 Curriculum Not Found</h2>
+          <p style="color: #cbd5e1; font-size: 1.1em;">No curriculum has been mapped for <strong>${student.batch} ${student.program}</strong>.</p>
+          <p style="color: #64748b; font-size: 0.9em; margin-top: 15px;">Administrators can resolve this by uploading the curriculum via the Admin Portal.</p>
+        </div>
+      `;
+      auditTabEl.innerHTML = auditHTML;
     } else {
       let auditHTML = `<h3>Curriculum Degree Audit (Min 80 Credits)</h3>`;
       auditResult.audit.forEach(cat => {
@@ -3137,81 +3154,76 @@ window.currentEditingKey = "2024_MCA";
 
 window.loadCurriculumEditor = function() {
   const keyDropdown = document.getElementById('curriculum-edit-key');
-  if (!keyDropdown) return;
-
-  // --- SELF HEALING DOM LOGIC ---
-  // 1. If the old black code box exists, destroy it.
-  const oldTextarea = document.getElementById('curriculum-json-editor');
-  if (oldTextarea) {
-    const newContainer = document.createElement('div');
-    newContainer.id = 'curriculum-gui-container';
-    newContainer.style.cssText = "margin-top: 20px; display: flex; flex-direction: column; gap: 20px;";
-    oldTextarea.parentNode.replaceChild(newContainer, oldTextarea);
-  }
-
   const container = document.getElementById('curriculum-gui-container');
-  if (!container) return;
-  // ------------------------------
+  if (!keyDropdown || !container) return; 
   
   window.currentEditingKey = keyDropdown.value;
-  const rules = CURRICULUM_RULES[window.currentEditingKey] || [];
+  const rawRules = CURRICULUM_RULES[window.currentEditingKey] || [];
+  
+  // CRITICAL FIX: Filter out null/undefined elements that cause crashes
+  const validRules = rawRules.filter(r => r && r.category); 
+
   let html = "";
   
-  rules.forEach((rule, bIndex) => {
-    html += `
-      <div style="background: var(--s2, #1e293b); border: 1px solid var(--border, #334155); border-radius: 8px; padding: 20px; position: relative;">
-        
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #334155; padding-bottom: 10px;">
-          <div>
-            <h3 style="margin: 0; color: #38bdf8; font-size: 1.2em;">${rule.category} <button onclick="editBucketName(${bIndex})" style="background: transparent; border: none; cursor: pointer; font-size: 0.9em;">✏️</button></h3>
-            <div style="margin-top: 5px; color: #cbd5e1; font-size: 0.9em;">
-              Required Credits: <strong style="color: #10b981; font-size: 1.2em;">${rule.minCredits}</strong>
-              <button onclick="editBucketCredits(${bIndex})" style="background: #64748b; color: white; border: none; padding: 2px 6px; border-radius: 4px; cursor: pointer; font-size: 0.8em; margin-left: 5px;">Edit Credits</button>
-            </div>
-          </div>
-          <button onclick="deleteBucket(${bIndex})" style="background: #dc2626; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">🗑️ Delete Bucket</button>
-        </div>
+  if (validRules.length === 0) {
+      html = `<div style="padding:30px; background:var(--s2); color:#cbd5e1; text-align:center; border-radius:8px; border: 1px dashed #475569;">No curriculum added for ${window.currentEditingKey}. Please upload an Excel file.</div>`;
+  } else {
+      validRules.forEach((main, mIndex) => {
+          html += `
+          <div style="background: var(--s2, #1e293b); border: 1px solid #3b82f6; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+              <div style="border-bottom: 1px solid #334155; padding-bottom: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+                  <div>
+                      <h3 style="margin: 0; color: #38bdf8; font-size: 1.3em;">📁 ${main.category}</h3>
+                      <span style="color: #10b981; font-weight: bold; font-size: 0.9em;">Total Bucket Required: ${main.minCredits} Credits</span>
+                  </div>
+                  <button onclick="deleteMainBucket('${window.currentEditingKey}', ${mIndex})" style="background:#ef4444; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer;">🗑️ Delete Main Category</button>
+              </div>
+          `;
 
-        <div class="table-responsive" style="margin-bottom: 15px;">
-          <table style="width: 100%; border-collapse: collapse; font-size: 0.9em; background: #0f172a;">
-            <thead style="background: #1e293b;">
-              <tr>
-                <th style="padding: 10px; border: 1px solid #334155; text-align: left; color: #94a3b8;">Course Code</th>
-                <th style="padding: 10px; border: 1px solid #334155; text-align: left; color: #94a3b8;">Course Name</th>
-                <th style="padding: 10px; border: 1px solid #334155; text-align: center; color: #94a3b8;">Credits</th>
-                <th style="padding: 10px; border: 1px solid #334155; text-align: center; color: #94a3b8;">Actions</th>
-              </tr>
-            </thead>
-            <tbody>`;
-    
-    if (rule.codes.length === 0) {
-      html += `<tr><td colspan="4" style="padding: 15px; text-align: center; color: #64748b;">No courses added yet.</td></tr>`;
-    } else {
-      rule.codes.forEach((code, cIndex) => {
-        const info = getCourseInfo(code);
-        html += `
-              <tr>
-                <td style="padding: 10px; border: 1px solid #334155; font-weight: bold; color: #f8fafc;">${code}</td>
-                <td style="padding: 10px; border: 1px solid #334155; color: #cbd5e1;">${info.name}</td>
-                <td style="padding: 10px; border: 1px solid #334155; text-align: center; color: #38bdf8; font-weight: bold;">${info.credits}</td>
-                <td style="padding: 10px; border: 1px solid #334155; text-align: center;">
-                  <button onclick="editCourseDetails('${code}')" style="background: #ca8a04; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.8em; margin-right: 5px;">✏️ Edit</button>
-                  <button onclick="removeCourseFromBucket(${bIndex}, ${cIndex})" style="background: #ef4444; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.8em;">❌</button>
-                </td>
-              </tr>`;
+          (main.subCategories || []).forEach((sub, sIndex) => {
+              html += `
+              <div style="background: #0f172a; border: 1px solid #475569; border-radius: 6px; padding: 15px; margin-bottom: 15px; margin-left: 20px;">
+                  <h4 style="margin: 0 0 10px 0; color: #e2e8f0; font-size: 1.1em;">📄 ${sub.name} <span style="color:#94a3b8; font-size: 0.8em; font-weight: normal;">(Min ${sub.minCredits} Credits)</span></h4>
+                  <div class="table-responsive">
+                      <table style="width: 100%; border-collapse: collapse; font-size: 0.9em; background: #1e293b;">
+                          <thead style="background: #334155;">
+                              <tr>
+                                  <th style="padding: 8px; border: 1px solid #475569; text-align:left; color:#cbd5e1;">Code</th>
+                                  <th style="padding: 8px; border: 1px solid #475569; text-align:left; color:#cbd5e1;">Course Name</th>
+                                  <th style="padding: 8px; border: 1px solid #475569; text-align:center; color:#cbd5e1;">Credits</th>
+                              </tr>
+                          </thead>
+                          <tbody>
+              `;
+
+              if (!sub.codes || sub.codes.length === 0) {
+                  html += `<tr><td colspan="3" style="text-align:center; color:#64748b; padding: 10px;">No courses mapped</td></tr>`;
+              } else {
+                  sub.codes.forEach(code => {
+                      const info = getCourseInfo(code);
+                      html += `
+                      <tr>
+                          <td style="padding: 8px; border: 1px solid #475569; font-weight:bold; color:#f8fafc;">${code}</td>
+                          <td style="padding: 8px; border: 1px solid #475569; color:#94a3b8;">${info.name}</td>
+                          <td style="padding: 8px; border: 1px solid #475569; text-align:center; color:#38bdf8; font-weight:bold;">${info.credits}</td>
+                      </tr>`;
+                  });
+              }
+              html += `</tbody></table></div></div>`;
+          });
+          html += `</div>`;
       });
-    }
-    
-    html += `
-            </tbody>
-          </table>
-        </div>
-        <button onclick="addCourseToBucket(${bIndex})" style="background: #2563eb; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold;">➕ Add Course to ${rule.category.split('.')[0]}</button>
-      </div>`;
-  });
-  
-  html += `<button onclick="addNewBucket()" style="background: #10b981; color: white; border: none; padding: 15px; border-radius: 6px; cursor: pointer; font-size: 1.1em; font-weight: bold;">➕ Create New Bucket / Category</button>`;
+  }
   container.innerHTML = html;
+};
+
+// Controller for the new delete button
+window.deleteMainBucket = function(key, index) {
+  if (confirm("Are you sure you want to delete this entire Main Category and all of its nested Sub-Categories?")) {
+      CURRICULUM_RULES[key].splice(index, 1);
+      localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(CURRICULUM_RULES));
+      loadCurriculumEditor();
+  }
 };
 
 // V20.0 Table Interaction Logic (Add, Edit, Remove)

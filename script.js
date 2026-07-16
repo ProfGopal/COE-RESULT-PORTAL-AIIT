@@ -3159,8 +3159,6 @@ window.loadCurriculumEditor = function() {
   
   window.currentEditingKey = keyDropdown.value;
   const rawRules = CURRICULUM_RULES[window.currentEditingKey] || [];
-  
-  // CRITICAL FIX: Filter out null/undefined elements that cause crashes
   const validRules = rawRules.filter(r => r && r.category); 
 
   let html = "";
@@ -3169,21 +3167,40 @@ window.loadCurriculumEditor = function() {
       html = `<div style="padding:30px; background:var(--s2); color:#cbd5e1; text-align:center; border-radius:8px; border: 1px dashed #475569;">No curriculum added for ${window.currentEditingKey}. Please upload an Excel file.</div>`;
   } else {
       validRules.forEach((main, mIndex) => {
+          // MAIN CATEGORY LEVEL
           html += `
           <div style="background: var(--s2, #1e293b); border: 1px solid #3b82f6; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
-              <div style="border-bottom: 1px solid #334155; padding-bottom: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+              <div style="border-bottom: 1px solid #334155; padding-bottom: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                   <div>
-                      <h3 style="margin: 0; color: #38bdf8; font-size: 1.3em;">📁 ${main.category}</h3>
-                      <span style="color: #10b981; font-weight: bold; font-size: 0.9em;">Total Bucket Required: ${main.minCredits} Credits</span>
+                      <h3 style="margin: 0; color: #38bdf8; font-size: 1.3em;">
+                          📁 ${main.category} 
+                          <button onclick="editMainName(${mIndex})" style="background:none; border:none; cursor:pointer;">✏️</button>
+                      </h3>
+                      <div style="margin-top: 5px;">
+                          <span style="color: #10b981; font-weight: bold; font-size: 0.9em;">Total Bucket Required: ${main.minCredits} Credits</span>
+                          <button onclick="editMainCredits(${mIndex})" style="background:#64748b; color:white; border:none; padding:2px 6px; border-radius:4px; cursor:pointer; font-size:0.8em; margin-left:5px;">Edit Credits</button>
+                      </div>
                   </div>
                   <button onclick="deleteMainBucket('${window.currentEditingKey}', ${mIndex})" style="background:#ef4444; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer;">🗑️ Delete Main Category</button>
               </div>
           `;
 
           (main.subCategories || []).forEach((sub, sIndex) => {
+              // SUB CATEGORY LEVEL
               html += `
               <div style="background: #0f172a; border: 1px solid #475569; border-radius: 6px; padding: 15px; margin-bottom: 15px; margin-left: 20px;">
-                  <h4 style="margin: 0 0 10px 0; color: #e2e8f0; font-size: 1.1em;">📄 ${sub.name} <span style="color:#94a3b8; font-size: 0.8em; font-weight: normal;">(Min ${sub.minCredits} Credits)</span></h4>
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                      <div>
+                          <h4 style="margin: 0; color: #e2e8f0; font-size: 1.1em;">
+                              📄 ${sub.name} 
+                              <button onclick="editSubName(${mIndex}, ${sIndex})" style="background:none; border:none; cursor:pointer;">✏️</button>
+                          </h4>
+                          <span style="color:#94a3b8; font-size: 0.85em;">(Min ${sub.minCredits} Credits)</span>
+                          <button onclick="editSubCredits(${mIndex}, ${sIndex})" style="background:#64748b; color:white; border:none; padding:2px 6px; border-radius:4px; cursor:pointer; font-size:0.7em; margin-left:5px;">Edit Credits</button>
+                      </div>
+                      <button onclick="deleteSubCategory(${mIndex}, ${sIndex})" style="background:transparent; color:#ef4444; border:1px solid #ef4444; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:0.8em;">🗑️ Remove Sub</button>
+                  </div>
+                  
                   <div class="table-responsive">
                       <table style="width: 100%; border-collapse: collapse; font-size: 0.9em; background: #1e293b;">
                           <thead style="background: #334155;">
@@ -3191,100 +3208,130 @@ window.loadCurriculumEditor = function() {
                                   <th style="padding: 8px; border: 1px solid #475569; text-align:left; color:#cbd5e1;">Code</th>
                                   <th style="padding: 8px; border: 1px solid #475569; text-align:left; color:#cbd5e1;">Course Name</th>
                                   <th style="padding: 8px; border: 1px solid #475569; text-align:center; color:#cbd5e1;">Credits</th>
+                                  <th style="padding: 8px; border: 1px solid #475569; text-align:center; color:#cbd5e1;">Actions</th>
                               </tr>
                           </thead>
                           <tbody>
               `;
 
               if (!sub.codes || sub.codes.length === 0) {
-                  html += `<tr><td colspan="3" style="text-align:center; color:#64748b; padding: 10px;">No courses mapped</td></tr>`;
+                  html += `<tr><td colspan="4" style="text-align:center; color:#64748b; padding: 10px;">No courses mapped</td></tr>`;
               } else {
-                  sub.codes.forEach(code => {
+                  sub.codes.forEach((code, cIndex) => {
                       const info = getCourseInfo(code);
+                      // COURSE LEVEL
                       html += `
                       <tr>
                           <td style="padding: 8px; border: 1px solid #475569; font-weight:bold; color:#f8fafc;">${code}</td>
                           <td style="padding: 8px; border: 1px solid #475569; color:#94a3b8;">${info.name}</td>
                           <td style="padding: 8px; border: 1px solid #475569; text-align:center; color:#38bdf8; font-weight:bold;">${info.credits}</td>
+                          <td style="padding: 8px; border: 1px solid #475569; text-align:center;">
+                              <button onclick="editCourseDetails('${code}')" style="background:#ca8a04; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:0.8em; margin-right:4px;">✏️</button>
+                              <button onclick="removeCourseFromSub(${mIndex}, ${sIndex}, ${cIndex})" style="background:#ef4444; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:0.8em;">❌</button>
+                          </td>
                       </tr>`;
                   });
               }
-              html += `</tbody></table></div></div>`;
+              html += `</tbody></table></div>`;
+              html += `<button onclick="addCourseToSub(${mIndex}, ${sIndex})" style="margin-top: 10px; background: #2563eb; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.9em;">➕ Add Course to ${sub.name}</button>`;
+              html += `</div>`;
           });
+          html += `<button onclick="addSubCategory(${mIndex})" style="margin-left: 20px; background: #0ea5e9; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold;">➕ Add New Sub-Category</button>`;
           html += `</div>`;
       });
   }
+  html += `<div style="margin-top: 15px;"><button onclick="addNewBucket()" style="background: #10b981; color: white; border: none; padding: 15px; border-radius: 6px; cursor: pointer; font-size: 1.1em; font-weight: bold; width: 100%;">➕ Create New Main Category</button></div>`;
   container.innerHTML = html;
 };
 
-// Controller for the new delete button
-window.deleteMainBucket = function(key, index) {
-  if (confirm("Are you sure you want to delete this entire Main Category and all of its nested Sub-Categories?")) {
-      CURRICULUM_RULES[key].splice(index, 1);
-      localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(CURRICULUM_RULES));
-      loadCurriculumEditor();
-  }
-};
-
-// V20.0 Table Interaction Logic (Add, Edit, Remove)
 function autoSaveCurriculum() {
-  localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(CURRICULUM_RULES));
-  localStorage.setItem('AIIT_CUSTOM_COURSES', JSON.stringify(CUSTOM_COURSE_DICT));
-  loadCurriculumEditor();
+    localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(CURRICULUM_RULES));
+    localStorage.setItem('AIIT_CUSTOM_COURSES', JSON.stringify(CUSTOM_COURSE_DICT));
+    loadCurriculumEditor(); // Force refresh UI
 }
 
-window.addCourseToBucket = function(bIndex) {
-  const code = prompt("Enter the Course Code (e.g., CSE9001):");
-  if (!code || code.trim() === "") return;
-  const cleanCode = code.trim().toUpperCase();
-  
-  const name = prompt(`Enter Course Name for ${cleanCode}:`, "New Elective Course");
-  const credits = prompt(`Enter Credits for ${cleanCode}:`, "3");
-  
-  // Save to custom dictionary
-  CUSTOM_COURSE_DICT[cleanCode] = { name: name || "Custom Course", credits: parseFloat(credits) || 3 };
-  
-  // Add to bucket
-  CURRICULUM_RULES[window.currentEditingKey][bIndex].codes.push(cleanCode);
-  autoSaveCurriculum();
-};
-
-window.removeCourseFromBucket = function(bIndex, cIndex) {
-  if(confirm("Remove this course from the bucket?")) {
-    CURRICULUM_RULES[window.currentEditingKey][bIndex].codes.splice(cIndex, 1);
-    autoSaveCurriculum();
-  }
-};
-
-window.editCourseDetails = function(code) {
-  const currentInfo = getCourseInfo(code);
-  const newName = prompt(`Edit Course Name for ${code}:`, currentInfo.name);
-  if (newName === null) return;
-  const newCreds = prompt(`Edit Credits for ${code}:`, currentInfo.credits);
-  if (newCreds === null) return;
-  
-  CUSTOM_COURSE_DICT[code] = { name: newName.trim(), credits: parseFloat(newCreds) || currentInfo.credits };
-  autoSaveCurriculum();
-  alert(`✅ Updated ${code} across all buckets!`);
-};
-
-window.editBucketName = function(index) {
-  const newName = prompt("Enter new Category Name:", CURRICULUM_RULES[window.currentEditingKey][index].category);
-  if (newName) { CURRICULUM_RULES[window.currentEditingKey][index].category = newName.trim(); autoSaveCurriculum(); }
-};
-
-window.editBucketCredits = function(index) {
-  const newCreds = prompt("Enter minimum credits required:", CURRICULUM_RULES[window.currentEditingKey][index].minCredits);
-  if (newCreds !== null && !isNaN(newCreds)) { CURRICULUM_RULES[window.currentEditingKey][index].minCredits = parseFloat(newCreds); autoSaveCurriculum(); }
-};
-
-window.deleteBucket = function(index) {
-  if(confirm("Delete this entire bucket?")) { CURRICULUM_RULES[window.currentEditingKey].splice(index, 1); autoSaveCurriculum(); }
-};
-
+// --- MAIN CATEGORY CONTROLLERS ---
 window.addNewBucket = function() {
-  const name = prompt("Enter Name for new Bucket:");
-  if (name) { CURRICULUM_RULES[window.currentEditingKey].push({ category: name.trim(), minCredits: 0, codes: [] }); autoSaveCurriculum(); }
+    const name = prompt("Enter Name for new Main Category:");
+    if (name && name.trim() !== "") {
+        if (!CURRICULUM_RULES[window.currentEditingKey]) {
+            CURRICULUM_RULES[window.currentEditingKey] = [];
+        }
+        CURRICULUM_RULES[window.currentEditingKey].push({ category: name.trim(), minCredits: 0, subCategories: [] });
+        autoSaveCurriculum();
+    }
+};
+window.deleteMainBucket = function(key, index) {
+    if (confirm("Are you sure you want to delete this entire Main Category and all of its nested Sub-Categories?")) {
+        CURRICULUM_RULES[key].splice(index, 1);
+        autoSaveCurriculum();
+    }
+};
+window.editMainName = function(mIndex) {
+    const rule = CURRICULUM_RULES[window.currentEditingKey][mIndex];
+    const newName = prompt("Edit Main Category Name:", rule.category);
+    if (newName && newName.trim() !== "") { rule.category = newName.trim(); autoSaveCurriculum(); }
+};
+window.editMainCredits = function(mIndex) {
+    const rule = CURRICULUM_RULES[window.currentEditingKey][mIndex];
+    const newCreds = prompt("Edit Main Category Required Credits:", rule.minCredits);
+    if (newCreds !== null && !isNaN(newCreds)) { rule.minCredits = parseFloat(newCreds); autoSaveCurriculum(); }
+};
+
+// --- SUB CATEGORY CONTROLLERS ---
+window.editSubName = function(mIndex, sIndex) {
+    const sub = CURRICULUM_RULES[window.currentEditingKey][mIndex].subCategories[sIndex];
+    const newName = prompt("Edit Sub-Category Name:", sub.name);
+    if (newName && newName.trim() !== "") { sub.name = newName.trim(); autoSaveCurriculum(); }
+};
+window.editSubCredits = function(mIndex, sIndex) {
+    const sub = CURRICULUM_RULES[window.currentEditingKey][mIndex].subCategories[sIndex];
+    const newCreds = prompt("Edit Sub-Category Required Credits:", sub.minCredits);
+    if (newCreds !== null && !isNaN(newCreds)) { sub.minCredits = parseFloat(newCreds); autoSaveCurriculum(); }
+};
+window.deleteSubCategory = function(mIndex, sIndex) {
+    if (confirm("Delete this entire Sub-Category?")) {
+        CURRICULUM_RULES[window.currentEditingKey][mIndex].subCategories.splice(sIndex, 1);
+        autoSaveCurriculum();
+    }
+};
+window.addSubCategory = function(mIndex) {
+    const name = prompt("Enter Name for new Sub-Category:");
+    if (name && name.trim() !== "") {
+        CURRICULUM_RULES[window.currentEditingKey][mIndex].subCategories.push({ name: name.trim(), minCredits: 0, codes: [] });
+        autoSaveCurriculum();
+    }
+};
+
+// --- COURSE LEVEL CONTROLLERS ---
+window.addCourseToSub = function(mIndex, sIndex) {
+    const code = prompt("Enter the Course Code (e.g., CSE9001):");
+    if (!code || code.trim() === "") return;
+    const cleanCode = code.trim().toUpperCase();
+    
+    const name = prompt(`Enter Course Name for ${cleanCode}:`, "New Course");
+    const credits = prompt(`Enter Credits for ${cleanCode}:`, "3");
+    
+    CUSTOM_COURSE_DICT[cleanCode] = { name: name || "Custom Course", credits: parseFloat(credits) || 3 };
+    CURRICULUM_RULES[window.currentEditingKey][mIndex].subCategories[sIndex].codes.push(cleanCode);
+    autoSaveCurriculum();
+};
+window.removeCourseFromSub = function(mIndex, sIndex, cIndex) {
+    if (confirm("Remove this course from the sub-category?")) {
+        CURRICULUM_RULES[window.currentEditingKey][mIndex].subCategories[sIndex].codes.splice(cIndex, 1);
+        autoSaveCurriculum();
+    }
+};
+window.editCourseDetails = function(code) {
+    const currentInfo = getCourseInfo(code);
+    const newName = prompt(`Edit Course Name for ${code}:`, currentInfo.name);
+    if (newName === null) return;
+    const newCreds = prompt(`Edit Credits for ${code}:`, currentInfo.credits);
+    if (newCreds === null) return;
+    
+    CUSTOM_COURSE_DICT[code] = { name: newName.trim(), credits: parseFloat(newCreds) || currentInfo.credits };
+    autoSaveCurriculum();
+    alert(`✅ Updated ${code} across all buckets!`);
 };
 
 window.saveCurriculumEditor = function() {

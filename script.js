@@ -157,26 +157,48 @@ window.removeSystemProgram = function(index) {
   }
 };
 
+window.updateUploadDropdowns = function() {
+    // Fetch current system programs safely
+    let systemPrograms = [];
+    try { systemPrograms = JSON.parse(localStorage.getItem('AIIT_SYSTEM_PROGRAMS')) || []; } catch(e){}
+    
+    // Extract unique, trimmed batches and programs
+    const uniqueBatches = [...new Set(systemPrograms.map(p => String(p.batch).trim()))];
+    const uniqueProgs = [...new Set(systemPrograms.map(p => String(p.program).trim()))];
+    
+    // Build the strict option lists
+    const batchOptions = `<option value="">-- Select Batch --</option>` + uniqueBatches.map(b => `<option value="${b}">${b}</option>`).join('');
+    const progOptions = `<option value="">-- Select Program --</option>` + uniqueProgs.map(p => `<option value="${p}">${p}</option>`).join('');
+    
+    // Inject into all existing Result Upload file rows
+    document.querySelectorAll('.file-year-select').forEach(sel => {
+        const currentVal = sel.value;
+        sel.innerHTML = batchOptions;
+        if (uniqueBatches.includes(currentVal)) sel.value = currentVal;
+    });
+    
+    document.querySelectorAll('.file-program-select').forEach(sel => {
+        const currentVal = sel.value;
+        sel.innerHTML = progOptions;
+        if (uniqueProgs.includes(currentVal)) sel.value = currentVal;
+    });
+};
+
 window.renderSystemPrograms = function() {
-  // 1. Render tags in the manager
   const container = document.getElementById('active-system-programs');
   if (container) {
     container.innerHTML = SYSTEM_PROGRAMS.map((p, i) => `<span style="background: #334155; padding: 5px 10px; border-radius: 4px; color: white;">${p.batch} ${p.program} <button onclick="removeSystemProgram(${i})" style="background:none; border:none; color:#ef4444; cursor:pointer;">✖</button></span>`).join('');
   }
-  // 2. Update Curriculum Manager Dropdown dynamically
+  
   const currDropdown = document.getElementById('curriculum-edit-key');
   if (currDropdown) {
     currDropdown.innerHTML = SYSTEM_PROGRAMS.map(p => `<option value="${p.batch}_${p.program}">${p.batch} ${p.program}</option>`).join('');
   }
-  // 3. Update File Upload Dropdowns (if they exist)
-  document.querySelectorAll('.file-year-select').forEach(sel => {
-    const uniqueBatches = [...new Set(SYSTEM_PROGRAMS.map(p => p.batch))];
-    sel.innerHTML = `<option value="">-- Year --</option>` + uniqueBatches.map(b => `<option value="${b}">${b}</option>`).join('');
-  });
-  document.querySelectorAll('.file-program-select').forEach(sel => {
-    const uniqueProgs = [...new Set(SYSTEM_PROGRAMS.map(p => p.program))];
-    sel.innerHTML = `<option value="">-- Program --</option>` + uniqueProgs.map(p => `<option value="${p}">${p}</option>`).join('');
-  });
+  
+  // Trigger the universal Result Upload dropdown update
+  if (typeof updateUploadDropdowns === 'function') {
+    updateUploadDropdowns();
+  }
 };
 
 // Auto-initialize on load
@@ -2825,6 +2847,11 @@ function handleFilesSelected(files) {
 
   var btn = document.getElementById('btn-upload-process');
   if (btn) btn.style.display = 'block';
+
+  // Trigger dropdown updates to populate from dynamic system configuration
+  if (typeof updateUploadDropdowns === 'function') {
+    updateUploadDropdowns();
+  }
 }
 
 async function triggerTaggedUpload() {

@@ -113,6 +113,106 @@ try {
   CURRICULUM_RULES = BASE_CURRICULUM;
 }
 
+// ── Dynamic Program & Batch Manager (V1.0) ───────────────────────────────────
+let SYSTEM_PROGRAMS = JSON.parse(localStorage.getItem('AIIT_SYSTEM_PROGRAMS')) || [
+  { batch: "2024", program: "MCA" }, { batch: "2025", program: "MCA" }, { batch: "2024", program: "B.C.A" }
+];
+
+window.addSystemProgram = function() {
+  const b = document.getElementById('new-batch-input').value.trim();
+  const p = document.getElementById('new-program-input').value.trim();
+  if (!b || !p) return alert("Please enter both Batch and Program.");
+  const exists = SYSTEM_PROGRAMS.some(x => x.batch === b && x.program === p);
+  if (!exists) {
+    SYSTEM_PROGRAMS.push({ batch: b, program: p });
+    localStorage.setItem('AIIT_SYSTEM_PROGRAMS', JSON.stringify(SYSTEM_PROGRAMS));
+    renderSystemPrograms();
+    alert(`✅ Added ${b} ${p} to the system!`);
+  }
+};
+
+window.removeSystemProgram = function(index) {
+  if (confirm("Remove this program? It will no longer appear in dropdowns.")) {
+    SYSTEM_PROGRAMS.splice(index, 1);
+    localStorage.setItem('AIIT_SYSTEM_PROGRAMS', JSON.stringify(SYSTEM_PROGRAMS));
+    renderSystemPrograms();
+  }
+};
+
+window.renderSystemPrograms = function() {
+  // 1. Render tags in the manager
+  const container = document.getElementById('active-system-programs');
+  if (container) {
+    container.innerHTML = SYSTEM_PROGRAMS.map((p, i) => `<span style="background: #334155; padding: 5px 10px; border-radius: 4px; color: white;">${p.batch} ${p.program} <button onclick="removeSystemProgram(${i})" style="background:none; border:none; color:#ef4444; cursor:pointer;">✖</button></span>`).join('');
+  }
+  // 2. Update Curriculum Manager Dropdown dynamically
+  const currDropdown = document.getElementById('curriculum-edit-key');
+  if (currDropdown) {
+    currDropdown.innerHTML = SYSTEM_PROGRAMS.map(p => `<option value="${p.batch}_${p.program}">${p.batch} ${p.program}</option>`).join('');
+  }
+  // 3. Update File Upload Dropdowns (if they exist)
+  document.querySelectorAll('.file-year-select').forEach(sel => {
+    const uniqueBatches = [...new Set(SYSTEM_PROGRAMS.map(p => p.batch))];
+    sel.innerHTML = `<option value="">-- Year --</option>` + uniqueBatches.map(b => `<option value="${b}">${b}</option>`).join('');
+  });
+  document.querySelectorAll('.file-program-select').forEach(sel => {
+    const uniqueProgs = [...new Set(SYSTEM_PROGRAMS.map(p => p.program))];
+    sel.innerHTML = `<option value="">-- Program --</option>` + uniqueProgs.map(p => `<option value="${p}">${p}</option>`).join('');
+  });
+};
+
+// Auto-initialize on load
+document.addEventListener("DOMContentLoaded", () => {
+  if (document.getElementById('active-system-programs')) renderSystemPrograms();
+});
+
+// ── Bulk Curriculum Excel Uploader (V1.0) ──────────────────────────────────
+window.handleBulkCurriculumUpload = function(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const keyDropdown = document.getElementById('curriculum-edit-key');
+  if (!keyDropdown) return;
+  window.currentEditingKey = keyDropdown.value;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const data = new Uint8Array(e.target.result);
+    const workbook = XLSX.read(data, { type: 'array' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet);
+
+    let newRules = [];
+    let bucketMap = {};
+
+    rows.forEach(row => {
+      // Expected Cols: Category Name | Min Credits | Course Code | Course Name | Course Credits
+      const cat = row['Category Name'] || row['Category'];
+      const minCreds = parseFloat(row['Min Credits']) || 0;
+      const code = String(row['Course Code']).trim().toUpperCase();
+      const name = row['Course Name'] || "Uploaded Course";
+      const courseCreds = parseFloat(row['Course Credits']) || 3;
+
+      if (!cat) return;
+      if (!bucketMap[cat]) {
+        bucketMap[cat] = { category: cat, minCredits: minCreds, codes: [] };
+        newRules.push(bucketMap[cat]);
+      }
+      if (code && code !== "UNDEFINED") {
+        bucketMap[cat].codes.push(code);
+        CUSTOM_COURSE_DICT[code] = { name: name, credits: courseCreds };
+      }
+    });
+
+    CURRICULUM_RULES[window.currentEditingKey] = newRules;
+    localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(CURRICULUM_RULES));
+    localStorage.setItem('AIIT_CUSTOM_COURSES', JSON.stringify(CUSTOM_COURSE_DICT));
+    loadCurriculumEditor();
+    alert(`✅ Successfully imported ${newRules.length} buckets from Excel!`);
+    event.target.value = ''; // Reset input
+  };
+  reader.readAsArrayBuffer(file);
+};
+
 // ═══════════════════════════════════════════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -727,6 +827,9 @@ function renderStudentDash(student) {
     // Standard (only passes) — no special handling needed
   });
 
+  // Expose active backlogs globally for the Traffic-Light Degree Audit UI
+  window.activeBacklogsGlobal = activeBacklogs;
+
   // ── Step A: Extract Unique Semesters (aggressive Unknown/null/undefined filter) ───
   const uniqueSems = [...new Set(student.courses.map(c => String(c.sem).trim()))]
     .filter(s => s && s !== '' && s.toLowerCase() !== 'unknown' && s.toLowerCase() !== 'undefined' && s.toLowerCase() !== 'null');
@@ -811,26 +914,48 @@ function renderStudentDash(student) {
     } else {
       let auditHTML = `<h3>Curriculum Degree Audit (Min 80 Credits)</h3>`;
       auditResult.audit.forEach(cat => {
-        const statusIcon = cat.earned >= cat.minCredits ? "✅ Cleared" : `❌ Missing ${cat.minCredits - cat.earned} Credits`;
+        // Traffic-Light Status Logic (V1.0)
+        const hasBacklogInBucket = cat.codes.some(code => window.activeBacklogsGlobal && window.activeBacklogsGlobal.some(b => b.code === code));
+
+        let boxStyle, titleColor, statusHTML, pendingTitle, pendingBg;
+        if (hasBacklogInBucket) {
+          boxStyle = "background: #fef2f2; border: 2px solid #ef4444;";
+          titleColor = "#b91c1c";
+          statusHTML = `❌ Backlog Requires Clearance`;
+          pendingTitle = "🚨 Active Backlogs / Pending";
+          pendingBg = "rgba(239, 68, 68, 0.1)";
+        } else if (cat.earned >= cat.minCredits) {
+          boxStyle = "background: #f0fdf4; border: 2px solid #22c55e;";
+          titleColor = "#15803d";
+          statusHTML = `✅ Cleared`;
+          pendingTitle = "Remaining Options (Optional)";
+          pendingBg = "rgba(22, 163, 74, 0.05)";
+        } else {
+          boxStyle = "background: #fffbeb; border: 2px solid #f59e0b;";
+          titleColor = "#b45309";
+          statusHTML = `⚠️ Missing ${cat.minCredits - cat.earned} Credits`;
+          pendingTitle = "⏳ Available / Pending Courses";
+          pendingBg = "rgba(245, 158, 11, 0.1)";
+        }
 
         let completedRows = cat.completedList.map(c => `<tr><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.code)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.title)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.cred)}</td></tr>`).join('');
         if (!completedRows) completedRows = `<tr><td colspan="3" style="border: 1px solid #ccc; padding: 6px; text-align:center; color: #666;">No courses completed yet</td></tr>`;
         const compTable = `<div class="table-responsive"><table style="border-collapse: collapse; width: 100%; margin-bottom: 15px; font-size: 0.9em;">
-          <thead style="background: rgba(22, 163, 74, 0.1);"><tr><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Code</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Completed Course Name</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Credits</th></tr></thead>
+          <thead style="background: rgba(22, 163, 74, 0.15); color: #15803d;"><tr><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Code</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Completed Course Name</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Credits</th></tr></thead>
           <tbody>${completedRows}</tbody>
         </table></div>`;
 
         let pendingRows = cat.pendingList.map(c => `<tr><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.code)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.title)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.cred)}</td></tr>`).join('');
         if (!pendingRows) pendingRows = `<tr><td colspan="3" style="border: 1px solid #ccc; padding: 6px; text-align:center; color: #666;">All requirements met for this bucket!</td></tr>`;
         const pendTable = `<div class="table-responsive"><table style="border-collapse: collapse; width: 100%; margin-bottom: 5px; font-size: 0.9em;">
-          <thead style="background: rgba(220, 38, 38, 0.1);"><tr><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Code</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Pending / Available Course Name</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Credits</th></tr></thead>
+          <thead style="background: ${pendingBg}; color: ${titleColor};"><tr><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Code</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">${pendingTitle}</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Credits</th></tr></thead>
           <tbody>${pendingRows}</tbody>
         </table></div>`;
 
         auditHTML += `
-          <details style="margin-bottom: 10px; background: var(--s2); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
-            <summary style="font-weight: bold; cursor: pointer; list-style-position: inside;">
-              ${cat.category} | Required: ${cat.minCredits} | Earned: ${cat.earned} | Status: ${statusIcon}
+          <details style="margin-bottom: 10px; ${boxStyle} padding: 12px; border-radius: 6px;">
+            <summary style="font-weight: bold; cursor: pointer; list-style-position: inside; color: ${titleColor};">
+              ${cat.category} | Required: ${cat.minCredits} | Earned: ${cat.earned} | ${statusHTML}
             </summary>
             <div style="margin-top: 15px; padding-left: 20px; font-size: 0.9em;">
               ${compTable}
@@ -1829,26 +1954,48 @@ function renderStudentDashboard(student, targetContainerId) {
     } else {
       let auditHTML = `<h3>Curriculum Degree Audit (Min 80 Credits)</h3>`;
       auditResult.audit.forEach(cat => {
-        const statusIcon = cat.earned >= cat.minCredits ? "✅ Cleared" : `❌ Missing ${cat.minCredits - cat.earned} Credits`;
+        // Traffic-Light Status Logic (V1.0)
+        const hasBacklogInBucket = cat.codes.some(code => window.activeBacklogsGlobal && window.activeBacklogsGlobal.some(b => b.code === code));
+
+        let boxStyle, titleColor, statusHTML, pendingTitle, pendingBg;
+        if (hasBacklogInBucket) {
+          boxStyle = "background: #fef2f2; border: 2px solid #ef4444;";
+          titleColor = "#b91c1c";
+          statusHTML = `❌ Backlog Requires Clearance`;
+          pendingTitle = "🚨 Active Backlogs / Pending";
+          pendingBg = "rgba(239, 68, 68, 0.1)";
+        } else if (cat.earned >= cat.minCredits) {
+          boxStyle = "background: #f0fdf4; border: 2px solid #22c55e;";
+          titleColor = "#15803d";
+          statusHTML = `✅ Cleared`;
+          pendingTitle = "Remaining Options (Optional)";
+          pendingBg = "rgba(22, 163, 74, 0.05)";
+        } else {
+          boxStyle = "background: #fffbeb; border: 2px solid #f59e0b;";
+          titleColor = "#b45309";
+          statusHTML = `⚠️ Missing ${cat.minCredits - cat.earned} Credits`;
+          pendingTitle = "⏳ Available / Pending Courses";
+          pendingBg = "rgba(245, 158, 11, 0.1)";
+        }
 
         let completedRows = cat.completedList.map(c => `<tr><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.code)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.title)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.cred)}</td></tr>`).join('');
         if (!completedRows) completedRows = `<tr><td colspan="3" style="border: 1px solid #ccc; padding: 6px; text-align:center; color: #666;">No courses completed yet</td></tr>`;
         const compTable = `<div class="table-responsive"><table style="border-collapse: collapse; width: 100%; margin-bottom: 15px; font-size: 0.9em;">
-          <thead style="background: rgba(22, 163, 74, 0.1);"><tr><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Code</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Completed Course Name</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Credits</th></tr></thead>
+          <thead style="background: rgba(22, 163, 74, 0.15); color: #15803d;"><tr><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Code</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Completed Course Name</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Credits</th></tr></thead>
           <tbody>${completedRows}</tbody>
         </table></div>`;
 
         let pendingRows = cat.pendingList.map(c => `<tr><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.code)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.title)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.cred)}</td></tr>`).join('');
         if (!pendingRows) pendingRows = `<tr><td colspan="3" style="border: 1px solid #ccc; padding: 6px; text-align:center; color: #666;">All requirements met for this bucket!</td></tr>`;
         const pendTable = `<div class="table-responsive"><table style="border-collapse: collapse; width: 100%; margin-bottom: 5px; font-size: 0.9em;">
-          <thead style="background: rgba(220, 38, 38, 0.1);"><tr><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Code</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Pending / Available Course Name</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Credits</th></tr></thead>
+          <thead style="background: ${pendingBg}; color: ${titleColor};"><tr><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Code</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">${pendingTitle}</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Credits</th></tr></thead>
           <tbody>${pendingRows}</tbody>
         </table></div>`;
 
         auditHTML += `
-          <details style="margin-bottom: 10px; background: var(--s2); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
-            <summary style="font-weight: bold; cursor: pointer; list-style-position: inside;">
-              ${cat.category} | Required: ${cat.minCredits} | Earned: ${cat.earned} | Status: ${statusIcon}
+          <details style="margin-bottom: 10px; ${boxStyle} padding: 12px; border-radius: 6px;">
+            <summary style="font-weight: bold; cursor: pointer; list-style-position: inside; color: ${titleColor};">
+              ${cat.category} | Required: ${cat.minCredits} | Earned: ${cat.earned} | ${statusHTML}
             </summary>
             <div style="margin-top: 15px; padding-left: 20px; font-size: 0.9em;">
               ${compTable}

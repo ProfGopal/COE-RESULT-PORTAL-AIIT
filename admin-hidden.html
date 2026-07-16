@@ -635,7 +635,7 @@
   <!-- VERSION TAG -->
   <div
     style="position:fixed;top:0;left:0;z-index:300;padding:0.35rem 1rem;font-size:0.68rem;color:var(--muted);pointer-events:none;font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-right-radius:6px;">
-    Version <strong style="color:var(--accent)">V20.1</strong>
+    Version <strong style="color:var(--accent)">V1.0</strong>
   </div>
 
   <!-- DEVELOPER CREDIT -->
@@ -682,6 +682,17 @@
     <div class="admin-body">
 
 
+      <!-- Batch & Program Manager (V1.0) -->
+      <div class="admin-panel-section" style="margin-bottom: 20px; padding: 20px; background: var(--s2); border-radius: 8px; border: 1px solid var(--border);">
+        <h2 style="color: #00d2ff; margin-top: 0;">⚙️ System Setup: Manage Batches &amp; Programs</h2>
+        <div style="display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">
+          <input type="text" id="new-batch-input" placeholder="New Batch (e.g., 2025)" style="padding: 8px; flex: 1; background: var(--s1); border: 1px solid var(--border); border-radius: 4px; color: var(--text); outline: none;">
+          <input type="text" id="new-program-input" placeholder="New Program (e.g., B.C.A)" style="padding: 8px; flex: 1; background: var(--s1); border: 1px solid var(--border); border-radius: 4px; color: var(--text); outline: none;">
+          <button onclick="addSystemProgram()" style="background: #10b981; color: white; padding: 8px 16px; font-weight: bold; border: none; border-radius: 4px; cursor: pointer;">➕ Add to System</button>
+        </div>
+        <div id="active-system-programs" style="display: flex; gap: 10px; flex-wrap: wrap;"></div>
+      </div>
+
       <!-- Upload Section -->
       <div style="margin-bottom:2rem">
         <div class="section-label">Upload Result Excel</div>
@@ -704,13 +715,11 @@
         <h2 style="color: #00d2ff; margin-top: 0; font-size: 1.4rem;">⚙️ Dynamic Curriculum Manager</h2>
         <p style="font-size: 0.9em; margin-bottom: 10px; color: var(--sub);">Edit the core curriculum rules directly. Changes made here apply immediately to the Degree Audit engine for all users.</p>
         
-        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-           <select id="curriculum-edit-key" style="padding: 8px; background: var(--s3); color: var(--text); border: 1px solid var(--border); border-radius: 6px; outline: none;">
-              <option value="2024_MCA">2024 MCA</option>
-              <option value="2025_MCA">2025 MCA</option>
-              <option value="2024_B.C.A">2024 B.C.A</option>
-           </select>
+        <div style="display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">
+           <select id="curriculum-edit-key" style="padding: 8px; background: var(--s3); color: var(--text); border: 1px solid var(--border); border-radius: 6px; outline: none;"></select>
            <button onclick="loadCurriculumEditor()" style="background: #2563eb; color: white; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Load Curriculum</button>
+           <input type="file" id="bulk-curriculum-upload" accept=".xlsx, .csv" style="display:none;" onchange="handleBulkCurriculumUpload(event)">
+           <button onclick="document.getElementById('bulk-curriculum-upload').click()" style="background: #8b5cf6; color: white; padding: 8px 16px; border:none; border-radius: 4px; cursor: pointer; font-weight:bold;">📤 Bulk Upload Excel Curriculum</button>
         </div>
         
         <div id="curriculum-gui-container" style="margin-top: 20px; display: flex; flex-direction: column; gap: 20px;"></div>

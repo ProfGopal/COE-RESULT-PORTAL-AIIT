@@ -168,65 +168,89 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // ── Bulk Curriculum Excel Uploader (V1.0) ──────────────────────────────────
 window.handleBulkCurriculumUpload = function(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  const keyDropdown = document.getElementById('curriculum-edit-key');
-  if (!keyDropdown) return;
-  window.currentEditingKey = keyDropdown.value;
+  try {
+    const file = event.target.files[0];
+    if (!file) return; // User cancelled file selection
 
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    const data = new Uint8Array(e.target.result);
-    const workbook = XLSX.read(data, { type: 'array' });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(sheet);
+    const keyDropdown = document.getElementById('curriculum-edit-key');
+    if(!keyDropdown || !keyDropdown.value) {
+        alert("❌ ERROR: Please select a Batch & Program from the dropdown first so the system knows where to save this curriculum!");
+        event.target.value = ''; 
+        return;
+    }
+    window.currentEditingKey = keyDropdown.value;
 
-    // V2.0: Hierarchical 7-column parser (Main Category -> Sub Category -> Course)
-    let newRules = [];
-    let mainMap = {};
+    // Diagnostic Check: Is the SheetJS library actually loaded?
+    if (typeof XLSX === 'undefined') {
+        alert("❌ SYSTEM ERROR: The Excel reading library (SheetJS) is missing. Please check your internet connection or ensure the script tag is in your HTML <head>.");
+        event.target.value = ''; 
+        return;
+    }
 
-    rows.forEach(row => {
-      const mainCat = row['Main Category'];
-      const mainCreds = parseFloat(row['Main Credits']) || 0;
-      const subCat = row['Sub Category'] || "General"; // Default sub-bucket if blank
-      const subCreds = parseFloat(row['Sub Credits']) || 0;
-      const code = String(row['Course Code']).trim().toUpperCase();
-      const name = row['Course Name'] || "Uploaded Course";
-      const courseCreds = parseFloat(row['Course Credits']) || 3;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, {type: 'array'});
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet);
+        
+        if (rows.length === 0) {
+            alert("❌ ERROR: The uploaded file appears to be empty or formatting is unreadable.");
+            return;
+        }
 
-      if (!mainCat) return;
+        let newRules = [];
+        let mainMap = {};
 
-      // Create Main Category if it doesn't exist
-      if (!mainMap[mainCat]) {
-        mainMap[mainCat] = { category: mainCat, minCredits: mainCreds, subCategories: {} };
-        newRules.push(mainMap[mainCat]);
+        rows.forEach(row => {
+          const mainCat = row['Main Category'];
+          const mainCreds = parseFloat(row['Main Credits']) || 0;
+          const subCat = row['Sub Category'] || "General Courses"; 
+          const subCreds = parseFloat(row['Sub Credits']) || 0;
+          const code = String(row['Course Code'] || "").trim().toUpperCase();
+          const name = row['Course Name'] || "Uploaded Course";
+          const courseCreds = parseFloat(row['Course Credits']) || 3;
+
+          if (!mainCat) return;
+
+          if (!mainMap[mainCat]) {
+            mainMap[mainCat] = { category: mainCat, minCredits: mainCreds, subCategories: {} };
+            newRules.push(mainMap[mainCat]);
+          }
+          if (!mainMap[mainCat].subCategories[subCat]) {
+            mainMap[mainCat].subCategories[subCat] = { name: subCat, minCredits: subCreds, codes: [] };
+          }
+          if (code && code !== "UNDEFINED") {
+            mainMap[mainCat].subCategories[subCat].codes.push(code);
+            CUSTOM_COURSE_DICT[code] = { name: name, credits: courseCreds };
+          }
+        });
+        
+        newRules.forEach(rule => { rule.subCategories = Object.values(rule.subCategories); });
+
+        CURRICULUM_RULES[window.currentEditingKey] = newRules;
+        localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(CURRICULUM_RULES));
+        localStorage.setItem('AIIT_CUSTOM_COURSES', JSON.stringify(CUSTOM_COURSE_DICT));
+        
+        alert(`✅ SUCCESS! Imported ${newRules.length} Main Categories for ${window.currentEditingKey}.`);
+        loadCurriculumEditor(); // Force GUI refresh
+        
+      } catch (parseError) {
+         console.error("Parse Error:", parseError);
+         alert("❌ DATA ERROR: Failed to read the Excel data. " + parseError.message);
+      } finally {
+         event.target.value = ''; // Reset input to allow re-uploading the exact same file if needed
       }
-
-      // Create Sub Category inside Main Category if it doesn't exist
-      if (!mainMap[mainCat].subCategories[subCat]) {
-        mainMap[mainCat].subCategories[subCat] = { name: subCat, minCredits: subCreds, codes: [] };
-      }
-
-      // Push Course
-      if (code && code !== "UNDEFINED") {
-        mainMap[mainCat].subCategories[subCat].codes.push(code);
-        CUSTOM_COURSE_DICT[code] = { name: name, credits: courseCreds };
-      }
-    });
-
-    // Convert subCategories object maps into arrays for easier rendering later
-    newRules.forEach(rule => {
-      rule.subCategories = Object.values(rule.subCategories);
-    });
-
-    CURRICULUM_RULES[window.currentEditingKey] = newRules;
-    localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(CURRICULUM_RULES));
-    localStorage.setItem('AIIT_CUSTOM_COURSES', JSON.stringify(CUSTOM_COURSE_DICT));
-    loadCurriculumEditor();
-    alert(`✅ Successfully imported ${newRules.length} main buckets from Excel!`);
-    event.target.value = ''; // Reset input
-  };
-  reader.readAsArrayBuffer(file);
+    };
+    
+    reader.onerror = function() { alert("❌ NETWORK ERROR: Browser failed to read the file."); };
+    reader.readAsArrayBuffer(file);
+    
+  } catch (err) {
+    console.error("Critical Upload Error:", err);
+    alert("❌ CRITICAL ERROR: " + err.message);
+  }
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════

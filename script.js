@@ -88,8 +88,11 @@ const COURSE_DICT = {
   "CSE5010": { name: "Advanced Python", credits: 2 }
 };
 
-// Fallback logic for unknown courses (defaults to 3 credits if not found)
-const getCourseInfo = (code) => COURSE_DICT[code] || { name: "Course Title", credits: 3 };
+// Custom Dictionary Engine (V20.0) — persists admin edits to course names/credits
+let CUSTOM_COURSE_DICT = JSON.parse(localStorage.getItem('AIIT_CUSTOM_COURSES')) || {};
+
+// Updated fallback logic to check custom edits first
+const getCourseInfo = (code) => CUSTOM_COURSE_DICT[code] || COURSE_DICT[code] || { name: "New/Custom Course", credits: 3 };
 
 const BASE_CURRICULUM = {
   "2024_MCA": [
@@ -2875,98 +2878,148 @@ async function clearAllRecords() {
   }
 })();
 
-// ── Admin Curriculum Editor Logic (V19.0 — Visual GUI Builder) ──────────────
-window.currentEditingKey = "2024_MCA"; // Default
+// ── Admin Curriculum Editor Logic (V20.0 — Table-Based Visual GUI Builder) ──────────────
+window.currentEditingKey = "2024_MCA";
 
 window.loadCurriculumEditor = function() {
   const keyDropdown = document.getElementById('curriculum-edit-key');
-  if (!keyDropdown || !document.getElementById('curriculum-gui-container')) return;
+  const container = document.getElementById('curriculum-gui-container');
+  if (!keyDropdown || !container) return;
   
   window.currentEditingKey = keyDropdown.value;
   const rules = CURRICULUM_RULES[window.currentEditingKey] || [];
   let html = "";
   
-  rules.forEach((rule, index) => {
+  rules.forEach((rule, bIndex) => {
     html += `
-      <div style="background: var(--s2, #1e293b); border: 1px solid var(--border, #334155); border-radius: 8px; padding: 15px; position: relative; margin-bottom: 10px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap;">
-          <h3 style="margin: 0; color: #38bdf8; font-size: 1.1em;">${esc(rule.category)}</h3>
-          <button onclick="editBucketName(${index})" style="background: #3b82f6; color: white; padding: 4px 8px; font-size: 0.8em; border-radius: 4px; border: none; cursor: pointer;">✏️ Edit Name</button>
-        </div>
-        <div style="margin-bottom: 10px;">
-          <strong>Minimum Credits Required:</strong> <span style="font-size: 1.2em; color: #10b981; margin-left: 5px;">${rule.minCredits}</span>
-          <button onclick="editBucketCredits(${index})" style="margin-left: 10px; background: #64748b; color: white; padding: 2px 6px; font-size: 0.7em; border-radius: 4px; border: none; cursor: pointer;">✏️ Edit Credits</button>
-        </div>
-        <div>
-          <strong style="display: block; margin-bottom: 5px;">Mapped Course Codes:</strong>
-          <div style="background: #0f172a; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 0.9em; word-wrap: break-word; color: #10b981;">
-            ${esc(rule.codes.join(', ')) || '<span style="color:var(--muted)">None</span>'}
+      <div style="background: var(--s2, #1e293b); border: 1px solid var(--border, #334155); border-radius: 8px; padding: 20px; position: relative;">
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #334155; padding-bottom: 10px;">
+          <div>
+            <h3 style="margin: 0; color: #38bdf8; font-size: 1.2em;">${rule.category} <button onclick="editBucketName(${bIndex})" style="background: transparent; border: none; cursor: pointer; font-size: 0.9em;">✏️</button></h3>
+            <div style="margin-top: 5px; color: #cbd5e1; font-size: 0.9em;">
+              Required Credits: <strong style="color: #10b981; font-size: 1.2em;">${rule.minCredits}</strong>
+              <button onclick="editBucketCredits(${bIndex})" style="background: #64748b; color: white; border: none; padding: 2px 6px; border-radius: 4px; cursor: pointer; font-size: 0.8em; margin-left: 5px;">Edit Credits</button>
+            </div>
           </div>
-          <button onclick="editBucketCodes(${index})" style="margin-top: 8px; background: #64748b; color: white; padding: 4px 8px; font-size: 0.8em; border-radius: 4px; border: none; cursor: pointer;">✏️ Edit Mapped Courses</button>
+          <button onclick="deleteBucket(${bIndex})" style="background: #dc2626; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">🗑️ Delete Bucket</button>
         </div>
-        <button onclick="deleteBucket(${index})" style="position: absolute; bottom: 15px; right: 15px; background: #ef4444; color: white; padding: 4px 8px; font-size: 0.8em; border-radius: 4px; border: none; cursor: pointer;">🗑️ Delete Bucket</button>
-      </div>
-    `;
+
+        <div class="table-responsive" style="margin-bottom: 15px;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.9em; background: #0f172a;">
+            <thead style="background: #1e293b;">
+              <tr>
+                <th style="padding: 10px; border: 1px solid #334155; text-align: left; color: #94a3b8;">Course Code</th>
+                <th style="padding: 10px; border: 1px solid #334155; text-align: left; color: #94a3b8;">Course Name</th>
+                <th style="padding: 10px; border: 1px solid #334155; text-align: center; color: #94a3b8;">Credits</th>
+                <th style="padding: 10px; border: 1px solid #334155; text-align: center; color: #94a3b8;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>`;
+    
+    if (rule.codes.length === 0) {
+      html += `<tr><td colspan="4" style="padding: 15px; text-align: center; color: #64748b;">No courses added yet.</td></tr>`;
+    } else {
+      rule.codes.forEach((code, cIndex) => {
+        const info = getCourseInfo(code);
+        html += `
+              <tr>
+                <td style="padding: 10px; border: 1px solid #334155; font-weight: bold; color: #f8fafc;">${code}</td>
+                <td style="padding: 10px; border: 1px solid #334155; color: #cbd5e1;">${info.name}</td>
+                <td style="padding: 10px; border: 1px solid #334155; text-align: center; color: #38bdf8; font-weight: bold;">${info.credits}</td>
+                <td style="padding: 10px; border: 1px solid #334155; text-align: center;">
+                  <button onclick="editCourseDetails('${code}')" style="background: #ca8a04; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.8em; margin-right: 5px;">✏️ Edit</button>
+                  <button onclick="removeCourseFromBucket(${bIndex}, ${cIndex})" style="background: #ef4444; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.8em;">❌</button>
+                </td>
+              </tr>`;
+      });
+    }
+    
+    html += `
+            </tbody>
+          </table>
+        </div>
+        <button onclick="addCourseToBucket(${bIndex})" style="background: #2563eb; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold;">➕ Add Course to ${rule.category.split('.')[0]}</button>
+      </div>`;
   });
   
-  html += `<button onclick="addNewBucket()" style="background: #10b981; color: white; padding: 12px; font-size: 1em; border-radius: 6px; margin-top: 10px; font-weight: bold; border: none; cursor: pointer; width: 100%;">➕ Add New Bucket / Category</button>`;
-  document.getElementById('curriculum-gui-container').innerHTML = html;
+  html += `<button onclick="addNewBucket()" style="background: #10b981; color: white; border: none; padding: 15px; border-radius: 6px; cursor: pointer; font-size: 1.1em; font-weight: bold;">➕ Create New Bucket / Category</button>`;
+  container.innerHTML = html;
 };
 
-// V19.0 GUI Edit Controllers
+// V20.0 Table Interaction Logic (Add, Edit, Remove)
 function autoSaveCurriculum() {
   localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(CURRICULUM_RULES));
-  loadCurriculumEditor(); // Re-render GUI
+  localStorage.setItem('AIIT_CUSTOM_COURSES', JSON.stringify(CUSTOM_COURSE_DICT));
+  loadCurriculumEditor();
 }
 
-window.editBucketName = function(index) {
-  const rule = CURRICULUM_RULES[window.currentEditingKey][index];
-  const newName = prompt("Enter new Category Name:", rule.category);
-  if (newName !== null && newName.trim() !== "") { rule.category = newName.trim(); autoSaveCurriculum(); }
+window.addCourseToBucket = function(bIndex) {
+  const code = prompt("Enter the Course Code (e.g., CSE9001):");
+  if (!code || code.trim() === "") return;
+  const cleanCode = code.trim().toUpperCase();
+  
+  const name = prompt(`Enter Course Name for ${cleanCode}:`, "New Elective Course");
+  const credits = prompt(`Enter Credits for ${cleanCode}:`, "3");
+  
+  // Save to custom dictionary
+  CUSTOM_COURSE_DICT[cleanCode] = { name: name || "Custom Course", credits: parseFloat(credits) || 3 };
+  
+  // Add to bucket
+  CURRICULUM_RULES[window.currentEditingKey][bIndex].codes.push(cleanCode);
+  autoSaveCurriculum();
 };
 
-window.editBucketCredits = function(index) {
-  const rule = CURRICULUM_RULES[window.currentEditingKey][index];
-  const newCreds = prompt("Enter minimum credits required for this bucket:", rule.minCredits);
-  if (newCreds !== null && newCreds.trim() !== "" && !isNaN(newCreds)) {
-    rule.minCredits = parseFloat(newCreds);
+window.removeCourseFromBucket = function(bIndex, cIndex) {
+  if(confirm("Remove this course from the bucket?")) {
+    CURRICULUM_RULES[window.currentEditingKey][bIndex].codes.splice(cIndex, 1);
     autoSaveCurriculum();
   }
 };
 
-window.editBucketCodes = function(index) {
-  const rule = CURRICULUM_RULES[window.currentEditingKey][index];
-  const newCodesStr = prompt("Enter course codes separated by commas (e.g., CSE101, CSE102):", rule.codes.join(', '));
-  if (newCodesStr !== null) { 
-    rule.codes = newCodesStr.split(',').map(c => c.trim().toUpperCase()).filter(c => c); 
-    autoSaveCurriculum(); 
-  }
+window.editCourseDetails = function(code) {
+  const currentInfo = getCourseInfo(code);
+  const newName = prompt(`Edit Course Name for ${code}:`, currentInfo.name);
+  if (newName === null) return;
+  const newCreds = prompt(`Edit Credits for ${code}:`, currentInfo.credits);
+  if (newCreds === null) return;
+  
+  CUSTOM_COURSE_DICT[code] = { name: newName.trim(), credits: parseFloat(newCreds) || currentInfo.credits };
+  autoSaveCurriculum();
+  alert(`✅ Updated ${code} across all buckets!`);
+};
+
+window.editBucketName = function(index) {
+  const newName = prompt("Enter new Category Name:", CURRICULUM_RULES[window.currentEditingKey][index].category);
+  if (newName) { CURRICULUM_RULES[window.currentEditingKey][index].category = newName.trim(); autoSaveCurriculum(); }
+};
+
+window.editBucketCredits = function(index) {
+  const newCreds = prompt("Enter minimum credits required:", CURRICULUM_RULES[window.currentEditingKey][index].minCredits);
+  if (newCreds !== null && !isNaN(newCreds)) { CURRICULUM_RULES[window.currentEditingKey][index].minCredits = parseFloat(newCreds); autoSaveCurriculum(); }
+};
+
+window.deleteBucket = function(index) {
+  if(confirm("Delete this entire bucket?")) { CURRICULUM_RULES[window.currentEditingKey].splice(index, 1); autoSaveCurriculum(); }
 };
 
 window.addNewBucket = function() {
   const name = prompt("Enter Name for new Bucket:");
-  if (!name) return;
-  if (!CURRICULUM_RULES[window.currentEditingKey]) CURRICULUM_RULES[window.currentEditingKey] = [];
-  CURRICULUM_RULES[window.currentEditingKey].push({ category: name.trim(), minCredits: 0, codes: [] });
-  autoSaveCurriculum();
-};
-
-window.deleteBucket = function(index) {
-  if(confirm("Are you sure you want to delete this entire bucket?")) {
-    CURRICULUM_RULES[window.currentEditingKey].splice(index, 1);
-    autoSaveCurriculum();
-  }
+  if (name) { CURRICULUM_RULES[window.currentEditingKey].push({ category: name.trim(), minCredits: 0, codes: [] }); autoSaveCurriculum(); }
 };
 
 window.saveCurriculumEditor = function() {
   localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(CURRICULUM_RULES));
+  localStorage.setItem('AIIT_CUSTOM_COURSES', JSON.stringify(CUSTOM_COURSE_DICT));
   alert("✅ Curriculum Updated Successfully! The Degree Audit engine is now using these rules.");
 };
 
 window.resetCurriculumEditor = function() {
   if(confirm("Are you sure you want to delete all custom rules and reset to the factory defaults?")) {
     localStorage.removeItem('AIIT_CUSTOM_CURRICULUM');
+    localStorage.removeItem('AIIT_CUSTOM_COURSES');
     CURRICULUM_RULES = BASE_CURRICULUM;
+    CUSTOM_COURSE_DICT = {};
     loadCurriculumEditor();
     alert("♻️ Curriculum reset to defaults.");
   }

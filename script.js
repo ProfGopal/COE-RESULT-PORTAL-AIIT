@@ -1760,11 +1760,40 @@ async function facultySearchStudent() {
  * @returns {{ isSupported, isEligible, audit, totalEarnedInBuckets }}
  */
 function evaluateDegree(student) {
-  const ruleKey = `${student.batch}_${student.program}`;
-  const rules = CURRICULUM_RULES[ruleKey];
-  if (!rules) return { isSupported: false, isEligible: false };
+  const safeBatch = String(student.batch || "").trim();
+  const safeProgram = String(student.program || "").trim();
+  const exactKey = `${safeBatch}_${safeProgram}`;
+  
+  let rules = CURRICULUM_RULES[exactKey];
+  
+  // 1. UNIVERSAL FUZZY MATCHER (Strips dots, spaces, brackets for ALL programs)
+  const fuzzyTarget = exactKey.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+  
+  if (!rules || rules.length === 0) {
+      const matchedKey = Object.keys(CURRICULUM_RULES).find(k => 
+          k.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() === fuzzyTarget
+      );
+      if (matchedKey) {
+          rules = CURRICULUM_RULES[matchedKey];
+      }
+  }
 
-  // Clone rules for this audit (deep clone handles nested subCategories)
+  // 2. UNIVERSAL DIAGNOSTIC CHECK
+  let systemPrograms = [];
+  try { systemPrograms = JSON.parse(localStorage.getItem('AIIT_SYSTEM_PROGRAMS')) || []; } catch(e){}
+  
+  // Check if the program exists in the Admin's setup, using the same fuzzy logic
+  const isSystemKnown = systemPrograms.some(p => {
+      const sysKey = `${p.batch}_${p.program}`.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+      return sysKey === fuzzyTarget;
+  });
+
+  // 3. Reject if empty
+  if (!rules || rules.length === 0) {
+      return { isSupported: false, safeBatch, safeProgram, isSystemKnown };
+  }
+
+  // Clone rules for this audit
   let audit = JSON.parse(JSON.stringify(rules));
   let totalEarnedOverall = 0;
 
@@ -2191,20 +2220,29 @@ function renderStudentDashboard(student, targetContainerId) {
   // ── Build Expandable Degree Audit Tab Content ───────────────────────────────
   const auditContainer = document.getElementById(pfx + 'audit-tab');
   if (auditContainer) {
-    const safeBatch = String(student.batch || "").trim();
-    const safeProgram = String(student.program || "").trim();
-    const ruleKey = `${safeBatch}_${safeProgram}`;
-    const rules = CURRICULUM_RULES[ruleKey];
+    const auditResult = evaluateDegree(student);
     
-    if (!rules || rules.length === 0) {
+    if (!auditResult || !auditResult.isSupported || !auditResult.audit || auditResult.audit.length === 0) {
+      const b = String(student.batch || "Unknown").trim();
+      const p = String(student.program || "Unknown").trim();
+      
+      let messageTitle = "📭 Curriculum Not Mapped";
+      let messageBody = `No curriculum rules found for <strong>${b} ${p}</strong>.`;
+      let messageSub = "Administrators must add this to the System Setup and upload the curriculum.";
+      
+      if (auditResult && auditResult.isSystemKnown) {
+          messageTitle = "📂 Curriculum is Empty";
+          messageBody = `The program <strong>${b} ${p}</strong> exists in the system, but no subjects have been uploaded to it yet.`;
+          messageSub = "Please go to the Admin Panel > Manage Curriculum, select this program, and click 'Bulk Upload Excel Curriculum'.";
+      }
+
       auditContainer.innerHTML = `
         <div style="padding: 40px 20px; text-align: center; background: var(--s2, #1e293b); border: 2px dashed #475569; border-radius: 8px; margin-top: 20px;">
-          <h2 style="color: #94a3b8; margin-bottom: 10px;">📭 Curriculum Not Mapped</h2>
-          <p style="color: #cbd5e1; font-size: 1.1em;">No curriculum rules found for <strong>${safeBatch} ${safeProgram}</strong>.</p>
-          <p style="color: #64748b; font-size: 0.9em; margin-top: 15px;">Admins must upload the Curriculum via the Dynamic Curriculum Manager.</p>
+          <h2 style="color: #94a3b8; margin-bottom: 10px;">${messageTitle}</h2>
+          <p style="color: #cbd5e1; font-size: 1.1em;">${messageBody}</p>
+          <p style="color: #64748b; font-size: 0.9em; margin-top: 15px;">${messageSub}</p>
         </div>`;
     } else {
-      const auditResult = evaluateDegree(student);
       let auditHTML = `<h3>Curriculum Degree Audit</h3>`;
       auditResult.audit.forEach(main => {
         const mainEarned = main.earned || 0;

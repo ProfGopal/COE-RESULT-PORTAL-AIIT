@@ -2878,13 +2878,26 @@ async function clearAllRecords() {
   }
 })();
 
-// ── Admin Curriculum Editor Logic (V20.0 — Table-Based Visual GUI Builder) ──────────────
+// ── Admin Curriculum Editor Logic (V20.1 — Self-Healing Table-Based Visual GUI Builder) ──────────────
 window.currentEditingKey = "2024_MCA";
 
 window.loadCurriculumEditor = function() {
   const keyDropdown = document.getElementById('curriculum-edit-key');
+  if (!keyDropdown) return;
+
+  // --- SELF HEALING DOM LOGIC ---
+  // 1. If the old black code box exists, destroy it.
+  const oldTextarea = document.getElementById('curriculum-json-editor');
+  if (oldTextarea) {
+    const newContainer = document.createElement('div');
+    newContainer.id = 'curriculum-gui-container';
+    newContainer.style.cssText = "margin-top: 20px; display: flex; flex-direction: column; gap: 20px;";
+    oldTextarea.parentNode.replaceChild(newContainer, oldTextarea);
+  }
+
   const container = document.getElementById('curriculum-gui-container');
-  if (!keyDropdown || !container) return;
+  if (!container) return;
+  // ------------------------------
   
   window.currentEditingKey = keyDropdown.value;
   const rules = CURRICULUM_RULES[window.currentEditingKey] || [];

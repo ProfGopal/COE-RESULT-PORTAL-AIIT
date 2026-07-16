@@ -3341,7 +3341,11 @@ window.addCourseToSub = function(mIndex, sIndex) {
     const name = prompt(`Enter Course Name for ${cleanCode}:`, "New Course");
     const credits = prompt(`Enter Credits for ${cleanCode}:`, "3");
     
-    CUSTOM_COURSE_DICT[cleanCode] = { name: name || "Custom Course", credits: parseFloat(credits) || 3 };
+    // CRITICAL FIX: Explicitly handle 0 
+    const parsedCreds = parseFloat(credits);
+    const finalCreds = isNaN(parsedCreds) ? 3 : parsedCreds;
+    
+    CUSTOM_COURSE_DICT[cleanCode] = { name: name || "Custom Course", credits: finalCreds };
     CURRICULUM_RULES[window.currentEditingKey][mIndex].subCategories[sIndex].codes.push(cleanCode);
     autoSaveCurriculum();
 };
@@ -3358,9 +3362,13 @@ window.editCourseDetails = function(code) {
     const newCreds = prompt(`Edit Credits for ${code}:`, currentInfo.credits);
     if (newCreds === null) return;
     
-    CUSTOM_COURSE_DICT[code] = { name: newName.trim(), credits: parseFloat(newCreds) || currentInfo.credits };
+    // CRITICAL FIX: Explicitly handle 0 so it doesn't default back to old credits
+    const parsedCreds = parseFloat(newCreds);
+    const finalCreds = isNaN(parsedCreds) ? currentInfo.credits : parsedCreds;
+    
+    CUSTOM_COURSE_DICT[code] = { name: newName.trim(), credits: finalCreds };
     autoSaveCurriculum();
-    alert(`✅ Updated ${code} across all buckets!`);
+    alert(`✅ Updated ${code} to ${finalCreds} Credits!`);
 };
 
 window.saveCurriculumEditor = function() {

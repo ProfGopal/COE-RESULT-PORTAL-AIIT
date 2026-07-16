@@ -166,6 +166,27 @@ document.addEventListener("DOMContentLoaded", () => {
   if (document.getElementById('active-system-programs')) renderSystemPrograms();
 });
 
+window.switchAdminTab = function(tabId, btnElement) {
+    // Hide all tabs
+    document.querySelectorAll('.admin-tab-content').forEach(tab => tab.classList.remove('active'));
+    // Remove active class from all buttons
+    document.querySelectorAll('.admin-tab-btn').forEach(btn => btn.classList.remove('active'));
+    
+    // Show target tab and highlight button
+    document.getElementById(tabId).classList.add('active');
+    btnElement.classList.add('active');
+};
+
+window.clearEntireCurriculum = function() {
+    const key = document.getElementById('curriculum-edit-key').value;
+    if (confirm(`⚠️ WARNING: Are you absolutely sure you want to permanently delete the ENTIRE ${key} curriculum?`)) {
+        CURRICULUM_RULES[key] = []; // Empty the array
+        localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(CURRICULUM_RULES));
+        loadCurriculumEditor();
+        alert(`✅ Curriculum for ${key} has been completely cleared.`);
+    }
+};
+
 // ── Bulk Curriculum Excel Uploader (V1.0) ──────────────────────────────────
 window.handleBulkCurriculumUpload = function(event) {
   try {
@@ -3161,44 +3182,52 @@ window.loadCurriculumEditor = function() {
   const rawRules = CURRICULUM_RULES[window.currentEditingKey] || [];
   const validRules = rawRules.filter(r => r && r.category); 
 
-  let html = "";
+  let html = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+        <h3 style="color: #94a3b8;">Currently Editing: <span style="color:#38bdf8;">${window.currentEditingKey}</span></h3>
+        <button onclick="clearEntireCurriculum()" style="background:#dc2626; color:white; padding: 10px 15px; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">⚠️ Clear Full Curriculum</button>
+    </div>
+  `;
   
   if (validRules.length === 0) {
-      html = `<div style="padding:30px; background:var(--s2); color:#cbd5e1; text-align:center; border-radius:8px; border: 1px dashed #475569;">No curriculum added for ${window.currentEditingKey}. Please upload an Excel file.</div>`;
+      html += `<div style="padding:30px; background:var(--s2); color:#cbd5e1; text-align:center; border-radius:8px; border: 1px dashed #475569;">No curriculum data found for ${window.currentEditingKey}. Upload an Excel file or click 'Add New Bucket' to start.</div>`;
   } else {
       validRules.forEach((main, mIndex) => {
-          // MAIN CATEGORY LEVEL
           html += `
           <div style="background: var(--s2, #1e293b); border: 1px solid #3b82f6; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
-              <div style="border-bottom: 1px solid #334155; padding-bottom: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+              <div style="border-bottom: 1px solid #334155; padding-bottom: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
                   <div>
                       <h3 style="margin: 0; color: #38bdf8; font-size: 1.3em;">
                           📁 ${main.category} 
-                          <button onclick="editMainName(${mIndex})" style="background:none; border:none; cursor:pointer;">✏️</button>
+                          <button onclick="editMainName(${mIndex})" class="action-btn" style="background:#0ea5e9; margin-left:10px;">Rename</button>
                       </h3>
-                      <div style="margin-top: 5px;">
-                          <span style="color: #10b981; font-weight: bold; font-size: 0.9em;">Total Bucket Required: ${main.minCredits} Credits</span>
-                          <button onclick="editMainCredits(${mIndex})" style="background:#64748b; color:white; border:none; padding:2px 6px; border-radius:4px; cursor:pointer; font-size:0.8em; margin-left:5px;">Edit Credits</button>
+                      <div style="margin-top: 8px;">
+                          <span style="color: #10b981; font-weight: bold; font-size: 0.95em;">Total Required: ${main.minCredits} Credits</span>
+                          <button onclick="editMainCredits(${mIndex})" class="action-btn" style="background:#64748b; margin-left:10px;">Edit Credits</button>
                       </div>
                   </div>
-                  <button onclick="deleteMainBucket('${window.currentEditingKey}', ${mIndex})" style="background:#ef4444; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer;">🗑️ Delete Main Category</button>
+                  <button onclick="deleteMainBucket('${window.currentEditingKey}', ${mIndex})" class="action-btn" style="background:#ef4444; padding:8px 12px;">🗑️ Delete Main Category</button>
               </div>
           `;
 
-          (main.subCategories || []).forEach((sub, sIndex) => {
-              // SUB CATEGORY LEVEL
+          // CRITICAL FIX: Force subCategories to be an array so loop doesn't fail
+          const subs = Array.isArray(main.subCategories) ? main.subCategories : Object.values(main.subCategories || {});
+          
+          subs.forEach((sub, sIndex) => {
               html += `
               <div style="background: #0f172a; border: 1px solid #475569; border-radius: 6px; padding: 15px; margin-bottom: 15px; margin-left: 20px;">
-                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                       <div>
                           <h4 style="margin: 0; color: #e2e8f0; font-size: 1.1em;">
                               📄 ${sub.name} 
-                              <button onclick="editSubName(${mIndex}, ${sIndex})" style="background:none; border:none; cursor:pointer;">✏️</button>
+                              <button onclick="editSubName(${mIndex}, ${sIndex})" class="action-btn" style="background:#0ea5e9; margin-left:8px;">Rename</button>
                           </h4>
-                          <span style="color:#94a3b8; font-size: 0.85em;">(Min ${sub.minCredits} Credits)</span>
-                          <button onclick="editSubCredits(${mIndex}, ${sIndex})" style="background:#64748b; color:white; border:none; padding:2px 6px; border-radius:4px; cursor:pointer; font-size:0.7em; margin-left:5px;">Edit Credits</button>
+                          <div style="margin-top: 5px;">
+                            <span style="color:#94a3b8; font-size: 0.9em;">(Min ${sub.minCredits} Credits)</span>
+                            <button onclick="editSubCredits(${mIndex}, ${sIndex})" class="action-btn" style="background:#64748b; margin-left:8px;">Edit Credits</button>
+                          </div>
                       </div>
-                      <button onclick="deleteSubCategory(${mIndex}, ${sIndex})" style="background:transparent; color:#ef4444; border:1px solid #ef4444; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:0.8em;">🗑️ Remove Sub</button>
+                      <button onclick="deleteSubCategory(${mIndex}, ${sIndex})" class="action-btn" style="background:transparent; color:#ef4444; border:1px solid #ef4444;">🗑️ Remove Sub</button>
                   </div>
                   
                   <div class="table-responsive">
@@ -3214,33 +3243,33 @@ window.loadCurriculumEditor = function() {
                           <tbody>
               `;
 
-              if (!sub.codes || sub.codes.length === 0) {
+              const codesList = sub.codes || [];
+              if (codesList.length === 0) {
                   html += `<tr><td colspan="4" style="text-align:center; color:#64748b; padding: 10px;">No courses mapped</td></tr>`;
               } else {
-                  sub.codes.forEach((code, cIndex) => {
+                  codesList.forEach((code, cIndex) => {
                       const info = getCourseInfo(code);
-                      // COURSE LEVEL
                       html += `
                       <tr>
                           <td style="padding: 8px; border: 1px solid #475569; font-weight:bold; color:#f8fafc;">${code}</td>
                           <td style="padding: 8px; border: 1px solid #475569; color:#94a3b8;">${info.name}</td>
                           <td style="padding: 8px; border: 1px solid #475569; text-align:center; color:#38bdf8; font-weight:bold;">${info.credits}</td>
                           <td style="padding: 8px; border: 1px solid #475569; text-align:center;">
-                              <button onclick="editCourseDetails('${code}')" style="background:#ca8a04; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:0.8em; margin-right:4px;">✏️</button>
-                              <button onclick="removeCourseFromSub(${mIndex}, ${sIndex}, ${cIndex})" style="background:#ef4444; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:0.8em;">❌</button>
+                              <button onclick="editCourseDetails('${code}')" class="action-btn" style="background:#ca8a04; margin-right:5px;">Edit</button>
+                              <button onclick="removeCourseFromSub(${mIndex}, ${sIndex}, ${cIndex})" class="action-btn" style="background:#ef4444;">Remove</button>
                           </td>
                       </tr>`;
                   });
               }
               html += `</tbody></table></div>`;
-              html += `<button onclick="addCourseToSub(${mIndex}, ${sIndex})" style="margin-top: 10px; background: #2563eb; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.9em;">➕ Add Course to ${sub.name}</button>`;
+              html += `<button onclick="addCourseToSub(${mIndex}, ${sIndex})" class="action-btn" style="margin-top: 12px; background: #2563eb; padding: 8px 12px;">➕ Add Course to ${sub.name}</button>`;
               html += `</div>`;
           });
-          html += `<button onclick="addSubCategory(${mIndex})" style="margin-left: 20px; background: #0ea5e9; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold;">➕ Add New Sub-Category</button>`;
+          html += `<button onclick="addSubCategory(${mIndex})" class="action-btn" style="margin-left: 20px; background: #059669; padding: 10px 15px;">➕ Add Sub-Category</button>`;
           html += `</div>`;
       });
   }
-  html += `<div style="margin-top: 15px;"><button onclick="addNewBucket()" style="background: #10b981; color: white; border: none; padding: 15px; border-radius: 6px; cursor: pointer; font-size: 1.1em; font-weight: bold; width: 100%;">➕ Create New Main Category</button></div>`;
+  html += `<button onclick="addNewBucket()" style="background: #10b981; color: white; border: none; padding: 15px; border-radius: 6px; cursor: pointer; font-size: 1.1em; font-weight: bold; width:100%;">➕ Create New Main Category</button>`;
   container.innerHTML = html;
 };
 

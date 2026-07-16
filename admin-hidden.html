@@ -637,7 +637,7 @@
   <!-- VERSION TAG -->
   <div
     style="position:fixed;top:0;left:0;z-index:300;padding:0.35rem 1rem;font-size:0.68rem;color:var(--muted);pointer-events:none;font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-right-radius:6px;">
-    Version <strong style="color:var(--accent)">V3.0</strong>
+    Version <strong style="color:var(--accent)">V4.0</strong>
   </div>
 
   <!-- DEVELOPER CREDIT -->
@@ -683,7 +683,23 @@
 
     <div class="admin-body">
 
+      <style>
+        .admin-tab-nav { display: flex; gap: 10px; background: #0f172a; padding: 15px; border-radius: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+        .admin-tab-btn { background: #334155; color: #cbd5e1; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; flex: 1; min-width: 150px; transition: 0.3s; }
+        .admin-tab-btn.active { background: #3b82f6; color: white; box-shadow: 0 0 10px rgba(59,130,246,0.5); }
+        .admin-tab-content { display: none; animation: fadeIn 0.3s; }
+        .admin-tab-content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .action-btn { cursor: pointer; border: none; border-radius: 4px; padding: 4px 8px; font-size: 0.85em; font-weight: bold; color: white; }
+      </style>
 
+      <div class="admin-tab-nav">
+        <button class="admin-tab-btn active" onclick="switchAdminTab('tab-results', this)">📊 1. Upload Results &amp; System</button>
+        <button class="admin-tab-btn" onclick="switchAdminTab('tab-curriculum', this)">📚 2. Manage Curriculum</button>
+        <button class="admin-tab-btn" onclick="switchAdminTab('tab-students', this)">👥 3. Student Directory &amp; Passwords</button>
+      </div>
+
+      <div id="tab-results" class="admin-tab-content active">
       <!-- Batch & Program Manager (V1.0) -->
       <div class="admin-panel-section" style="margin-bottom: 20px; padding: 20px; background: var(--s2); border-radius: 8px; border: 1px solid var(--border);">
         <h2 style="color: #00d2ff; margin-top: 0;">⚙️ System Setup: Manage Batches &amp; Programs</h2>
@@ -711,7 +727,9 @@
         <button id="btn-upload-process" class="btn-primary" onclick="triggerTaggedUpload()" style="margin-top: 10px; display: none; width: 100%;">🚀 Process & Upload to Backend</button>
         <div class="alert" id="upload-alert"></div>
       </div>
+      </div><!-- /tab-results -->
 
+      <div id="tab-curriculum" class="admin-tab-content">
       <!-- Dynamic Curriculum Manager (V19.0) -->
       <div class="admin-panel-section" style="margin-top: 30px; padding: 20px; background: var(--s2); border-radius: 8px; border: 1px solid var(--border); margin-bottom: 2rem;">
         <h2 style="color: #00d2ff; margin-top: 0; font-size: 1.4rem;">⚙️ Dynamic Curriculum Manager</h2>
@@ -731,7 +749,9 @@
           <button onclick="resetCurriculumEditor()" style="background: #dc2626; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; transition: opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">⚠️ Reset to Default</button>
         </div>
       </div>
+      </div><!-- /tab-curriculum -->
 
+      <div id="tab-students" class="admin-tab-content">
       <!-- Password Reset Utility -->
       <div style="margin-bottom:2rem">
         <div class="section-label">Reset Student Password</div>
@@ -834,6 +854,8 @@
         <button onclick="closeAdminStudentView()" style="display:inline-flex;align-items:center;gap:0.4rem;margin-bottom:1.5rem;font-family:var(--mono);font-size:0.8rem;padding:0.45rem 1rem;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--sub);cursor:pointer;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--sub)'">← Back to Students List</button>
         <div id="admin-injected-student-data"></div>
       </div>
+      
+      </div><!-- /tab-students -->
 
     </div><!-- /admin-body -->
   </div><!-- /admin-dash -->

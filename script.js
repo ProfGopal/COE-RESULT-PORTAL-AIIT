@@ -181,33 +181,49 @@ window.handleBulkCurriculumUpload = function(event) {
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet);
 
+    // V2.0: Hierarchical 7-column parser (Main Category -> Sub Category -> Course)
     let newRules = [];
-    let bucketMap = {};
+    let mainMap = {};
 
     rows.forEach(row => {
-      // Expected Cols: Category Name | Min Credits | Course Code | Course Name | Course Credits
-      const cat = row['Category Name'] || row['Category'];
-      const minCreds = parseFloat(row['Min Credits']) || 0;
+      const mainCat = row['Main Category'];
+      const mainCreds = parseFloat(row['Main Credits']) || 0;
+      const subCat = row['Sub Category'] || "General"; // Default sub-bucket if blank
+      const subCreds = parseFloat(row['Sub Credits']) || 0;
       const code = String(row['Course Code']).trim().toUpperCase();
       const name = row['Course Name'] || "Uploaded Course";
       const courseCreds = parseFloat(row['Course Credits']) || 3;
 
-      if (!cat) return;
-      if (!bucketMap[cat]) {
-        bucketMap[cat] = { category: cat, minCredits: minCreds, codes: [] };
-        newRules.push(bucketMap[cat]);
+      if (!mainCat) return;
+
+      // Create Main Category if it doesn't exist
+      if (!mainMap[mainCat]) {
+        mainMap[mainCat] = { category: mainCat, minCredits: mainCreds, subCategories: {} };
+        newRules.push(mainMap[mainCat]);
       }
+
+      // Create Sub Category inside Main Category if it doesn't exist
+      if (!mainMap[mainCat].subCategories[subCat]) {
+        mainMap[mainCat].subCategories[subCat] = { name: subCat, minCredits: subCreds, codes: [] };
+      }
+
+      // Push Course
       if (code && code !== "UNDEFINED") {
-        bucketMap[cat].codes.push(code);
+        mainMap[mainCat].subCategories[subCat].codes.push(code);
         CUSTOM_COURSE_DICT[code] = { name: name, credits: courseCreds };
       }
+    });
+
+    // Convert subCategories object maps into arrays for easier rendering later
+    newRules.forEach(rule => {
+      rule.subCategories = Object.values(rule.subCategories);
     });
 
     CURRICULUM_RULES[window.currentEditingKey] = newRules;
     localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(CURRICULUM_RULES));
     localStorage.setItem('AIIT_CUSTOM_COURSES', JSON.stringify(CUSTOM_COURSE_DICT));
     loadCurriculumEditor();
-    alert(`✅ Successfully imported ${newRules.length} buckets from Excel!`);
+    alert(`✅ Successfully imported ${newRules.length} main buckets from Excel!`);
     event.target.value = ''; // Reset input
   };
   reader.readAsArrayBuffer(file);
@@ -912,57 +928,72 @@ function renderStudentDash(student) {
     if (!auditResult.isSupported) {
       auditTabEl.innerHTML = '<div style="padding:2.5rem; text-align:center; color:var(--muted); font-weight:500;">Curriculum mapping for ' + esc(student.batch || '') + ' ' + esc(student.program || '') + ' is pending.</div>';
     } else {
-      let auditHTML = `<h3>Curriculum Degree Audit (Min 80 Credits)</h3>`;
-      auditResult.audit.forEach(cat => {
-        // Traffic-Light Status Logic (V1.0)
-        const hasBacklogInBucket = cat.codes.some(code => window.activeBacklogsGlobal && window.activeBacklogsGlobal.some(b => b.code === code));
+      // V2.0: Nested Hierarchical Degree Audit UI
+      let auditHTML = `<h3>Curriculum Degree Audit</h3>`;
+      auditResult.audit.forEach(main => {
+        const mainEarned = main.earned || 0;
+        const mainStatus = mainEarned >= main.minCredits ? "✅ Cleared" : `⚠️ Missing ${main.minCredits - mainEarned}`;
+        const mainColor = mainEarned >= main.minCredits ? "#15803d" : "#b45309";
 
-        let boxStyle, titleColor, statusHTML, pendingTitle, pendingBg;
-        if (hasBacklogInBucket) {
-          boxStyle = "background: #fef2f2; border: 2px solid #ef4444;";
-          titleColor = "#b91c1c";
-          statusHTML = `❌ Backlog Requires Clearance`;
-          pendingTitle = "🚨 Active Backlogs / Pending";
-          pendingBg = "rgba(239, 68, 68, 0.1)";
-        } else if (cat.earned >= cat.minCredits) {
-          boxStyle = "background: #f0fdf4; border: 2px solid #22c55e;";
-          titleColor = "#15803d";
-          statusHTML = `✅ Cleared`;
-          pendingTitle = "Remaining Options (Optional)";
-          pendingBg = "rgba(22, 163, 74, 0.05)";
+        if (auditResult.isHierarchical && Array.isArray(main.subCategories)) {
+          auditHTML += `
+            <details style="margin-bottom: 12px; background: #f8fafc; border: 2px solid #cbd5e1; border-radius: 8px; padding: 10px;">
+              <summary style="font-weight: bold; font-size: 1.1em; cursor: pointer; color: ${mainColor};">
+                📁 ${main.category} | Required: ${main.minCredits} | Earned: ${mainEarned} | ${mainStatus}
+              </summary>
+              <div style="margin-top: 15px; padding-left: 15px; border-left: 3px solid #e2e8f0;">
+          `;
+          main.subCategories.forEach(sub => {
+            const subEarned = sub.earned || 0;
+            const hasBacklog = (sub.codes || []).some(code => window.activeBacklogsGlobal && window.activeBacklogsGlobal.some(b => b.code === code));
+            let subBg, subBorder, subIcon;
+            if (hasBacklog) { subBg = "#fef2f2"; subBorder = "#ef4444"; subIcon = "🚨 Backlog"; }
+            else if (subEarned >= sub.minCredits) { subBg = "#f0fdf4"; subBorder = "#22c55e"; subIcon = "✅ Cleared"; }
+            else { subBg = "#fffbeb"; subBorder = "#f59e0b"; subIcon = "⏳ Pending"; }
+
+            let compRows = (sub.completedList || []).map(c => `<tr><td style="border:1px solid #ccc;padding:4px;">${esc(c.code)}</td><td style="border:1px solid #ccc;padding:4px;">${esc(c.title)}</td><td style="border:1px solid #ccc;padding:4px;">${esc(String(c.cred))}</td></tr>`).join('');
+            let pendRows = (sub.pendingList || []).map(c => `<tr><td style="border:1px solid #ccc;padding:4px;">${esc(c.code)}</td><td style="border:1px solid #ccc;padding:4px;">${esc(c.title)}</td><td style="border:1px solid #ccc;padding:4px;">${esc(String(c.cred))}</td></tr>`).join('');
+
+            auditHTML += `
+              <details style="margin-bottom: 10px; background: ${subBg}; border: 1px solid ${subBorder}; padding: 10px; border-radius: 6px;">
+                <summary style="font-weight: bold; cursor: pointer;">
+                  📄 ${sub.name} (Min ${sub.minCredits}) — Earned: ${subEarned} [${subIcon}]
+                </summary>
+                <div style="margin-top: 10px;">
+                  <div class="table-responsive"><table style="width:100%; border-collapse: collapse; font-size: 0.85em; margin-bottom: 10px; background: white;">
+                    <thead style="background: rgba(22,163,74,0.15); color:#15803d;"><tr><th style="border:1px solid #ccc;padding:4px;">Code</th><th style="border:1px solid #ccc;padding:4px;">Completed</th><th style="border:1px solid #ccc;padding:4px;">Credits</th></tr></thead>
+                    <tbody>${compRows || '<tr><td colspan="3" style="text-align:center;padding:4px;">None</td></tr>'}</tbody>
+                  </table></div>
+                  <div class="table-responsive"><table style="width:100%; border-collapse: collapse; font-size: 0.85em; background: white;">
+                    <thead style="background: rgba(245,158,11,0.15); color:#b45309;"><tr><th style="border:1px solid #ccc;padding:4px;">Code</th><th style="border:1px solid #ccc;padding:4px;">Pending Options</th><th style="border:1px solid #ccc;padding:4px;">Credits</th></tr></thead>
+                    <tbody>${pendRows || '<tr><td colspan="3" style="text-align:center;padding:4px;">Requirements met</td></tr>'}</tbody>
+                  </table></div>
+                </div>
+              </details>
+            `;
+          });
+          auditHTML += `</div></details>`;
         } else {
-          boxStyle = "background: #fffbeb; border: 2px solid #f59e0b;";
-          titleColor = "#b45309";
-          statusHTML = `⚠️ Missing ${cat.minCredits - cat.earned} Credits`;
-          pendingTitle = "⏳ Available / Pending Courses";
-          pendingBg = "rgba(245, 158, 11, 0.1)";
+          // Legacy flat rendering (V1.0 format fallback)
+          const hasBacklogInBucket = (main.codes || []).some(code => window.activeBacklogsGlobal && window.activeBacklogsGlobal.some(b => b.code === code));
+          let boxStyle, titleColor, statusHTML, pendingBg, pendingTitle;
+          if (hasBacklogInBucket) { boxStyle = "background:#fef2f2;border:2px solid #ef4444;"; titleColor = "#b91c1c"; statusHTML = "❌ Backlog Requires Clearance"; pendingTitle = "🚨 Active Backlogs"; pendingBg = "rgba(239,68,68,0.1)"; }
+          else if (mainEarned >= main.minCredits) { boxStyle = "background:#f0fdf4;border:2px solid #22c55e;"; titleColor = "#15803d"; statusHTML = "✅ Cleared"; pendingTitle = "Remaining Options"; pendingBg = "rgba(22,163,74,0.05)"; }
+          else { boxStyle = "background:#fffbeb;border:2px solid #f59e0b;"; titleColor = "#b45309"; statusHTML = `⚠️ Missing ${main.minCredits - mainEarned} Credits`; pendingTitle = "⏳ Pending Courses"; pendingBg = "rgba(245,158,11,0.1)"; }
+          let completedRows = (main.completedList || []).map(c => `<tr><td style="border:1px solid #ccc;padding:6px;">${esc(c.code)}</td><td style="border:1px solid #ccc;padding:6px;">${esc(c.title)}</td><td style="border:1px solid #ccc;padding:6px;">${esc(String(c.cred))}</td></tr>`).join('');
+          if (!completedRows) completedRows = `<tr><td colspan="3" style="border:1px solid #ccc;padding:6px;text-align:center;color:#666;">No courses completed yet</td></tr>`;
+          let pendingRows = (main.pendingList || []).map(c => `<tr><td style="border:1px solid #ccc;padding:6px;">${esc(c.code)}</td><td style="border:1px solid #ccc;padding:6px;">${esc(c.title)}</td><td style="border:1px solid #ccc;padding:6px;">${esc(String(c.cred))}</td></tr>`).join('');
+          if (!pendingRows) pendingRows = `<tr><td colspan="3" style="border:1px solid #ccc;padding:6px;text-align:center;color:#666;">All requirements met!</td></tr>`;
+          auditHTML += `
+            <details style="margin-bottom:10px;${boxStyle}padding:12px;border-radius:6px;">
+              <summary style="font-weight:bold;cursor:pointer;list-style-position:inside;color:${titleColor};">${main.category} | Required:${main.minCredits} | Earned:${mainEarned} | ${statusHTML}</summary>
+              <div style="margin-top:15px;padding-left:20px;font-size:0.9em;">
+                <div class="table-responsive"><table style="border-collapse:collapse;width:100%;margin-bottom:15px;font-size:0.9em;"><thead style="background:rgba(22,163,74,0.15);color:#15803d;"><tr><th style="border:1px solid #ccc;padding:6px;">Code</th><th style="border:1px solid #ccc;padding:6px;">Completed</th><th style="border:1px solid #ccc;padding:6px;">Credits</th></tr></thead><tbody>${completedRows}</tbody></table></div>
+                <div class="table-responsive"><table style="border-collapse:collapse;width:100%;margin-bottom:5px;font-size:0.9em;"><thead style="background:${pendingBg};color:${titleColor};"><tr><th style="border:1px solid #ccc;padding:6px;">Code</th><th style="border:1px solid #ccc;padding:6px;">${pendingTitle}</th><th style="border:1px solid #ccc;padding:6px;">Credits</th></tr></thead><tbody>${pendingRows}</tbody></table></div>
+              </div>
+            </details>
+          `;
         }
-
-        let completedRows = cat.completedList.map(c => `<tr><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.code)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.title)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.cred)}</td></tr>`).join('');
-        if (!completedRows) completedRows = `<tr><td colspan="3" style="border: 1px solid #ccc; padding: 6px; text-align:center; color: #666;">No courses completed yet</td></tr>`;
-        const compTable = `<div class="table-responsive"><table style="border-collapse: collapse; width: 100%; margin-bottom: 15px; font-size: 0.9em;">
-          <thead style="background: rgba(22, 163, 74, 0.15); color: #15803d;"><tr><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Code</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Completed Course Name</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Credits</th></tr></thead>
-          <tbody>${completedRows}</tbody>
-        </table></div>`;
-
-        let pendingRows = cat.pendingList.map(c => `<tr><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.code)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.title)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.cred)}</td></tr>`).join('');
-        if (!pendingRows) pendingRows = `<tr><td colspan="3" style="border: 1px solid #ccc; padding: 6px; text-align:center; color: #666;">All requirements met for this bucket!</td></tr>`;
-        const pendTable = `<div class="table-responsive"><table style="border-collapse: collapse; width: 100%; margin-bottom: 5px; font-size: 0.9em;">
-          <thead style="background: ${pendingBg}; color: ${titleColor};"><tr><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Code</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">${pendingTitle}</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Credits</th></tr></thead>
-          <tbody>${pendingRows}</tbody>
-        </table></div>`;
-
-        auditHTML += `
-          <details style="margin-bottom: 10px; ${boxStyle} padding: 12px; border-radius: 6px;">
-            <summary style="font-weight: bold; cursor: pointer; list-style-position: inside; color: ${titleColor};">
-              ${cat.category} | Required: ${cat.minCredits} | Earned: ${cat.earned} | ${statusHTML}
-            </summary>
-            <div style="margin-top: 15px; padding-left: 20px; font-size: 0.9em;">
-              ${compTable}
-              ${pendTable}
-            </div>
-          </details>
-        `;
       });
       auditTabEl.innerHTML = auditHTML;
     }
@@ -1655,95 +1686,147 @@ async function facultySearchStudent() {
  * @returns {{ isSupported, isEligible, audit, totalEarnedInBuckets }}
  */
 function evaluateDegree(student) {
-  const batchClean = String(student.batch || '').match(/(20\d{2})/) ? String(student.batch).match(/(20\d{2})/)[1] : String(student.batch || '').trim();
-  const ruleKey = `${batchClean}_${student.program}`;
+  const ruleKey = `${student.batch}_${student.program}`;
   const rules = CURRICULUM_RULES[ruleKey];
   if (!rules) return { isSupported: false, isEligible: false };
 
-  // Deep-clone rules with V17 field names
-  let audit = rules.map(r => ({
-    category: r.category,
-    minCredits: r.minCredits,
-    codes: r.codes.slice(),
-    earned: 0,
-    completedList: [],  // rich objects for completed courses
-    pendingList: []     // rich objects for pending courses
-  }));
+  // Clone rules for this audit (deep clone handles nested subCategories)
+  let audit = JSON.parse(JSON.stringify(rules));
+  let totalEarnedOverall = 0;
 
-  let totalEarnedInBuckets = 0;
-
-  // 1. Filter to PASSED courses only
-  const FAIL_GRADES = ['F', 'FAIL', 'AB'];
   const passedCourses = (student.courses || []).filter(c =>
-    c && c.code && !FAIL_GRADES.includes(String(c.grade || '').trim().toUpperCase())
+    c && c.code && !['F', 'FAIL', 'AB'].includes(String(c.grade || '').trim().toUpperCase())
   );
 
-  // 2. Deduplicate — keep highest earned credits per code
-  const passedMap = {};
+  // Deduplicate — keep one entry per course code
+  const uniquePassed = [];
+  const seenCodes = new Set();
   passedCourses.forEach(c => {
     const code = String(c.code || '').trim().toUpperCase();
-    if (!code) return;
-    const cr = parseFloat(c.credits || c.creditEarned || 0) || 0;
-    if (!passedMap[code] || cr > passedMap[code].credits) {
+    if (code && !seenCodes.has(code)) { uniquePassed.push(c); seenCodes.add(code); }
+  });
+
+  // Handle both flat (V1.0) and hierarchical (V2.0) rule formats
+  const isHierarchical = audit.length > 0 && Array.isArray(audit[0].subCategories);
+
+  if (isHierarchical) {
+    // V2.0: Distribute passed courses into Sub-Categories
+    uniquePassed.forEach(c => {
+      const code = String(c.code || '').trim().toUpperCase();
       const cInfo = getCourseInfo(code);
-      passedMap[code] = {
-        code,
-        title: c.title || c.name || cInfo.name,
-        credits: cr || cInfo.credits
-      };
-    }
-  });
+      const creds = parseFloat(c.credits || c.creditEarned) || cInfo.credits;
+      const cObj = { code: code, title: c.title || c.name || cInfo.name, cred: creds };
 
-  // Build a flat set of all codes in categories 1-3 for catch-all detection
-  const knownCodes = new Set();
-  audit.slice(0, 3).forEach(cat => cat.codes.forEach(c => knownCodes.add(c.toUpperCase())));
+      let found = false;
+      audit.forEach(main => {
+        (main.subCategories || []).forEach(sub => {
+          if ((sub.codes || []).some(sc => sc.toUpperCase() === code)) {
+            if (!sub.completedList) sub.completedList = [];
+            sub.completedList.push(cObj);
+            sub.earned = (sub.earned || 0) + creds;
+            found = true;
+          }
+        });
+      });
+      if (!found) totalEarnedOverall += creds; // Unmatched = open elective
+    });
 
-  // 3. Drop into categories — V17.0: push rich objects
-  Object.values(passedMap).forEach(pc => {
-    const code = pc.code.toUpperCase();
-    const cInfo = getCourseInfo(pc.code);
-    const title = pc.title || cInfo.name;
-    const cred = pc.credits || cInfo.credits;
+    // Roll up Sub-Category math to Main Category, and build Pending Lists
+    let allMainBucketsMet = true;
+    audit.forEach(main => {
+      main.earned = 0;
+      (main.subCategories || []).forEach(sub => {
+        main.earned += (sub.earned || 0);
+        totalEarnedOverall += (sub.earned || 0);
 
-    let catIndex = audit.findIndex((cat, i) => i < 3 && cat.codes.some(bc => bc.toUpperCase() === code));
-    if (catIndex !== -1) {
-      audit[catIndex].earned += pc.credits;
-      totalEarnedInBuckets += pc.credits;
-      audit[catIndex].completedList.push({ code: pc.code, title: title, cred: cred });
-    } else if (audit[3]) {
-      // Also check if explicitly in category 4 codes (CSE5029, CSE5032)
-      const inCat4 = audit[3].codes.some(bc => bc.toUpperCase() === code);
-      if (inCat4 || !knownCodes.has(code)) {
-        // Assign to Category 4 (Open Elective)
-        audit[3].earned += pc.credits;
-        totalEarnedInBuckets += pc.credits;
-        audit[3].completedList.push({ code: pc.code, title: title, cred: cred });
-      }
-    }
-  });
+        // Build Pending list for this sub-category
+        sub.pendingList = [];
+        (sub.codes || []).forEach(code => {
+          const isCompleted = sub.completedList && sub.completedList.some(comp => comp.code === code.toUpperCase());
+          if (!isCompleted) {
+            const pInfo = getCourseInfo(code);
+            sub.pendingList.push({ code: code, title: pInfo.name, cred: pInfo.credits });
+          }
+        });
+      });
+      if (main.earned < main.minCredits) allMainBucketsMet = false;
+    });
 
-  // 4. Build pendingLists — V17.0: rich objects
-  // Buckets 1, 2, 3: any code whose display string is not in completedList
-  audit.slice(0, 3).forEach(cat => {
-    cat.codes.forEach(code => {
-      if (code === 'OPEN_ELECTIVE_CATCHALL') return;
-      // Check if code exists using .some() instead of string matching
-      if (!cat.completedList.some(comp => comp.code === code)) {
-        const pInfo = getCourseInfo(code);
-        cat.pendingList.push({ code: code, title: pInfo.name, cred: pInfo.credits });
+    const isEligible = allMainBucketsMet && (totalEarnedOverall >= 80);
+    return { isSupported: true, audit, isEligible, totalEarnedOverall, isHierarchical: true };
+
+  } else {
+    // V1.0 flat format — legacy compatibility path
+    const batchClean = String(student.batch || '').match(/(20\d{2})/) ? String(student.batch).match(/(20\d{2})/)[1] : String(student.batch || '').trim();
+    const legacyRuleKey = `${batchClean}_${student.program}`;
+    const legacyRules = CURRICULUM_RULES[legacyRuleKey];
+    if (!legacyRules) return { isSupported: false, isEligible: false };
+
+    let legacyAudit = legacyRules.map(r => ({
+      category: r.category,
+      minCredits: r.minCredits,
+      codes: (r.codes || []).slice(),
+      earned: 0,
+      completedList: [],
+      pendingList: []
+    }));
+
+    let totalEarnedInBuckets = 0;
+    const FAIL_GRADES = ['F', 'FAIL', 'AB'];
+    const passedCoursesFlat = (student.courses || []).filter(c =>
+      c && c.code && !FAIL_GRADES.includes(String(c.grade || '').trim().toUpperCase())
+    );
+    const passedMapFlat = {};
+    passedCoursesFlat.forEach(c => {
+      const code = String(c.code || '').trim().toUpperCase();
+      if (!code) return;
+      const cr = parseFloat(c.credits || c.creditEarned || 0) || 0;
+      if (!passedMapFlat[code] || cr > passedMapFlat[code].credits) {
+        const cInfo = getCourseInfo(code);
+        passedMapFlat[code] = { code, title: c.title || c.name || cInfo.name, credits: cr || cInfo.credits };
       }
     });
-  });
-  // Bucket 4 (Open Elective): fixed descriptive pending message as object
-  if (audit[3]) {
-    audit[3].pendingList.push({ code: "OPEN_ELECTIVE", title: "Choose any eligible open elective (e.g., CSE5029, CSE5032)", cred: "Var" });
+
+    const knownCodes = new Set();
+    legacyAudit.slice(0, 3).forEach(cat => cat.codes.forEach(c => knownCodes.add(c.toUpperCase())));
+
+    Object.values(passedMapFlat).forEach(pc => {
+      const code = pc.code.toUpperCase();
+      const cInfo = getCourseInfo(pc.code);
+      const title = pc.title || cInfo.name;
+      const cred = pc.credits || cInfo.credits;
+      let catIndex = legacyAudit.findIndex((cat, i) => i < 3 && cat.codes.some(bc => bc.toUpperCase() === code));
+      if (catIndex !== -1) {
+        legacyAudit[catIndex].earned += pc.credits;
+        totalEarnedInBuckets += pc.credits;
+        legacyAudit[catIndex].completedList.push({ code: pc.code, title, cred });
+      } else if (legacyAudit[3]) {
+        const inCat4 = legacyAudit[3].codes.some(bc => bc.toUpperCase() === code);
+        if (inCat4 || !knownCodes.has(code)) {
+          legacyAudit[3].earned += pc.credits;
+          totalEarnedInBuckets += pc.credits;
+          legacyAudit[3].completedList.push({ code: pc.code, title, cred });
+        }
+      }
+    });
+
+    legacyAudit.slice(0, 3).forEach(cat => {
+      cat.codes.forEach(code => {
+        if (code === 'OPEN_ELECTIVE_CATCHALL') return;
+        if (!cat.completedList.some(comp => comp.code === code)) {
+          const pInfo = getCourseInfo(code);
+          cat.pendingList.push({ code, title: pInfo.name, cred: pInfo.credits });
+        }
+      });
+    });
+    if (legacyAudit[3]) {
+      legacyAudit[3].pendingList.push({ code: "OPEN_ELECTIVE", title: "Choose any eligible open elective", cred: "Var" });
+    }
+
+    const allCategoriesMet = legacyAudit.every(cat => cat.earned >= cat.minCredits);
+    const isEligible = allCategoriesMet && (totalEarnedInBuckets >= 80);
+    return { isSupported: true, audit: legacyAudit, isEligible, totalEarnedInBuckets, isHierarchical: false };
   }
-
-  // 5. Determine overall eligibility
-  const allCategoriesMet = audit.every(cat => cat.earned >= cat.minCredits);
-  const isEligible = allCategoriesMet && (totalEarnedInBuckets >= 80);
-
-  return { isSupported: true, audit, isEligible, totalEarnedInBuckets };
 }
 
 window.showTab = function(tabId) {

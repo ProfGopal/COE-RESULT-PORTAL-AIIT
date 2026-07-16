@@ -1948,12 +1948,42 @@ window.showTab = function(tabId) {
  *   Pass 'faculty-injected-student-data' to draw inside the faculty detail view
  *   without interfering with the student login DOM.
  */
+window.showStudentTab = function(tabId, btnElement) {
+    let pfx = 'sdash-';
+    var adminDetail = document.getElementById('admin-student-detail-view');
+    var facDetail = document.getElementById('faculty-student-detail-view');
+    if (adminDetail && adminDetail.style.display !== 'none') {
+        pfx = 'admin-';
+    } else if (facDetail && facDetail.style.display !== 'none') {
+        pfx = 'finj-';
+    }
+    
+    // Hide all tab contents under this prefix
+    const tabContainer = btnElement.parentNode.parentNode;
+    if (tabContainer) {
+        tabContainer.querySelectorAll('.tab-content').forEach(tab => {
+            tab.style.display = 'none';
+        });
+    }
+    
+    // Show the selected tab
+    const targetTab = document.getElementById(pfx + tabId) || document.getElementById(tabId);
+    if (targetTab) {
+        targetTab.style.display = 'block';
+    }
+    
+    // Update active styling on buttons
+    btnElement.parentNode.querySelectorAll('.tab-btn, .tab').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    btnElement.classList.add('active');
+};
+
 function renderStudentDashboard(student, targetContainerId) {
   targetContainerId = targetContainerId || 'student-dash-content';
   var container = document.getElementById(targetContainerId);
   if (!container) return;
 
-  // ── Build the complete HTML structure for the student view ──────────────────
   var FAIL_GRADES = ['F', 'FAIL', 'AB'];
   var validCourses = (student.courses || []).filter(function (c) {
     return c && c.code && c.code !== 'nan' && c.code.trim() !== '';
@@ -1965,52 +1995,10 @@ function renderStudentDashboard(student, targetContainerId) {
   var credits = (!isNaN(creditsVal) && creditsVal !== 0) ? String(creditsVal) : 'N/A';
   var initials = (student.name || 'S').charAt(0);
 
-  // Generate unique prefix to avoid ID conflicts when rendering in faculty/admin view
   var pfx = 'sdash-';
   if (targetContainerId === 'faculty-injected-student-data') pfx = 'finj-';
   else if (targetContainerId === 'admin-injected-student-data') pfx = 'admin-';
 
-  container.innerHTML = [
-    '<div class="profile-card">',
-    '<div class="avatar">' + esc(initials) + '</div>',
-    '<div style="flex:1;min-width:0">',
-    '<div class="pinfo-name">' + esc(student.name) + '</div>',
-    '<div class="pinfo-meta">',
-    '<span>' + esc(student.program || '') + '</span>',
-    '<span>' + (student.school ? ' · ' + esc(student.school) : '') + '</span>',
-    '</div>',
-    '</div>',
-    '<div class="stat-row">',
-    '<div class="stat-chip"><div class="stat-val gold">' + esc(cgpa) + '</div><div class="stat-lbl">CGPA</div></div>',
-    '<div class="stat-chip"><div class="stat-val green">' + esc(credits) + '</div><div class="stat-lbl">Credits Earned</div></div>',
-    '<div class="stat-chip"><div class="stat-val blue">' + validCourses.length + '</div><div class="stat-lbl">Courses</div></div>',
-    '</div>',
-    '</div>',
-    '<div class="sem-tabs" id="' + pfx + 'sem-tabs"></div>',
-    '<div class="sem-summary-banner" id="' + pfx + 'sem-summary-banner"></div>',
-    
-    // Tab Pane for Courses Table
-    '<div id="' + pfx + 'courses-tab" class="tab-content" style="display:block;">',
-    '  <div class="card">',
-    '    <div class="card-head">',
-    '      <div class="card-title" id="' + pfx + 'tbl-title">All Courses</div>',
-    '      <div class="badge" id="' + pfx + 'tbl-badge">—</div>',
-    '    </div>',
-    '    <div class="tbl-wrap"><div class="table-responsive"><table>',
-    '      <thead><tr>',
-    '        <th>Code</th><th>Course Title</th><th>Type</th><th>Cr.</th>',
-    '        <th>Marks /100</th><th>Grade</th><th>Gr. Pts</th><th>Cr. Earned</th>',
-    '      </tr></thead>',
-    '      <tbody id="' + pfx + 'courses-tbody"></tbody>',
-    '    </table></div></div>',
-    '  </div>',
-    '</div>',
-
-    // Tab Pane for Degree Audit
-    '<div id="' + pfx + 'audit-tab" class="tab-content" style="display:none;"></div>'
-  ].join('');
-
-  // ── Smart Backlog Engine ────────────────────────────────────────────────────
   var courseGroups = {};
   validCourses.forEach(function (c) {
     var key = String(c.code || '').trim().toUpperCase();
@@ -2034,145 +2022,258 @@ function renderStudentDashboard(student, targetContainerId) {
     }
   });
 
-  // ── Unique Semesters (filter out Unknown/blank) ─────────────────────────────
   const uniqueSems = [...new Set(student.courses.map(c => String(c.sem).trim()))]
     .filter(s => s && s !== '' && s.toLowerCase() !== 'unknown' && s.toLowerCase() !== 'undefined' && s.toLowerCase() !== 'null');
 
+  let tabsNavHTML = `<button class="tab-btn tab active" onclick="showStudentTab('all-sem-tab', this)">All Semesters</button>`;
+  uniqueSems.forEach(s => {
+      tabsNavHTML += `<button class="tab-btn tab" onclick="showStudentTab('sem-${s}-tab', this)">${SEM_MAP[s] || s}</button>`;
+  });
+  if (activeBacklogs.length > 0) {
+      tabsNavHTML += `<button class="tab-btn tab" onclick="showStudentTab('active-backlogs-tab', this)">🔴 Active Backlogs</button>`;
+  }
+  if (clearedBacklogs.length > 0) {
+      tabsNavHTML += `<button class="tab-btn tab" onclick="showStudentTab('cleared-backlogs-tab', this)">🟢 Cleared Backlogs</button>`;
+  }
+  tabsNavHTML += `<button class="tab-btn tab" onclick="showStudentTab('audit-tab', this)" style="background:#3b82f6; color:white;">🎓 Degree Audit</button>`;
 
-  // ── Render Tabs ─────────────────────────────────────────────────────────────
-  var tabsEl = document.getElementById(pfx + 'sem-tabs');
-  if (!tabsEl) return;
-  tabsEl.innerHTML = '';
+  // 1. Build All Semesters Table (OPTIMIZED via batching string)
+  let allSemHTML = `<div class="table-responsive"><table style="width:100%; border-collapse:collapse;">
+    <thead style="background:#1e293b; color:white;">
+      <tr><th>Sem</th><th>Course Code</th><th>Course Title</th><th>Credits</th><th>Grade</th></tr>
+    </thead>
+    <tbody>`;
+  
+  const sortedCourses = [...student.courses].sort((a, b) => String(a.sem).localeCompare(String(b.sem)));
+  sortedCourses.forEach(c => {
+    const gradeColor = ['F', 'FAIL', 'AB'].includes(String(c.grade).toUpperCase()) ? 'color:#ef4444; font-weight:bold;' : 'color:#10b981;';
+    allSemHTML += `<tr>
+      <td style="padding:8px; border:1px solid #475569;">${c.sem}</td>
+      <td style="padding:8px; border:1px solid #475569; font-weight:bold;">${c.code}</td>
+      <td style="padding:8px; border:1px solid #475569;">${c.title || getCourseInfo(c.code).name}</td>
+      <td style="padding:8px; border:1px solid #475569; text-align:center;">${c.credits || getCourseInfo(c.code).credits}</td>
+      <td style="padding:8px; border:1px solid #475569; text-align:center; ${gradeColor}">${c.grade}</td>
+    </tr>`;
+  });
+  allSemHTML += `</tbody></table></div>`;
 
-  function makeInjectedTab(label, isAll, clickedSem, backlogType) {
-    var btn = document.createElement('button');
-    btn.className = 'tab' + (isAll ? ' active' : '');
-    btn.textContent = label;
-    btn.onclick = function () {
-      tabsEl.querySelectorAll('.tab, .tab-btn').forEach(function (t) { t.classList.remove('active'); });
-      btn.classList.add('active');
+  // 2. Build Semester Tables
+  let semHTML = {};
+  uniqueSems.forEach(s => {
+      const semCourses = student.courses.filter(c => String(c.sem).trim() === s);
+      let html = `
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">${SEM_MAP[s] || s}</div>
+            <div class="badge">${semCourses.length} course${semCourses.length !== 1 ? 's' : ''}</div>
+          </div>
+          <div class="tbl-wrap">
+            <div class="table-responsive">
+              <table style="width:100%; border-collapse:collapse;">
+                <thead style="background:#1e293b; color:white;">
+                  <tr><th>Course Code</th><th>Course Title</th><th>Credits</th><th>Grade</th></tr>
+                </thead>
+                <tbody>`;
+      semCourses.forEach(c => {
+          const gradeColor = ['F', 'FAIL', 'AB'].includes(String(c.grade).toUpperCase()) ? 'color:#ef4444; font-weight:bold;' : 'color:#10b981;';
+          html += `<tr>
+            <td style="padding:8px; border:1px solid #475569; font-weight:bold;">${c.code}</td>
+            <td style="padding:8px; border:1px solid #475569;">${c.title || getCourseInfo(c.code).name}</td>
+            <td style="padding:8px; border:1px solid #475569; text-align:center;">${c.credits || getCourseInfo(c.code).credits}</td>
+            <td style="padding:8px; border:1px solid #475569; text-align:center; ${gradeColor}">${c.grade}</td>
+          </tr>`;
+      });
+      html += `</tbody></table></div></div></div>`;
+      semHTML[s] = html;
+  });
 
-      // Hide audit-tab, show courses-tab
-      var coursesTab = document.getElementById(pfx + 'courses-tab');
-      var auditTab = document.getElementById(pfx + 'audit-tab');
-      if (coursesTab) coursesTab.style.display = 'block';
-      if (auditTab) auditTab.style.display = 'none';
-
-      var banner = document.getElementById(pfx + 'backlog-info-banner');
-      if (banner) banner.remove();
-      if (backlogType === 'active') {
-        renderCourses(activeBacklogs, '\uD83D\uDD34 Active Backlogs', 'all', pfx);
-        var b = document.createElement('div');
-        b.id = pfx + 'backlog-info-banner';
-        b.style.cssText = 'background:rgba(220,38,38,0.08);border:1px solid rgba(220,38,38,0.25);border-radius:8px;padding:0.75rem 1rem;color:#dc2626;font-size:0.88rem;font-weight:600;margin-bottom:0.75rem;';
-        b.textContent = '\u26A0 These courses require re-examination.';
-        var tblTitle = document.getElementById(pfx + 'tbl-title');
-        if (tblTitle && tblTitle.parentNode) tblTitle.parentNode.insertBefore(b, tblTitle);
-      } else if (backlogType === 'cleared') {
-        renderCourses(clearedBacklogs, '\uD83D\uDFE2 Cleared Backlogs', 'all', pfx);
-        var b = document.createElement('div');
-        b.id = pfx + 'backlog-info-banner';
-        b.style.cssText = 'background:rgba(22,163,74,0.08);border:1px solid rgba(22,163,74,0.25);border-radius:8px;padding:0.75rem 1rem;color:#16a34a;font-size:0.88rem;font-weight:600;margin-bottom:0.75rem;';
-        b.textContent = '\u2713 Historical backlogs successfully cleared.';
-        var tblTitle = document.getElementById(pfx + 'tbl-title');
-        if (tblTitle && tblTitle.parentNode) tblTitle.parentNode.insertBefore(b, tblTitle);
-      } else if (isAll) {
-        renderCourses(student.courses, 'All Semesters', 'all', pfx);
-      } else {
-        var filtered = student.courses.filter(function (c) { return c.sem === clickedSem; });
-        renderCourses(filtered, label, clickedSem, pfx);
-      }
-    };
-    return btn;
+  // 3. Build Backlogs Tables
+  let activeBacklogsHTML = "";
+  if (activeBacklogs.length > 0) {
+      activeBacklogsHTML = `
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">🔴 Active Backlogs</div>
+            <div class="badge">${activeBacklogs.length} course${activeBacklogs.length !== 1 ? 's' : ''}</div>
+          </div>
+          <div style="background:rgba(220,38,38,0.08);border:1px solid rgba(220,38,38,0.25);border-radius:8px;padding:0.75rem 1rem;color:#dc2626;font-size:0.88rem;font-weight:600;margin:10px;">⚠️ These courses require re-examination.</div>
+          <div class="tbl-wrap">
+            <div class="table-responsive">
+              <table style="width:100%; border-collapse:collapse;">
+                <thead style="background:#1e293b; color:white;">
+                  <tr><th>Course Code</th><th>Course Title</th><th>Credits</th><th>Grade</th></tr>
+                </thead>
+                <tbody>`;
+      activeBacklogs.forEach(c => {
+          activeBacklogsHTML += `<tr>
+            <td style="padding:8px; border:1px solid #475569; font-weight:bold;">${c.code}</td>
+            <td style="padding:8px; border:1px solid #475569;">${c.title || getCourseInfo(c.code).name}</td>
+            <td style="padding:8px; border:1px solid #475569; text-align:center;">${c.credits || getCourseInfo(c.code).credits}</td>
+            <td style="padding:8px; border:1px solid #475569; text-align:center; color:#ef4444; font-weight:bold;">${c.grade}</td>
+          </tr>`;
+      });
+      activeBacklogsHTML += `</tbody></table></div></div></div>`;
   }
 
-  tabsEl.appendChild(makeInjectedTab('All Semesters', true));
-  uniqueSems.forEach(function (s) {
-    tabsEl.appendChild(makeInjectedTab(SEM_MAP[s] || s, false, s));
+  let clearedBacklogsHTML = "";
+  if (clearedBacklogs.length > 0) {
+      clearedBacklogsHTML = `
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">🟢 Cleared Backlogs</div>
+            <div class="badge">${clearedBacklogs.length} course${clearedBacklogs.length !== 1 ? 's' : ''}</div>
+          </div>
+          <div style="background:rgba(22,163,74,0.08);border:1px solid rgba(22,163,74,0.25);border-radius:8px;padding:0.75rem 1rem;color:#16a34a;font-size:0.88rem;font-weight:600;margin:10px;">✓ Historical backlogs successfully cleared.</div>
+          <div class="tbl-wrap">
+            <div class="table-responsive">
+              <table style="width:100%; border-collapse:collapse;">
+                <thead style="background:#1e293b; color:white;">
+                  <tr><th>Course Code</th><th>Course Title</th><th>Credits</th><th>Grade</th></tr>
+                </thead>
+                <tbody>`;
+      clearedBacklogs.forEach(c => {
+          clearedBacklogsHTML += `<tr>
+            <td style="padding:8px; border:1px solid #475569; font-weight:bold;">${c.code}</td>
+            <td style="padding:8px; border:1px solid #475569;">${c.title || getCourseInfo(c.code).name}</td>
+            <td style="padding:8px; border:1px solid #475569; text-align:center;">${c.credits || getCourseInfo(c.code).credits}</td>
+            <td style="padding:8px; border:1px solid #475569; text-align:center; color:#10b981;">${c.grade}</td>
+          </tr>`;
+      });
+      clearedBacklogsHTML += `</tbody></table></div></div></div>`;
+  }
+
+  container.innerHTML = `
+    <div class="profile-card">
+      <div class="avatar">${esc(initials)}</div>
+      <div style="flex:1;min-width:0">
+        <div class="pinfo-name">${esc(student.name)}</div>
+        <div class="pinfo-meta">
+          <span>${esc(student.program || '')}</span>
+          <span>${student.school ? ' · ' + esc(student.school) : ''}</span>
+        </div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-chip"><div class="stat-val gold">${esc(cgpa)}</div><div class="stat-lbl">CGPA</div></div>
+        <div class="stat-chip"><div class="stat-val green">${esc(credits)}</div><div class="stat-lbl">Credits Earned</div></div>
+        <div class="stat-chip"><div class="stat-val blue">${validCourses.length}</div><div class="stat-lbl">Courses</div></div>
+      </div>
+    </div>
+    <div class="sem-tabs" id="${pfx}sem-tabs">${tabsNavHTML}</div>
+    <div class="sem-summary-banner" id="${pfx}sem-summary-banner"></div>
+    
+    <div id="${pfx}all-sem-tab" class="tab-content" style="display:block;"></div>
+    <div id="${pfx}audit-tab" class="tab-content" style="display:none;"></div>
+    ${uniqueSems.map(s => `<div id="${pfx}sem-${s}-tab" class="tab-content" style="display:none;"></div>`).join('')}
+    ${activeBacklogs.length > 0 ? `<div id="${pfx}active-backlogs-tab" class="tab-content" style="display:none;"></div>` : ''}
+    ${clearedBacklogs.length > 0 ? `<div id="${pfx}cleared-backlogs-tab" class="tab-content" style="display:none;"></div>` : ''}
+  `;
+
+  const allSemContainer = document.getElementById(pfx + 'all-sem-tab');
+  if (allSemContainer) allSemContainer.innerHTML = allSemHTML;
+
+  uniqueSems.forEach(s => {
+      const semContainer = document.getElementById(pfx + `sem-${s}-tab`);
+      if (semContainer) semContainer.innerHTML = semHTML[s];
   });
-  if (activeBacklogs.length > 0) tabsEl.appendChild(makeInjectedTab('\uD83D\uDD34 Active Backlogs', false, null, 'active'));
-  if (clearedBacklogs.length > 0) tabsEl.appendChild(makeInjectedTab('\uD83D\uDFE2 Cleared Backlogs', false, null, 'cleared'));
 
-  // ── Degree Audit Tab Button (V14.0) ──────────────────────────────────────────
-  var auditBtn = document.createElement('button');
-  auditBtn.className = 'tab-btn tab';
-  auditBtn.setAttribute('onclick', "showTab('audit-tab')");
-  auditBtn.textContent = '🎓 Degree Audit';
-  tabsEl.appendChild(auditBtn);
+  if (activeBacklogs.length > 0) {
+      const activeContainer = document.getElementById(pfx + 'active-backlogs-tab');
+      if (activeContainer) activeContainer.innerHTML = activeBacklogsHTML;
+  }
+  if (clearedBacklogs.length > 0) {
+      const clearedContainer = document.getElementById(pfx + 'cleared-backlogs-tab');
+      if (clearedContainer) clearedContainer.innerHTML = clearedBacklogsHTML;
+  }
 
-  // ── Build Expandable Degree Audit Tab Content (V14.0) ───────────────────────
-  var auditTabEl = document.getElementById(pfx + 'audit-tab');
-  if (auditTabEl) {
-    const ruleKey = `${student.batch}_${student.program}`;
+  updateSummaryBanner(student.courses, 'all', pfx);
+  renderDedicatedBacklogBanner(student.courses, 'all', pfx);
+
+  // ── Build Expandable Degree Audit Tab Content ───────────────────────────────
+  const auditContainer = document.getElementById(pfx + 'audit-tab');
+  if (auditContainer) {
+    const safeBatch = String(student.batch || "").trim();
+    const safeProgram = String(student.program || "").trim();
+    const ruleKey = `${safeBatch}_${safeProgram}`;
     const rules = CURRICULUM_RULES[ruleKey];
     
     if (!rules || rules.length === 0) {
-      let auditHTML = `
+      auditContainer.innerHTML = `
         <div style="padding: 40px 20px; text-align: center; background: var(--s2, #1e293b); border: 2px dashed #475569; border-radius: 8px; margin-top: 20px;">
-          <h2 style="color: #94a3b8; margin-bottom: 10px;">📭 Curriculum Not Found</h2>
-          <p style="color: #cbd5e1; font-size: 1.1em;">No curriculum has been mapped for <strong>${student.batch} ${student.program}</strong>.</p>
-          <p style="color: #64748b; font-size: 0.9em; margin-top: 15px;">Administrators can resolve this by uploading the curriculum via the Admin Portal.</p>
-        </div>
-      `;
-      auditTabEl.innerHTML = auditHTML;
+          <h2 style="color: #94a3b8; margin-bottom: 10px;">📭 Curriculum Not Mapped</h2>
+          <p style="color: #cbd5e1; font-size: 1.1em;">No curriculum rules found for <strong>${safeBatch} ${safeProgram}</strong>.</p>
+          <p style="color: #64748b; font-size: 0.9em; margin-top: 15px;">Admins must upload the Curriculum via the Dynamic Curriculum Manager.</p>
+        </div>`;
     } else {
-      let auditHTML = `<h3>Curriculum Degree Audit (Min 80 Credits)</h3>`;
-      auditResult.audit.forEach(cat => {
-        // Traffic-Light Status Logic (V1.0)
-        const hasBacklogInBucket = cat.codes.some(code => window.activeBacklogsGlobal && window.activeBacklogsGlobal.some(b => b.code === code));
+      const auditResult = evaluateDegree(student);
+      let auditHTML = `<h3>Curriculum Degree Audit</h3>`;
+      auditResult.audit.forEach(main => {
+        const mainEarned = main.earned || 0;
+        const mainStatus = mainEarned >= main.minCredits ? "✅ Cleared" : `⚠️ Missing ${main.minCredits - mainEarned}`;
+        const mainColor = mainEarned >= main.minCredits ? "#15803d" : "#b45309";
 
-        let boxStyle, titleColor, statusHTML, pendingTitle, pendingBg;
-        if (hasBacklogInBucket) {
-          boxStyle = "background: #fef2f2; border: 2px solid #ef4444;";
-          titleColor = "#b91c1c";
-          statusHTML = `❌ Backlog Requires Clearance`;
-          pendingTitle = "🚨 Active Backlogs / Pending";
-          pendingBg = "rgba(239, 68, 68, 0.1)";
-        } else if (cat.earned >= cat.minCredits) {
-          boxStyle = "background: #f0fdf4; border: 2px solid #22c55e;";
-          titleColor = "#15803d";
-          statusHTML = `✅ Cleared`;
-          pendingTitle = "Remaining Options (Optional)";
-          pendingBg = "rgba(22, 163, 74, 0.05)";
+        if (auditResult.isHierarchical && Array.isArray(main.subCategories)) {
+          auditHTML += `
+            <details style="margin-bottom: 12px; background: #f8fafc; border: 2px solid #cbd5e1; border-radius: 8px; padding: 10px;">
+              <summary style="font-weight: bold; font-size: 1.1em; cursor: pointer; color: ${mainColor};">
+                📁 ${main.category} | Required: ${main.minCredits} | Earned: ${mainEarned} | ${mainStatus}
+              </summary>
+              <div style="margin-top: 15px; padding-left: 15px; border-left: 3px solid #e2e8f0;">
+          `;
+          main.subCategories.forEach(sub => {
+            const subEarned = sub.earned || 0;
+            const hasBacklog = (sub.codes || []).some(code => window.activeBacklogsGlobal && window.activeBacklogsGlobal.some(b => b.code === code));
+            let subBg, subBorder, subIcon;
+            if (hasBacklog) { subBg = "#fef2f2"; subBorder = "#ef4444"; subIcon = "🚨 Backlog"; }
+            else if (subEarned >= sub.minCredits) { subBg = "#f0fdf4"; subBorder = "#22c55e"; subIcon = "✅ Cleared"; }
+            else { subBg = "#fffbeb"; subBorder = "#f59e0b"; subIcon = "⏳ Pending"; }
+
+            let compRows = (sub.completedList || []).map(c => `<tr><td style="border:1px solid #ccc;padding:4px;">${esc(c.code)}</td><td style="border:1px solid #ccc;padding:4px;">${esc(c.title)}</td><td style="border:1px solid #ccc;padding:4px;">${esc(String(c.cred))}</td></tr>`).join('');
+            let pendRows = (sub.pendingList || []).map(c => `<tr><td style="border:1px solid #ccc;padding:4px;">${esc(c.code)}</td><td style="border:1px solid #ccc;padding:4px;">${esc(c.title)}</td><td style="border:1px solid #ccc;padding:4px;">${esc(String(c.cred))}</td></tr>`).join('');
+
+            auditHTML += `
+              <details style="margin-bottom: 10px; background: ${subBg}; border: 1px solid ${subBorder}; padding: 10px; border-radius: 6px;">
+                <summary style="font-weight: bold; cursor: pointer;">
+                  📄 ${sub.name} (Min ${sub.minCredits}) — Earned: ${subEarned} [${subIcon}]
+                </summary>
+                <div style="margin-top: 10px;">
+                  <div class="table-responsive"><table style="width:100%; border-collapse: collapse; font-size: 0.85em; margin-bottom: 10px; background: white;">
+                    <thead style="background: rgba(22,163,74,0.15); color:#15803d;"><tr><th style="border:1px solid #ccc;padding:4px;">Code</th><th style="border:1px solid #ccc;padding:4px;">Completed</th><th style="border:1px solid #ccc;padding:4px;">Credits</th></tr></thead>
+                    <tbody>${compRows || '<tr><td colspan="3" style="text-align:center;padding:4px;">None</td></tr>'}</tbody>
+                  </table></div>
+                  <div class="table-responsive"><table style="width:100%; border-collapse: collapse; font-size: 0.85em; background: white;">
+                    <thead style="background: rgba(245,158,11,0.15); color:#b45309;"><tr><th style="border:1px solid #ccc;padding:4px;">Code</th><th style="border:1px solid #ccc;padding:4px;">Pending Options</th><th style="border:1px solid #ccc;padding:4px;">Credits</th></tr></thead>
+                    <tbody>${pendRows || '<tr><td colspan="3" style="text-align:center;padding:4px;">Requirements met</td></tr>'}</tbody>
+                  </table></div>
+                </div>
+              </details>
+            `;
+          });
+          auditHTML += `</div></details>`;
         } else {
-          boxStyle = "background: #fffbeb; border: 2px solid #f59e0b;";
-          titleColor = "#b45309";
-          statusHTML = `⚠️ Missing ${cat.minCredits - cat.earned} Credits`;
-          pendingTitle = "⏳ Available / Pending Courses";
-          pendingBg = "rgba(245, 158, 11, 0.1)";
+          // Legacy flat rendering (V1.0 format fallback)
+          const hasBacklogInBucket = (main.codes || []).some(code => window.activeBacklogsGlobal && window.activeBacklogsGlobal.some(b => b.code === code));
+          let boxStyle, titleColor, statusHTML, pendingBg, pendingTitle;
+          if (hasBacklogInBucket) { boxStyle = "background:#fef2f2;border:2px solid #ef4444;"; titleColor = "#b91c1c"; statusHTML = "❌ Backlog Requires Clearance"; pendingTitle = "🚨 Active Backlogs"; pendingBg = "rgba(239,68,68,0.1)"; }
+          else if (mainEarned >= main.minCredits) { boxStyle = "background:#f0fdf4;border:2px solid #22c55e;"; titleColor = "#15803d"; statusHTML = "✅ Cleared"; pendingTitle = "Remaining Options"; pendingBg = "rgba(22,163,74,0.05)"; }
+          else { boxStyle = "background:#fffbeb;border:2px solid #f59e0b;"; titleColor = "#b45309"; statusHTML = `⚠️ Missing ${main.minCredits - mainEarned} Credits`; pendingTitle = "⏳ Pending Courses"; pendingBg = "rgba(245,158,11,0.1)"; }
+          let completedRows = (main.completedList || []).map(c => `<tr><td style="border:1px solid #ccc;padding:6px;">${esc(c.code)}</td><td style="border:1px solid #ccc;padding:6px;">${esc(c.title)}</td><td style="border:1px solid #ccc;padding:6px;">${esc(String(c.cred))}</td></tr>`).join('');
+          if (!completedRows) completedRows = `<tr><td colspan="3" style="border:1px solid #ccc;padding:6px;text-align:center;color:#666;">No courses completed yet</td></tr>`;
+          let pendingRows = (main.pendingList || []).map(c => `<tr><td style="border:1px solid #ccc;padding:6px;">${esc(c.code)}</td><td style="border:1px solid #ccc;padding:6px;">${esc(c.title)}</td><td style="border:1px solid #ccc;padding:6px;">${esc(String(c.cred))}</td></tr>`).join('');
+          if (!pendingRows) pendingRows = `<tr><td colspan="3" style="border:1px solid #ccc;padding:6px;text-align:center;color:#666;">All requirements met!</td></tr>`;
+          auditHTML += `
+            <details style="margin-bottom:10px;${boxStyle}padding:12px;border-radius:6px;">
+              <summary style="font-weight:bold;cursor:pointer;list-style-position:inside;color:${titleColor};">${main.category} | Required:${main.minCredits} | Earned:${mainEarned} | ${statusHTML}</summary>
+              <div style="margin-top:15px;padding-left:20px;font-size:0.9em;">
+                <div class="table-responsive"><table style="border-collapse:collapse;width:100%;margin-bottom:15px;font-size:0.9em;"><thead style="background:rgba(22,163,74,0.15);color:#15803d;"><tr><th style="border:1px solid #ccc;padding:6px;">Code</th><th style="border:1px solid #ccc;padding:6px;">Completed</th><th style="border:1px solid #ccc;padding:6px;">Credits</th></tr></thead><tbody>${completedRows}</tbody></table></div>
+                <div class="table-responsive"><table style="border-collapse:collapse;width:100%;margin-bottom:5px;font-size:0.9em;"><thead style="background:${pendingBg};color:${titleColor};"><tr><th style="border:1px solid #ccc;padding:6px;">Code</th><th style="border:1px solid #ccc;padding:6px;">${pendingTitle}</th><th style="border:1px solid #ccc;padding:6px;">Credits</th></tr></thead><tbody>${pendingRows}</tbody></table></div>
+              </div>
+            </details>
+          `;
         }
-
-        let completedRows = cat.completedList.map(c => `<tr><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.code)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.title)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.cred)}</td></tr>`).join('');
-        if (!completedRows) completedRows = `<tr><td colspan="3" style="border: 1px solid #ccc; padding: 6px; text-align:center; color: #666;">No courses completed yet</td></tr>`;
-        const compTable = `<div class="table-responsive"><table style="border-collapse: collapse; width: 100%; margin-bottom: 15px; font-size: 0.9em;">
-          <thead style="background: rgba(22, 163, 74, 0.15); color: #15803d;"><tr><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Code</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Completed Course Name</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Credits</th></tr></thead>
-          <tbody>${completedRows}</tbody>
-        </table></div>`;
-
-        let pendingRows = cat.pendingList.map(c => `<tr><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.code)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.title)}</td><td style="border: 1px solid #ccc; padding: 6px; text-align: left;">${esc(c.cred)}</td></tr>`).join('');
-        if (!pendingRows) pendingRows = `<tr><td colspan="3" style="border: 1px solid #ccc; padding: 6px; text-align:center; color: #666;">All requirements met for this bucket!</td></tr>`;
-        const pendTable = `<div class="table-responsive"><table style="border-collapse: collapse; width: 100%; margin-bottom: 5px; font-size: 0.9em;">
-          <thead style="background: ${pendingBg}; color: ${titleColor};"><tr><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Code</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">${pendingTitle}</th><th style="border: 1px solid #ccc; padding: 6px; text-align: left;">Credits</th></tr></thead>
-          <tbody>${pendingRows}</tbody>
-        </table></div>`;
-
-        auditHTML += `
-          <details style="margin-bottom: 10px; ${boxStyle} padding: 12px; border-radius: 6px;">
-            <summary style="font-weight: bold; cursor: pointer; list-style-position: inside; color: ${titleColor};">
-              ${cat.category} | Required: ${cat.minCredits} | Earned: ${cat.earned} | ${statusHTML}
-            </summary>
-            <div style="margin-top: 15px; padding-left: 20px; font-size: 0.9em;">
-              ${compTable}
-              ${pendTable}
-            </div>
-          </details>
-        `;
       });
-      auditTabEl.innerHTML = auditHTML;
+      auditContainer.innerHTML = auditHTML;
     }
   }
-
-  renderCourses(student.courses, 'All Semesters', 'all', pfx);
 }
 
 /**

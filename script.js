@@ -89,10 +89,28 @@ const COURSE_DICT = {
 };
 
 // Custom Dictionary Engine (V20.0) — persists admin edits to course names/credits
-let CUSTOM_COURSE_DICT = JSON.parse(localStorage.getItem('AIIT_CUSTOM_COURSES')) || {};
+window.CUSTOM_COURSE_DICT = JSON.parse(localStorage.getItem('AIIT_CUSTOM_COURSES')) || {};
 
-// Updated fallback logic to check custom edits first
-const getCourseInfo = (code) => CUSTOM_COURSE_DICT[code] || COURSE_DICT[code] || { name: "New/Custom Course", credits: 3 };
+window.getCourseInfo = function(code) {
+    // 1. Check Custom Dictionary First
+    if (window.CUSTOM_COURSE_DICT && window.CUSTOM_COURSE_DICT[code]) {
+        let cr = window.CUSTOM_COURSE_DICT[code].credits;
+        return {
+            name: window.CUSTOM_COURSE_DICT[code].name,
+            credits: (cr !== undefined && cr !== null && !isNaN(cr)) ? parseFloat(cr) : 3
+        };
+    }
+    // 2. Check Hardcoded Default Dictionary
+    if (typeof COURSE_DICT !== 'undefined' && COURSE_DICT[code]) {
+        let cr = COURSE_DICT[code].credits;
+        return {
+            name: COURSE_DICT[code].name,
+            credits: (cr !== undefined && cr !== null && !isNaN(cr)) ? parseFloat(cr) : 3
+        };
+    }
+    // 3. Absolute Fallback
+    return { name: "Course Title", credits: 3 };
+};
 
 const BASE_CURRICULUM = {
   "2024_MCA": [
@@ -231,7 +249,8 @@ window.handleBulkCurriculumUpload = function(event) {
           const subCreds = parseFloat(row['Sub Credits']) || 0;
           const code = String(row['Course Code'] || "").trim().toUpperCase();
           const name = row['Course Name'] || "Uploaded Course";
-          const courseCreds = parseFloat(row['Course Credits']) || 3;
+          const rawCourseCred = parseFloat(row['Course Credits']);
+          const courseCreds = isNaN(rawCourseCred) ? 3 : rawCourseCred;
 
           if (!mainCat) return;
 
@@ -244,7 +263,7 @@ window.handleBulkCurriculumUpload = function(event) {
           }
           if (code && code !== "UNDEFINED") {
             mainMap[mainCat].subCategories[subCat].codes.push(code);
-            CUSTOM_COURSE_DICT[code] = { name: name, credits: courseCreds };
+            window.CUSTOM_COURSE_DICT[code] = { name: name, credits: courseCreds };
           }
         });
         
@@ -3341,11 +3360,11 @@ window.addCourseToSub = function(mIndex, sIndex) {
     const name = prompt(`Enter Course Name for ${cleanCode}:`, "New Course");
     const credits = prompt(`Enter Credits for ${cleanCode}:`, "3");
     
-    // CRITICAL FIX: Explicitly handle 0 
+    // STRICT ZERO CHECK
     const parsedCreds = parseFloat(credits);
     const finalCreds = isNaN(parsedCreds) ? 3 : parsedCreds;
     
-    CUSTOM_COURSE_DICT[cleanCode] = { name: name || "Custom Course", credits: finalCreds };
+    window.CUSTOM_COURSE_DICT[cleanCode] = { name: name || "Custom Course", credits: finalCreds };
     CURRICULUM_RULES[window.currentEditingKey][mIndex].subCategories[sIndex].codes.push(cleanCode);
     autoSaveCurriculum();
 };
@@ -3362,11 +3381,11 @@ window.editCourseDetails = function(code) {
     const newCreds = prompt(`Edit Credits for ${code}:`, currentInfo.credits);
     if (newCreds === null) return;
     
-    // CRITICAL FIX: Explicitly handle 0 so it doesn't default back to old credits
+    // STRICT ZERO CHECK
     const parsedCreds = parseFloat(newCreds);
     const finalCreds = isNaN(parsedCreds) ? currentInfo.credits : parsedCreds;
     
-    CUSTOM_COURSE_DICT[code] = { name: newName.trim(), credits: finalCreds };
+    window.CUSTOM_COURSE_DICT[code] = { name: newName.trim(), credits: finalCreds };
     autoSaveCurriculum();
     alert(`✅ Updated ${code} to ${finalCreds} Credits!`);
 };

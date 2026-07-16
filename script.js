@@ -1764,33 +1764,48 @@ function evaluateDegree(student) {
   const safeProgram = String(student.program || "").trim();
   const exactKey = `${safeBatch}_${safeProgram}`;
   
-  let rules = CURRICULUM_RULES[exactKey];
+  // CRITICAL FIX: Always fetch the freshest data right now to prevent Cross-Tab Stale Memory
+  let freshCurriculumDB = {};
+  try {
+      const saved = localStorage.getItem('AIIT_CUSTOM_CURRICULUM');
+      freshCurriculumDB = saved ? JSON.parse(saved) : (window.CURRICULUM_RULES || {});
+  } catch (e) {
+      freshCurriculumDB = window.CURRICULUM_RULES || {};
+  }
+
+  let rules = freshCurriculumDB[exactKey];
   
-  // 1. UNIVERSAL FUZZY MATCHER (Strips dots, spaces, brackets for ALL programs)
+  // UNIVERSAL FUZZY MATCHER 
   const fuzzyTarget = exactKey.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
   
   if (!rules || rules.length === 0) {
-      const matchedKey = Object.keys(CURRICULUM_RULES).find(k => 
+      const matchedKey = Object.keys(freshCurriculumDB).find(k => 
           k.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() === fuzzyTarget
       );
       if (matchedKey) {
-          rules = CURRICULUM_RULES[matchedKey];
+          rules = freshCurriculumDB[matchedKey];
       }
   }
 
-  // 2. UNIVERSAL DIAGNOSTIC CHECK
+  // DIAGNOSTIC CHECK
   let systemPrograms = [];
   try { systemPrograms = JSON.parse(localStorage.getItem('AIIT_SYSTEM_PROGRAMS')) || []; } catch(e){}
   
-  // Check if the program exists in the Admin's setup, using the same fuzzy logic
   const isSystemKnown = systemPrograms.some(p => {
       const sysKey = `${p.batch}_${p.program}`.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
       return sysKey === fuzzyTarget;
   });
 
-  // 3. Reject if empty
+  // Reject if empty and return the database keys for the diagnostic UI
   if (!rules || rules.length === 0) {
-      return { isSupported: false, safeBatch, safeProgram, isSystemKnown };
+      return { 
+          isSupported: false, 
+          safeBatch, 
+          safeProgram, 
+          isSystemKnown, 
+          fuzzyTarget, 
+          availableKeys: Object.keys(freshCurriculumDB).join(", ") 
+      };
   }
 
   // Clone rules for this audit
@@ -2228,19 +2243,23 @@ function renderStudentDashboard(student, targetContainerId) {
       
       let messageTitle = "📭 Curriculum Not Mapped";
       let messageBody = `No curriculum rules found for <strong>${b} ${p}</strong>.`;
-      let messageSub = "Administrators must add this to the System Setup and upload the curriculum.";
       
       if (auditResult && auditResult.isSystemKnown) {
           messageTitle = "📂 Curriculum is Empty";
           messageBody = `The program <strong>${b} ${p}</strong> exists in the system, but no subjects have been uploaded to it yet.`;
-          messageSub = "Please go to the Admin Panel > Manage Curriculum, select this program, and click 'Bulk Upload Excel Curriculum'.";
       }
 
       auditContainer.innerHTML = `
         <div style="padding: 40px 20px; text-align: center; background: var(--s2, #1e293b); border: 2px dashed #475569; border-radius: 8px; margin-top: 20px;">
           <h2 style="color: #94a3b8; margin-bottom: 10px;">${messageTitle}</h2>
           <p style="color: #cbd5e1; font-size: 1.1em;">${messageBody}</p>
-          <p style="color: #64748b; font-size: 0.9em; margin-top: 15px;">${messageSub}</p>
+          <p style="color: #64748b; font-size: 0.9em; margin-top: 15px;">Please go to the Admin Panel > Manage Curriculum, select this program, and upload the Excel file.</p>
+          
+          <div style="margin-top: 25px; padding: 15px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; text-align: left; font-family: monospace; color: #94a3b8; font-size: 0.85em; word-wrap: break-word;">
+             <strong style="color: #38bdf8;">⚙️ SYSTEM DIAGNOSTICS:</strong><br><br>
+             Target Looked For: <span style="color: #f8fafc;">${(auditResult && auditResult.fuzzyTarget) || "N/A"}</span><br>
+             Available Folders in Database: <span style="color: #10b981;">${(auditResult && auditResult.availableKeys) || "None"}</span>
+          </div>
         </div>`;
     } else {
       let auditHTML = `<h3>Curriculum Degree Audit</h3>`;

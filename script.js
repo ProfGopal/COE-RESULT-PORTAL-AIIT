@@ -3598,60 +3598,64 @@ if (document.getElementById('curriculum-gui-container')) {
 }
 
 // ============================================================
-// V1.4 — AGGRESSIVE DROPDOWN HUNTER
+// V1.5 — REAL-TIME MUTATION OBSERVER (DROPDOWN ENFORCER)
 // ============================================================
 window.updateUploadDropdowns = function() {
     let systemPrograms = [];
     try { systemPrograms = JSON.parse(localStorage.getItem('AIIT_SYSTEM_PROGRAMS')) || []; } catch(e){}
 
-    // Extract unique, trimmed batches and programs
     const uniqueBatches = [...new Set(systemPrograms.map(p => String(p.batch).trim()))];
     const uniqueProgs = [...new Set(systemPrograms.map(p => String(p.program).trim()))];
 
-    // Build the strict option lists
     const batchOptions = `<option value="">-- Select Batch --</option>` + uniqueBatches.map(b => `<option value="${b}">${b}</option>`).join('');
     const progOptions = `<option value="">-- Select Program --</option>` + uniqueProgs.map(p => `<option value="${p}">${p}</option>`).join('');
 
-    // HUNT: Target ALL possible class/ID names that might be used in your HTML
-    const batchDropdowns = document.querySelectorAll('.file-year-select, .batch-select, select[id*="batch"], select[id*="year"]');
-    const progDropdowns = document.querySelectorAll('.file-program-select, .program-select, select[id*="program"]');
+    // Target EVERY select element inside the Results Tab, EXCEPT the Curriculum Manager's dropdown
+    const allSelects = document.querySelectorAll('#tab-results select, .file-year-select, .file-program-select');
 
-    batchDropdowns.forEach(sel => {
-        // Only overwrite if the count mismatches to prevent screen flickering
-        if (sel.options.length !== (uniqueBatches.length + 1)) {
-            const currentVal = sel.value;
-            sel.innerHTML = batchOptions;
-            if (uniqueBatches.includes(currentVal)) sel.value = currentVal;
-        }
-    });
+    allSelects.forEach(sel => {
+        // Determine if this select is meant for Batches (contains numbers/years) or Programs
+        const isBatchDropdown = sel.className.includes('year') || sel.className.includes('batch') || (sel.options.length > 1 && /\d{4}/.test(sel.options[1].text));
 
-    progDropdowns.forEach(sel => {
-        if (sel.options.length !== (uniqueProgs.length + 1)) {
-            const currentVal = sel.value;
-            sel.innerHTML = progOptions;
-            if (uniqueProgs.includes(currentVal)) sel.value = currentVal;
+        if (isBatchDropdown) {
+            if (sel.options.length !== (uniqueBatches.length + 1)) {
+                const currentVal = sel.value;
+                sel.innerHTML = batchOptions;
+                if (uniqueBatches.includes(currentVal)) sel.value = currentVal;
+            }
+        } else {
+            // If it's not a batch dropdown, it must be the program dropdown
+            if (sel.options.length !== (uniqueProgs.length + 1)) {
+                const currentVal = sel.value;
+                sel.innerHTML = progOptions;
+                if (uniqueProgs.includes(currentVal)) sel.value = currentVal;
+            }
         }
     });
 };
 
-// ============================================================
-// AGGRESSIVE ENFORCER TRIGGERS
-// ============================================================
+// THE MUTATION OBSERVER: Watches the page in real-time for dynamically added file rows
+const domObserver = new MutationObserver((mutations) => {
+    let newSelectAdded = false;
+    mutations.forEach((mutation) => {
+        if (mutation.addedNodes && mutation.addedNodes.length > 0) {
+            mutation.addedNodes.forEach(node => {
+                // Check if the added node is a select, or a container holding a select
+                if (node.tagName === 'SELECT' || (node.querySelectorAll && node.querySelectorAll('select').length > 0)) {
+                    newSelectAdded = true;
+                }
+            });
+        }
+    });
 
-// 1. Run immediately on page load
-document.addEventListener("DOMContentLoaded", () => {
-    setTimeout(() => {
-        if (typeof updateUploadDropdowns === 'function') updateUploadDropdowns();
-    }, 300);
-});
-
-// 2. Run anytime the admin clicks a button (catches newly added file rows instantly)
-document.addEventListener('click', (e) => {
-    if (e.target.tagName === 'BUTTON' || e.target.closest('button')) {
-        setTimeout(() => {
-            if (typeof updateUploadDropdowns === 'function') updateUploadDropdowns();
-        }, 50); // 50ms delay lets the new HTML render before replacing it
+    if (newSelectAdded) {
+        updateUploadDropdowns();
     }
 });
 
+// Start watching the document the moment the page loads
+document.addEventListener("DOMContentLoaded", () => {
+    domObserver.observe(document.body, { childList: true, subtree: true });
+    updateUploadDropdowns(); // Run once immediately
+});
 

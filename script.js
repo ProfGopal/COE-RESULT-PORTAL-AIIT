@@ -3598,64 +3598,49 @@ if (document.getElementById('curriculum-gui-container')) {
 }
 
 // ============================================================
-// V1.5 — REAL-TIME MUTATION OBSERVER (DROPDOWN ENFORCER)
+// V1.6 — NUCLEAR POLLING ENFORCER
 // ============================================================
-window.updateUploadDropdowns = function() {
+window.nuclearDropdownEnforcer = function() {
     let systemPrograms = [];
     try { systemPrograms = JSON.parse(localStorage.getItem('AIIT_SYSTEM_PROGRAMS')) || []; } catch(e){}
 
     const uniqueBatches = [...new Set(systemPrograms.map(p => String(p.batch).trim()))];
     const uniqueProgs = [...new Set(systemPrograms.map(p => String(p.program).trim()))];
 
-    const batchOptions = `<option value="">-- Select Batch --</option>` + uniqueBatches.map(b => `<option value="${b}">${b}</option>`).join('');
-    const progOptions = `<option value="">-- Select Program --</option>` + uniqueProgs.map(p => `<option value="${p}">${p}</option>`).join('');
+    const batchOptionsHTML = `<option value="">-- Select Batch --</option>` + uniqueBatches.map(b => `<option value="${b}">${b}</option>`).join('');
+    const progOptionsHTML = `<option value="">-- Select Program --</option>` + uniqueProgs.map(p => `<option value="${p}">${p}</option>`).join('');
 
-    // Target EVERY select element inside the Results Tab, EXCEPT the Curriculum Manager's dropdown
-    const allSelects = document.querySelectorAll('#tab-results select, .file-year-select, .file-program-select');
+    // Find EVERY select element on the page
+    const allSelects = document.querySelectorAll('select');
 
     allSelects.forEach(sel => {
-        // Determine if this select is meant for Batches (contains numbers/years) or Programs
-        const isBatchDropdown = sel.className.includes('year') || sel.className.includes('batch') || (sel.options.length > 1 && /\d{4}/.test(sel.options[1].text));
+        // Protect the Curriculum Manager dropdown from being overwritten
+        if (sel.id === 'curriculum-edit-key') return;
 
-        if (isBatchDropdown) {
-            if (sel.options.length !== (uniqueBatches.length + 1)) {
+        const textContent = sel.textContent.toUpperCase();
+
+        // IF it is a Program Dropdown (Looks for the old hardcoded words)
+        if (textContent.includes('PROGRAM') || textContent.includes('MSC') || textContent.includes('MCA')) {
+            // Only overwrite if it doesn't match our exact system programs length
+            if (sel.options.length !== (uniqueProgs.length + 1) || !sel.textContent.includes(uniqueProgs[0])) {
                 const currentVal = sel.value;
-                sel.innerHTML = batchOptions;
-                if (uniqueBatches.includes(currentVal)) sel.value = currentVal;
-            }
-        } else {
-            // If it's not a batch dropdown, it must be the program dropdown
-            if (sel.options.length !== (uniqueProgs.length + 1)) {
-                const currentVal = sel.value;
-                sel.innerHTML = progOptions;
+                sel.innerHTML = progOptionsHTML;
+                // Restore selection if it matches the new list
                 if (uniqueProgs.includes(currentVal)) sel.value = currentVal;
+            }
+        }
+        // IF it is a Batch Dropdown
+        else if (textContent.includes('BATCH') || textContent.includes('2024') || textContent.includes('2025')) {
+            if (sel.options.length !== (uniqueBatches.length + 1) || !sel.textContent.includes(uniqueBatches[0])) {
+                const currentVal = sel.value;
+                sel.innerHTML = batchOptionsHTML;
+                if (uniqueBatches.includes(currentVal)) sel.value = currentVal;
             }
         }
     });
 };
 
-// THE MUTATION OBSERVER: Watches the page in real-time for dynamically added file rows
-const domObserver = new MutationObserver((mutations) => {
-    let newSelectAdded = false;
-    mutations.forEach((mutation) => {
-        if (mutation.addedNodes && mutation.addedNodes.length > 0) {
-            mutation.addedNodes.forEach(node => {
-                // Check if the added node is a select, or a container holding a select
-                if (node.tagName === 'SELECT' || (node.querySelectorAll && node.querySelectorAll('select').length > 0)) {
-                    newSelectAdded = true;
-                }
-            });
-        }
-    });
-
-    if (newSelectAdded) {
-        updateUploadDropdowns();
-    }
-});
-
-// Start watching the document the moment the page loads
-document.addEventListener("DOMContentLoaded", () => {
-    domObserver.observe(document.body, { childList: true, subtree: true });
-    updateUploadDropdowns(); // Run once immediately
-});
+// THE LAUNCH CODE: Run this scan every 500 milliseconds permanently.
+// This absolutely guarantees that no matter when the upload box generates its HTML, it gets hijacked.
+setInterval(window.nuclearDropdownEnforcer, 500);
 

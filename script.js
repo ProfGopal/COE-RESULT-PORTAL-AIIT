@@ -3597,3 +3597,61 @@ if (document.getElementById('curriculum-gui-container')) {
   window.loadCurriculumEditor();
 }
 
+// ============================================================
+// V1.4 — AGGRESSIVE DROPDOWN HUNTER
+// ============================================================
+window.updateUploadDropdowns = function() {
+    let systemPrograms = [];
+    try { systemPrograms = JSON.parse(localStorage.getItem('AIIT_SYSTEM_PROGRAMS')) || []; } catch(e){}
+
+    // Extract unique, trimmed batches and programs
+    const uniqueBatches = [...new Set(systemPrograms.map(p => String(p.batch).trim()))];
+    const uniqueProgs = [...new Set(systemPrograms.map(p => String(p.program).trim()))];
+
+    // Build the strict option lists
+    const batchOptions = `<option value="">-- Select Batch --</option>` + uniqueBatches.map(b => `<option value="${b}">${b}</option>`).join('');
+    const progOptions = `<option value="">-- Select Program --</option>` + uniqueProgs.map(p => `<option value="${p}">${p}</option>`).join('');
+
+    // HUNT: Target ALL possible class/ID names that might be used in your HTML
+    const batchDropdowns = document.querySelectorAll('.file-year-select, .batch-select, select[id*="batch"], select[id*="year"]');
+    const progDropdowns = document.querySelectorAll('.file-program-select, .program-select, select[id*="program"]');
+
+    batchDropdowns.forEach(sel => {
+        // Only overwrite if the count mismatches to prevent screen flickering
+        if (sel.options.length !== (uniqueBatches.length + 1)) {
+            const currentVal = sel.value;
+            sel.innerHTML = batchOptions;
+            if (uniqueBatches.includes(currentVal)) sel.value = currentVal;
+        }
+    });
+
+    progDropdowns.forEach(sel => {
+        if (sel.options.length !== (uniqueProgs.length + 1)) {
+            const currentVal = sel.value;
+            sel.innerHTML = progOptions;
+            if (uniqueProgs.includes(currentVal)) sel.value = currentVal;
+        }
+    });
+};
+
+// ============================================================
+// AGGRESSIVE ENFORCER TRIGGERS
+// ============================================================
+
+// 1. Run immediately on page load
+document.addEventListener("DOMContentLoaded", () => {
+    setTimeout(() => {
+        if (typeof updateUploadDropdowns === 'function') updateUploadDropdowns();
+    }, 300);
+});
+
+// 2. Run anytime the admin clicks a button (catches newly added file rows instantly)
+document.addEventListener('click', (e) => {
+    if (e.target.tagName === 'BUTTON' || e.target.closest('button')) {
+        setTimeout(() => {
+            if (typeof updateUploadDropdowns === 'function') updateUploadDropdowns();
+        }, 50); // 50ms delay lets the new HTML render before replacing it
+    }
+});
+
+

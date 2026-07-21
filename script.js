@@ -1693,49 +1693,53 @@ function facultyFilterSearch() {
 
 // ── Filter: Has Backlogs ──────────────────────────────────────────────────────
 window.filterBacklogs = function() {
-    // 1. AGGRESSIVE DOM SCAN: Find the exact values of the dropdowns, regardless of their ID
     let activeBatch = "";
     let activeProgram = "";
-    
-    // Check every dropdown on the page
-    document.querySelectorAll('select').forEach(sel => {
-        const optionsText = sel.textContent.toUpperCase();
-        
-        // Is this the Batch dropdown? (Contains numbers/years)
-        if (optionsText.includes('BATCH') || optionsText.includes('2024') || optionsText.includes('2025')) {
-            activeBatch = sel.value;
+    let searchText = "";
+
+    // 1. Safely extract search text
+    const searchInput = document.querySelector('input[type="text"]') || document.getElementById('faculty-search-input');
+    if (searchInput) searchText = searchInput.value.toLowerCase().trim();
+
+    // 2. Safely extract exact dropdown values based ONLY on what is currently selected
+    const allSelects = document.querySelectorAll('select');
+    allSelects.forEach(sel => {
+        const selectedValue = sel.value.trim();
+        const allOptionsText = sel.textContent.toUpperCase(); // Used only to identify WHICH dropdown this is
+
+        // If the user hasn't selected anything (or selected "All"), skip this constraint
+        if (selectedValue === "" || selectedValue.toLowerCase().includes("select") || selectedValue.toLowerCase().includes("all")) {
+            return; 
+        }
+
+        // Identify if this is the Batch dropdown
+        if (allOptionsText.includes('BATCH') || allOptionsText.includes('2024') || allOptionsText.includes('2025')) {
+            activeBatch = selectedValue;
         }
         
-        // Is this the Program dropdown? (Contains program names)
-        if (optionsText.includes('PROGRAM') || optionsText.includes('MSC') || optionsText.includes('MCA') || optionsText.includes('B.C.A')) {
-            activeProgram = sel.value;
+        // Identify if this is the Program dropdown
+        if (allOptionsText.includes('PROGRAM') || allOptionsText.includes('MSC') || allOptionsText.includes('MCA') || allOptionsText.includes('B.C.A')) {
+            activeProgram = selectedValue;
         }
     });
 
-    // Check search bar
-    const searchInput = document.querySelector('input[type="text"]') || document.getElementById('faculty-search-input');
-    const searchText = searchInput ? searchInput.value.toLowerCase().trim() : "";
-
-    // 2. Fetch all loaded students
     const allStudents = window.students || window.STUDENTS || window.ALL_STUDENTS || [];
 
-    // 3. INTERSECTIONAL FILTER: Stack the rules
+    // 3. STRICT INTERSECTIONAL FILTER: Apply the rules
     const filteredStudents = allStudents.filter(student => {
         const sBatch = String(student.batch || "").trim();
         const sProg = String(student.program || "").trim();
 
-        // A: Batch Match
-        const isBatchValid = (!activeBatch || activeBatch.includes("Select") || activeBatch.includes("All") || sBatch === activeBatch);
+        // STRICT MATCHING: If a batch/program is active, the student MUST match it exactly.
+        const passesBatch = (activeBatch === "") || (sBatch === activeBatch);
+        const passesProgram = (activeProgram === "") || (sProg === activeProgram);
         
-        // B: Program Match
-        const isProgValid = (!activeProgram || activeProgram.includes("Select") || activeProgram.includes("All") || sProg === activeProgram);
-        
-        // C: Search Match
-        const isSearchValid = (!searchText || 
+        // Search matching
+        const passesSearch = (searchText === "") || 
             String(student.sen || "").toLowerCase().includes(searchText) || 
-            String(student.name || "").toLowerCase().includes(searchText));
+            String(student.name || "").toLowerCase().includes(searchText);
 
-        // D: Backlog Match
+        // Backlog matching
         let hasBacklog = false;
         if (student.backlogs > 0) hasBacklog = true;
         if (student.courses && Array.isArray(student.courses)) {
@@ -1745,10 +1749,11 @@ window.filterBacklogs = function() {
             });
         }
 
-        return isBatchValid && isProgValid && isSearchValid && hasBacklog;
+        // The student MUST pass ALL constraints to appear in the table
+        return passesBatch && passesProgram && passesSearch && hasBacklog;
     });
 
-    // 4. Render the newly stacked list
+    // 4. Render the constrained list
     if (typeof renderFacultyTable === "function") {
         renderFacultyTable(filteredStudents);
     } else if (typeof renderStudentTable === "function") {

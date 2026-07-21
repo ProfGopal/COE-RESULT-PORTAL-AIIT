@@ -504,15 +504,26 @@ function goAdmin() {
   window.location.href = 'admin-hidden.html';
 }
 
-function logout() {
-  // Version - 2 — DOM Shredder logout: clear auth tokens and reload to restore deleted HTML
+window.logout = function() {
+  // Clear storage
   localStorage.removeItem('isLoggedIn');
   localStorage.removeItem('userRole');
   sessionStorage.clear();
-  currentStudent = null;
-  isNewUser = false;
-  // Force a full reload to restore the deleted login HTML elements
-  window.location.reload(true);
+  
+  // Remove the overlay formatting
+  document.body.classList.remove('overlay-active');
+  
+  const dashboardContainer = document.getElementById('student-dash') || document.getElementById('faculty-dash');
+  if (dashboardContainer) {
+      dashboardContainer.classList.remove('dashboard-fullscreen-overlay');
+      dashboardContainer.style.display = 'none';
+  }
+  
+  // Reload to restore initial state perfectly
+  window.location.reload(true); 
+};
+function logout() {
+  window.logout();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -764,14 +775,17 @@ async function studentLoginStep() {
           currentStudent = alResult.student;
           renderStudentDash(currentStudent);
           showPage('student-dash');
-          // Version - 2 — DOM Shredder: literally delete gap-causing elements
-          const elementsToShred1 = document.querySelectorAll('.hero, header, .logo-container, #login-section, .login-wrapper, .banner-wrapper, #student-login-container, #faculty-login-container, .login-box');
-          elementsToShred1.forEach(el => { if (el) el.remove(); });
-          document.body.style.margin = '0';
-          document.body.style.padding = '0';
-          document.body.style.height = 'auto';
-          document.body.style.minHeight = '100vh';
-          window.scrollTo({ top: 0, behavior: 'instant' });
+          // 1. Lock the background page in place
+          document.body.classList.add('overlay-active');
+          // 2. Find the correct dashboard container
+          const dashboardContainer = document.getElementById('student-dash');
+          if (dashboardContainer) {
+              // 3. Apply the Full-Screen Cover class and show it
+              dashboardContainer.classList.add('dashboard-fullscreen-overlay');
+              dashboardContainer.style.display = 'block'; 
+              // 4. Ensure the user is looking at the top of the new dashboard
+              window.scrollTo({ top: 0, behavior: 'instant' });
+          }
           var dashEl = document.getElementById('student-dash');
           if (dashEl) dashEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
         } else {
@@ -812,14 +826,17 @@ async function studentLoginStep() {
       currentStudent = result.student;
       renderStudentDash(currentStudent);
       showPage('student-dash');
-      // Version - 2 — DOM Shredder: literally delete gap-causing elements
-      const elementsToShred2 = document.querySelectorAll('.hero, header, .logo-container, #login-section, .login-wrapper, .banner-wrapper, #student-login-container, #faculty-login-container, .login-box');
-      elementsToShred2.forEach(el => { if (el) el.remove(); });
-      document.body.style.margin = '0';
-      document.body.style.padding = '0';
-      document.body.style.height = 'auto';
-      document.body.style.minHeight = '100vh';
-      window.scrollTo({ top: 0, behavior: 'instant' });
+      // 1. Lock the background page in place
+      document.body.classList.add('overlay-active');
+      // 2. Find the correct dashboard container
+      const dashboardContainer = document.getElementById('student-dash');
+      if (dashboardContainer) {
+          // 3. Apply the Full-Screen Cover class and show it
+          dashboardContainer.classList.add('dashboard-fullscreen-overlay');
+          dashboardContainer.style.display = 'block'; 
+          // 4. Ensure the user is looking at the top of the new dashboard
+          window.scrollTo({ top: 0, behavior: 'instant' });
+      }
       var dashEl = document.getElementById('student-dash');
       if (dashEl) dashEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
@@ -1395,14 +1412,18 @@ async function facultyLoginStep() {
       // Hide the inline faculty login container completely (removes empty space)
       var facContainer = document.getElementById('faculty-login-container');
       if (facContainer) facContainer.style.display = 'none';
-      // Version - 2 — DOM Shredder: literally delete gap-causing elements
-      const elementsToShredF = document.querySelectorAll('.hero, header, .logo-container, #login-section, .login-wrapper, .banner-wrapper, #student-login-container, #faculty-login-container, .login-box');
-      elementsToShredF.forEach(el => { if (el) el.remove(); });
-      document.body.style.margin = '0';
-      document.body.style.padding = '0';
-      document.body.style.height = 'auto';
-      document.body.style.minHeight = '100vh';
-      window.scrollTo({ top: 0, behavior: 'instant' });
+      
+      // 1. Lock the background page in place
+      document.body.classList.add('overlay-active');
+      // 2. Find the correct dashboard container
+      const dashboardContainer = document.getElementById('faculty-dash');
+      if (dashboardContainer) {
+          // 3. Apply the Full-Screen Cover class and show it
+          dashboardContainer.classList.add('dashboard-fullscreen-overlay');
+          dashboardContainer.style.display = 'block'; 
+          // 4. Ensure the user is looking at the top of the new dashboard
+          window.scrollTo({ top: 0, behavior: 'instant' });
+      }
       // Navigate to faculty dashboard
       showPage('faculty-dash');
       // Show the faculty dashboard container and smooth-scroll into view
@@ -1435,11 +1456,19 @@ async function facultyLoginStep() {
 }
 
 function facultyLogout() {
-  // Version - 2 — DOM Shredder logout: clear auth tokens and reload to restore deleted HTML
   sessionStorage.removeItem(FACULTY_SESSION);
   sessionStorage.clear();
   currentFacultyEmail = null;
   window.students = [];
+  
+  // Remove overlay formatting
+  document.body.classList.remove('overlay-active');
+  const dashboardContainer = document.getElementById('student-dash') || document.getElementById('faculty-dash');
+  if (dashboardContainer) {
+      dashboardContainer.classList.remove('dashboard-fullscreen-overlay');
+      dashboardContainer.style.display = 'none';
+  }
+  
   // Force a full reload to restore the deleted login HTML elements
   window.location.reload(true);
 }

@@ -1257,29 +1257,28 @@
     }
   </style>
 
-  <!-- Ver. 2.0 ABSOLUTE LAYOUT FIX -->
+  <!-- Ver 1.2 ABSOLUTE DASHBOARD OVERLAY -->
   <style>
-    /* --- 1. THE GAP DESTROYER (Activates after login) --- */
-    body.dashboard-active {
-        height: auto !important;
+    /* --- ABSOLUTE DASHBOARD COVER --- */
+    /* This class forces the dashboard to behave exactly like a brand-new HTML page */
+    .dashboard-fullscreen-overlay {
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
         min-height: 100vh !important;
+        background-color: #f8fafc !important; /* Clean background */
+        z-index: 999999 !important; /* Forces it above EVERYTHING else */
         margin: 0 !important;
-        padding: 0 !important;
-        background: #f8fafc !important;
+        padding: 20px !important;
+        box-sizing: border-box !important;
+        overflow-y: auto !important;
     }
-
-    /* When dashboard is active, completely hide the logo wrapper, banners, and auth links */
-    body.dashboard-active .hero,
-    body.dashboard-active header,
-    body.dashboard-active .logo-container,
-    body.dashboard-active .banner-wrapper,
-    body.dashboard-active .top-right-links,
-    body.dashboard-active #login-section {
-        display: none !important;
-        height: 0 !important;
-        min-height: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
+    
+    /* Hide the scrollbar of the underlying page so we don't get double scrollbars */
+    body.overlay-active {
+        overflow: hidden !important;
     }
 
     /* --- 2. MOBILE OVERLAP FIX (Activates on phones) --- */
@@ -1320,7 +1319,7 @@
     <header>
       <div class="header-left">
         <span style="color: var(--text); font-size: 0.9rem; font-weight: 500;">Developed by <strong style="color: var(--accent2);">Dr. GOPAL RAJENDRAN</strong></span>
-        <span style="font-size: 0.75rem; color: var(--muted); font-family: var(--mono);">Version - 2</span>
+        <span style="font-size: 0.75rem; color: var(--muted); font-family: var(--mono);">Ver 1.2</span>
       </div>
       <div class="header-center">
         <div style="font-size: 0.8rem; font-weight: 700; letter-spacing: 2px; color: var(--gold); margin-bottom: 8px; text-transform: uppercase; font-family: var(--mono);">

@@ -1256,6 +1256,61 @@
         }
     }
   </style>
+
+  <!-- Ver. 2.0 ABSOLUTE LAYOUT FIX -->
+  <style>
+    /* --- 1. THE GAP DESTROYER (Activates after login) --- */
+    body.dashboard-active {
+        height: auto !important;
+        min-height: 100vh !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #f8fafc !important;
+    }
+
+    /* When dashboard is active, completely hide the logo wrapper, banners, and auth links */
+    body.dashboard-active .hero,
+    body.dashboard-active header,
+    body.dashboard-active .logo-container,
+    body.dashboard-active .banner-wrapper,
+    body.dashboard-active .top-right-links,
+    body.dashboard-active #login-section {
+        display: none !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    /* --- 2. MOBILE OVERLAP FIX (Activates on phones) --- */
+    @media screen and (max-width: 768px) {
+        /* Force the absolute elements to behave normally and stack neatly */
+        .top-right-links,
+        .auth-links,
+        .admin-login-btn,
+        [style*="position: absolute"] {
+            position: relative !important;
+            top: 0 !important;
+            right: 0 !important;
+            left: 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            width: 100% !important;
+            gap: 10px !important;
+            margin: 15px 0 !important;
+            z-index: 9999 !important;
+        }
+
+        /* Ensure the logo wrapper adjusts its height so it doesn't clip */
+        .hero, header, .logo-container {
+            height: auto !important;
+            min-height: 0 !important;
+            padding-bottom: 20px !important;
+        }
+    }
+  </style>
 </head>
 
 <body>
@@ -1265,7 +1320,7 @@
     <header>
       <div class="header-left">
         <span style="color: var(--text); font-size: 0.9rem; font-weight: 500;">Developed by <strong style="color: var(--accent2);">Dr. GOPAL RAJENDRAN</strong></span>
-        <span style="font-size: 0.75rem; color: var(--muted); font-family: var(--mono);">Version - 2</span>
+        <span style="font-size: 0.75rem; color: var(--muted); font-family: var(--mono);">Ver. 2.0</span>
       </div>
       <div class="header-center">
         <div style="font-size: 0.8rem; font-weight: 700; letter-spacing: 2px; color: var(--gold); margin-bottom: 8px; text-transform: uppercase; font-family: var(--mono);">

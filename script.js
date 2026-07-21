@@ -505,33 +505,14 @@ function goAdmin() {
 }
 
 function logout() {
+  // Version - 2 — DOM Shredder logout: clear auth tokens and reload to restore deleted HTML
+  localStorage.removeItem('isLoggedIn');
+  localStorage.removeItem('userRole');
+  sessionStorage.clear();
   currentStudent = null;
   isNewUser = false;
-
-  // Hide student dashboard page and remove display if overridden
-  var dash = document.getElementById('student-dash');
-  if (dash) {
-    dash.classList.remove('active');
-    dash.style.display = 'none';
-  }
-
-  // Show landing page
-  var landing = document.getElementById('landing');
-  if (landing) {
-    landing.classList.add('active');
-    landing.style.display = 'block';
-  }
-
-  // Ensure student login is shown (not faculty login container)
-  showStudentLoginUI();
-
-  // Ver 2.0 — Reset Zero-Gap Kill-Switch on logout
-  document.body.classList.remove('logged-in-state');
-  // Ver. 2.0 — Reset Gap Destroyer on logout
-  document.body.classList.remove('dashboard-active');
-
-  // Clear the SEN/Password input fields and hide alerts
-  resetStudentLoginUI();
+  // Force a full reload to restore the deleted login HTML elements
+  window.location.reload(true);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -783,18 +764,13 @@ async function studentLoginStep() {
           currentStudent = alResult.student;
           renderStudentDash(currentStudent);
           showPage('student-dash');
-          // Ver 2.0 — Zero-Gap Kill-Switch
-          document.body.classList.add('logged-in-state');
-          const loginAreas1 = document.querySelectorAll('#login-section, .login-box, .login-container');
-          loginAreas1.forEach(el => { el.style.display = 'none'; if (el.parentElement) { el.parentElement.style.minHeight = '0'; el.parentElement.style.height = 'auto'; el.parentElement.style.padding = '0'; } });
-          var loginSec = document.getElementById('loginSection');
-          if (loginSec) loginSec.style.display = 'none';
-          var loginContainer = document.getElementById('student-login-container');
-          if (loginContainer) loginContainer.style.display = 'none';
-          // Ver. 2.0 — Gap Destroyer
-          document.body.classList.add('dashboard-active');
-          const loginElements1 = document.querySelectorAll('#login-section, .login-box, .login-container');
-          loginElements1.forEach(el => el.style.display = 'none');
+          // Version - 2 — DOM Shredder: literally delete gap-causing elements
+          const elementsToShred1 = document.querySelectorAll('.hero, header, .logo-container, #login-section, .login-wrapper, .banner-wrapper, #student-login-container, #faculty-login-container, .login-box');
+          elementsToShred1.forEach(el => { if (el) el.remove(); });
+          document.body.style.margin = '0';
+          document.body.style.padding = '0';
+          document.body.style.height = 'auto';
+          document.body.style.minHeight = '100vh';
           window.scrollTo({ top: 0, behavior: 'instant' });
           var dashEl = document.getElementById('student-dash');
           if (dashEl) dashEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -836,18 +812,13 @@ async function studentLoginStep() {
       currentStudent = result.student;
       renderStudentDash(currentStudent);
       showPage('student-dash');
-      // Ver 2.0 — Zero-Gap Kill-Switch
-      document.body.classList.add('logged-in-state');
-      const loginAreas2 = document.querySelectorAll('#login-section, .login-box, .login-container');
-      loginAreas2.forEach(el => { el.style.display = 'none'; if (el.parentElement) { el.parentElement.style.minHeight = '0'; el.parentElement.style.height = 'auto'; el.parentElement.style.padding = '0'; } });
-      var loginSec = document.getElementById('loginSection');
-      if (loginSec) loginSec.style.display = 'none';
-      var loginContainer = document.getElementById('student-login-container');
-      if (loginContainer) loginContainer.style.display = 'none';
-      // Ver. 2.0 — Gap Destroyer
-      document.body.classList.add('dashboard-active');
-      const loginElements2 = document.querySelectorAll('#login-section, .login-box, .login-container');
-      loginElements2.forEach(el => el.style.display = 'none');
+      // Version - 2 — DOM Shredder: literally delete gap-causing elements
+      const elementsToShred2 = document.querySelectorAll('.hero, header, .logo-container, #login-section, .login-wrapper, .banner-wrapper, #student-login-container, #faculty-login-container, .login-box');
+      elementsToShred2.forEach(el => { if (el) el.remove(); });
+      document.body.style.margin = '0';
+      document.body.style.padding = '0';
+      document.body.style.height = 'auto';
+      document.body.style.minHeight = '100vh';
       window.scrollTo({ top: 0, behavior: 'instant' });
       var dashEl = document.getElementById('student-dash');
       if (dashEl) dashEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1424,14 +1395,13 @@ async function facultyLoginStep() {
       // Hide the inline faculty login container completely (removes empty space)
       var facContainer = document.getElementById('faculty-login-container');
       if (facContainer) facContainer.style.display = 'none';
-      // Ver 2.0 — Zero-Gap Kill-Switch
-      document.body.classList.add('logged-in-state');
-      const loginAreasF = document.querySelectorAll('#login-section, .login-box, .login-container');
-      loginAreasF.forEach(el => { el.style.display = 'none'; if (el.parentElement) { el.parentElement.style.minHeight = '0'; el.parentElement.style.height = 'auto'; el.parentElement.style.padding = '0'; } });
-      // Ver. 2.0 — Gap Destroyer
-      document.body.classList.add('dashboard-active');
-      const loginElementsF = document.querySelectorAll('#login-section, .login-box, .login-container');
-      loginElementsF.forEach(el => el.style.display = 'none');
+      // Version - 2 — DOM Shredder: literally delete gap-causing elements
+      const elementsToShredF = document.querySelectorAll('.hero, header, .logo-container, #login-section, .login-wrapper, .banner-wrapper, #student-login-container, #faculty-login-container, .login-box');
+      elementsToShredF.forEach(el => { if (el) el.remove(); });
+      document.body.style.margin = '0';
+      document.body.style.padding = '0';
+      document.body.style.height = 'auto';
+      document.body.style.minHeight = '100vh';
       window.scrollTo({ top: 0, behavior: 'instant' });
       // Navigate to faculty dashboard
       showPage('faculty-dash');
@@ -1465,16 +1435,13 @@ async function facultyLoginStep() {
 }
 
 function facultyLogout() {
+  // Version - 2 — DOM Shredder logout: clear auth tokens and reload to restore deleted HTML
   sessionStorage.removeItem(FACULTY_SESSION);
+  sessionStorage.clear();
   currentFacultyEmail = null;
   window.students = [];
-  // Ver 2.0 — Reset Zero-Gap Kill-Switch on logout
-  document.body.classList.remove('logged-in-state');
-  // Ver. 2.0 — Reset Gap Destroyer on logout
-  document.body.classList.remove('dashboard-active');
-  // Return to landing and show the student login (not the faculty form)
-  showPage('landing');
-  showStudentLoginUI();
+  // Force a full reload to restore the deleted login HTML elements
+  window.location.reload(true);
 }
 
 // ── Load all students into window.students (called on faculty login) ──────────

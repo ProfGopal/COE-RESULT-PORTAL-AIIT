@@ -3755,11 +3755,20 @@ window.handleBulkCurriculumUpload = function(event) {
 };
 
 // ============================================================
-// V1.6 — NUCLEAR POLLING ENFORCER
+// V1.6 — NUCLEAR POLLING ENFORCER (Ver 1.3 Failsafe update)
 // ============================================================
 window.nuclearDropdownEnforcer = function() {
     let systemPrograms = [];
-    try { systemPrograms = JSON.parse(localStorage.getItem('AIIT_SYSTEM_PROGRAMS')) || []; } catch(e){}
+    // ANTI-CRASH WRAPPER: Survives Incognito strict privacy blocks
+    try { 
+        const savedData = localStorage.getItem('AIIT_SYSTEM_PROGRAMS');
+        systemPrograms = savedData ? JSON.parse(savedData) : []; 
+    } catch(e) {
+        console.warn("Privacy Mode Blocked Storage. Dropdowns will remain empty.");
+        systemPrograms = []; // Failsafe empty array prevents crashes
+    }
+    
+    if (systemPrograms.length === 0) return; // Stop executing if no memory exists
 
     const uniqueBatches = [...new Set(systemPrograms.map(p => String(p.batch).trim()))];
     const uniqueProgs = [...new Set(systemPrograms.map(p => String(p.program).trim()))];

@@ -1693,55 +1693,68 @@ function facultyFilterSearch() {
 
 // ── Filter: Has Backlogs ──────────────────────────────────────────────────────
 window.filterBacklogs = function() {
-    // 1. Read the CURRENT state of the dropdowns and search bar
-    const batchDropdown = document.getElementById('filter-batch') || document.getElementById('batch-filter') || document.querySelector('.batch-select');
-    const programDropdown = document.getElementById('filter-program') || document.getElementById('program-filter') || document.querySelector('.program-select');
-    const searchBar = document.getElementById('faculty-search-input') || document.getElementById('search-input') || document.querySelector('input[type="text"]');
+    // 1. AGGRESSIVE DOM SCAN: Find the exact values of the dropdowns, regardless of their ID
+    let activeBatch = "";
+    let activeProgram = "";
     
-    const selectedBatch = batchDropdown ? batchDropdown.value : "";
-    const selectedProgram = programDropdown ? programDropdown.value : "";
-    const searchText = searchBar ? searchBar.value.toLowerCase() : "";
+    // Check every dropdown on the page
+    document.querySelectorAll('select').forEach(sel => {
+        const optionsText = sel.textContent.toUpperCase();
+        
+        // Is this the Batch dropdown? (Contains numbers/years)
+        if (optionsText.includes('BATCH') || optionsText.includes('2024') || optionsText.includes('2025')) {
+            activeBatch = sel.value;
+        }
+        
+        // Is this the Program dropdown? (Contains program names)
+        if (optionsText.includes('PROGRAM') || optionsText.includes('MSC') || optionsText.includes('MCA') || optionsText.includes('B.C.A')) {
+            activeProgram = sel.value;
+        }
+    });
 
-    // Fallback for different global array naming conventions
+    // Check search bar
+    const searchInput = document.querySelector('input[type="text"]') || document.getElementById('faculty-search-input');
+    const searchText = searchInput ? searchInput.value.toLowerCase().trim() : "";
+
+    // 2. Fetch all loaded students
     const allStudents = window.students || window.STUDENTS || window.ALL_STUDENTS || [];
 
-    // 2. Intersectional Filter (Stacking all rules together)
-    const stackedResults = allStudents.filter(student => {
+    // 3. INTERSECTIONAL FILTER: Stack the rules
+    const filteredStudents = allStudents.filter(student => {
         const sBatch = String(student.batch || "").trim();
         const sProg = String(student.program || "").trim();
 
-        // Rule A: Batch Match
-        const isBatchValid = (!selectedBatch || selectedBatch === "All Batches" || selectedBatch.includes("Select") || sBatch === selectedBatch);
+        // A: Batch Match
+        const isBatchValid = (!activeBatch || activeBatch.includes("Select") || activeBatch.includes("All") || sBatch === activeBatch);
         
-        // Rule B: Program Match
-        const isProgValid = (!selectedProgram || selectedProgram === "All Programs" || selectedProgram.includes("Select") || sProg === selectedProgram);
+        // B: Program Match
+        const isProgValid = (!activeProgram || activeProgram.includes("Select") || activeProgram.includes("All") || sProg === activeProgram);
         
-        // Rule C: Search Match
+        // C: Search Match
         const isSearchValid = (!searchText || 
             String(student.sen || "").toLowerCase().includes(searchText) || 
             String(student.name || "").toLowerCase().includes(searchText));
 
-        // Rule D: Backlog Match
+        // D: Backlog Match
         let hasBacklog = false;
         if (student.backlogs > 0) hasBacklog = true;
         if (student.courses && Array.isArray(student.courses)) {
             hasBacklog = hasBacklog || student.courses.some(c => {
-                const g = String(c.grade || c.Grade || "").toUpperCase().trim();
-                return ['F', 'AB', 'DE', 'I', 'U'].includes(g);
+                const grade = String(c.grade || c.Grade || "").toUpperCase().trim();
+                return ['F', 'AB', 'DE', 'I', 'U'].includes(grade);
             });
         }
 
-        // The student MUST pass all active dropdown rules AND have a backlog to appear
         return isBatchValid && isProgValid && isSearchValid && hasBacklog;
     });
 
-    // 3. Render the newly stacked list
+    // 4. Render the newly stacked list
     if (typeof renderFacultyTable === "function") {
-        renderFacultyTable(stackedResults);
+        renderFacultyTable(filteredStudents);
     } else if (typeof renderStudentTable === "function") {
-        renderStudentTable(stackedResults);
+        renderStudentTable(filteredStudents);
     } else if (typeof renderStudents === "function") {
-        renderStudents(stackedResults);
+        renderStudents(filteredStudents);
     }
 };
 

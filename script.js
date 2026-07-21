@@ -3598,6 +3598,127 @@ if (document.getElementById('curriculum-gui-container')) {
 }
 
 // ============================================================
+// V1.7 — INDESTRUCTIBLE BULK CURRICULUM UPLOADER
+// ============================================================
+window.handleBulkCurriculumUpload = function(event) {
+  try {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const keyDropdown = document.getElementById('curriculum-edit-key');
+    if (!keyDropdown || !keyDropdown.value) {
+        alert("❌ ERROR: Please select a Batch & Program from the dropdown first!");
+        event.target.value = '';
+        return;
+    }
+    window.currentEditingKey = keyDropdown.value;
+
+    if (typeof XLSX === 'undefined') {
+        alert("❌ SYSTEM ERROR: The Excel library is missing.");
+        event.target.value = '';
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, {type: 'array'});
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet);
+
+        if (rows.length === 0) {
+            alert("❌ ERROR: The uploaded file appears to be empty.");
+            return;
+        }
+
+        let newRules = [];
+        let mainMap = {};
+
+        rows.forEach(row => {
+          // UNIVERSAL HEADER TRANSLATOR: Strips spaces and forces lowercase so it never misses a column
+          const cleanRow = {};
+          for (let key in row) {
+              const cleanKey = key.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+              cleanRow[cleanKey] = row[key];
+          }
+
+          const mainCat = cleanRow['maincategory'] || cleanRow['category'];
+          if (!mainCat) return; // Skip blank rows
+
+          // STRICT NUMBER PARSER: Respects 0 perfectly, only defaults if the cell is completely empty
+          const safeNum = (val, def) => {
+              if (val === undefined || val === null || String(val).trim() === '') return def;
+              const p = parseFloat(val);
+              return isNaN(p) ? def : p;
+          };
+
+          const mainCreds = safeNum(cleanRow['maincredits'] || cleanRow['mincredits'], 0);
+
+          // SMART SUB-CATEGORY LOGIC
+          const rawSubCat = cleanRow['subcategory'];
+          const subCat = (rawSubCat && String(rawSubCat).trim() !== "") ? String(rawSubCat).trim() : "General Courses";
+
+          // SMART FALLBACK: If Sub-Credits is blank, and it's a flat list, inherit the Main Credits automatically!
+          let subCreds = safeNum(cleanRow['subcredits'], null);
+          if (subCreds === null) {
+              subCreds = (subCat === "General Courses") ? mainCreds : 0;
+          }
+
+          const code = String(cleanRow['coursecode'] || cleanRow['code'] || "").trim().toUpperCase();
+          const name = cleanRow['coursename'] || cleanRow['title'] || "Uploaded Course";
+
+          // ZERO CREDIT BUG FIX: Maps perfectly to the translated header
+          const courseCreds = safeNum(cleanRow['coursecredits'] || cleanRow['credits'], 3);
+
+          // Build the Dictionary and Tree
+          if (!mainMap[mainCat]) {
+            mainMap[mainCat] = { category: mainCat, minCredits: mainCreds, subCategories: {} };
+            newRules.push(mainMap[mainCat]);
+          }
+
+          if (!mainMap[mainCat].subCategories[subCat]) {
+            mainMap[mainCat].subCategories[subCat] = { name: subCat, minCredits: subCreds, codes: [] };
+          }
+
+          if (code && code !== "UNDEFINED") {
+            mainMap[mainCat].subCategories[subCat].codes.push(code);
+
+            // Save safely to global dictionary
+            window.CUSTOM_COURSE_DICT = window.CUSTOM_COURSE_DICT || {};
+            window.CUSTOM_COURSE_DICT[code] = { name: name, credits: courseCreds };
+          }
+        });
+
+        // Convert maps to arrays for UI rendering
+        newRules.forEach(rule => { rule.subCategories = Object.values(rule.subCategories); });
+
+        // Save to LocalStorage
+        CURRICULUM_RULES[window.currentEditingKey] = newRules;
+        localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(CURRICULUM_RULES));
+        localStorage.setItem('AIIT_CUSTOM_COURSES', JSON.stringify(window.CUSTOM_COURSE_DICT));
+
+        alert(`✅ SUCCESS! Imported ${newRules.length} Main Categories.`);
+        loadCurriculumEditor(); // Refresh GUI
+
+      } catch (parseError) {
+         console.error("Parse Error:", parseError);
+         alert("❌ DATA ERROR: Failed to read the Excel data. " + parseError.message);
+      } finally {
+         event.target.value = ''; // Reset input
+      }
+    };
+
+    reader.onerror = function() { alert("❌ NETWORK ERROR: Browser failed to read the file."); };
+    reader.readAsArrayBuffer(file);
+
+  } catch (err) {
+    console.error("Critical Upload Error:", err);
+    alert("❌ CRITICAL ERROR: " + err.message);
+  }
+};
+
+// ============================================================
 // V1.6 — NUCLEAR POLLING ENFORCER
 // ============================================================
 window.nuclearDropdownEnforcer = function() {

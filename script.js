@@ -3731,8 +3731,25 @@ window.handleBulkCurriculumUpload = function(event) {
 
         // Save to LocalStorage
         CURRICULUM_RULES[window.currentEditingKey] = newRules;
-        localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(CURRICULUM_RULES));
-        localStorage.setItem('AIIT_CUSTOM_COURSES', JSON.stringify(window.CUSTOM_COURSE_DICT));
+        const curriculumJSON = JSON.stringify(CURRICULUM_RULES);
+        try {
+            localStorage.setItem('AIIT_CUSTOM_CURRICULUM', curriculumJSON);
+            localStorage.setItem('AIIT_CUSTOM_COURSES', JSON.stringify(window.CUSTOM_COURSE_DICT));
+        } catch(e) {
+            console.warn("Privacy Mode Blocked Storage. Saving only in window memory.");
+        }
+
+        // PUSH TO GOOGLE CLOUD DATABASE
+        if (typeof GAS_URL !== 'undefined') {
+            const formData = new FormData();
+            formData.append('action', 'saveCurriculum');
+            formData.append('curriculumData', curriculumJSON);
+
+            fetch(GAS_URL, { method: 'POST', body: formData })
+                .then(res => res.text())
+                .then(txt => console.log("☁️ Cloud Sync:", txt))
+                .catch(err => console.error("☁️ Cloud Error:", err));
+        }
 
         alert(`✅ SUCCESS! Imported ${newRules.length} Main Categories.`);
         loadCurriculumEditor(); // Refresh GUI
@@ -3809,4 +3826,31 @@ window.nuclearDropdownEnforcer = function() {
 // THE LAUNCH CODE: Run this scan every 500 milliseconds permanently.
 // This absolutely guarantees that no matter when the upload box generates its HTML, it gets hijacked.
 setInterval(window.nuclearDropdownEnforcer, 500);
+
+// --- GLOBAL CLOUD SYNC ENGINE ---
+window.syncCloudCurriculum = function() {
+    if (typeof GAS_URL === 'undefined') {
+        console.warn("GAS_URL not defined. Cannot sync curriculum from cloud.");
+        return;
+    }
+
+    fetch(GAS_URL + "?action=getCurriculum")
+        .then(res => res.text())
+        .then(data => {
+            // Verify the data is a valid JSON object before saving
+            if (data && data.trim().startsWith("{")) {
+                try {
+                    localStorage.setItem('AIIT_CUSTOM_CURRICULUM', data);
+                } catch(e) {
+                    console.warn("Privacy Mode Blocked Storage. Saving only in window memory.");
+                }
+                window.CURRICULUM_RULES = JSON.parse(data);
+                console.log("✅ Curriculum successfully downloaded from Cloud Database.");
+            }
+        })
+        .catch(err => console.error("❌ Failed to download Curriculum from Cloud:", err));
+};
+
+// Run the sync engine the second the page finishes loading
+document.addEventListener("DOMContentLoaded", window.syncCloudCurriculum);
 

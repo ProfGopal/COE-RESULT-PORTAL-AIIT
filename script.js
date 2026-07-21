@@ -780,6 +780,8 @@ async function studentLoginStep() {
           showPage('student-dash');
           var loginSec = document.getElementById('loginSection');
           if (loginSec) loginSec.style.display = 'none';
+          var loginContainer = document.getElementById('student-login-container');
+          if (loginContainer) loginContainer.style.display = 'none';
           var dashEl = document.getElementById('student-dash');
           if (dashEl) dashEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
         } else {
@@ -822,6 +824,8 @@ async function studentLoginStep() {
       showPage('student-dash');
       var loginSec = document.getElementById('loginSection');
       if (loginSec) loginSec.style.display = 'none';
+      var loginContainer = document.getElementById('student-login-container');
+      if (loginContainer) loginContainer.style.display = 'none';
       var dashEl = document.getElementById('student-dash');
       if (dashEl) dashEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
 

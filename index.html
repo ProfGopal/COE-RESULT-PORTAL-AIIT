@@ -1096,6 +1096,70 @@
       }
     }
   </style>
+
+  <!-- V-2 PREMIUM UI STYLES -->
+  <style>
+    /* --- PREMIUM BUTTONS --- */
+    .premium-btn {
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        color: #f8fafc !important;
+        border: 1px solid #334155;
+        padding: 12px 28px;
+        border-radius: 8px;
+        font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+        font-weight: 600;
+        font-size: 1rem;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+
+    .premium-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
+        background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
+        border-color: #475569;
+    }
+
+    .premium-btn:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    /* --- PREMIUM FILTERS & INPUTS --- */
+    .premium-filter {
+        background-color: #ffffff;
+        border: 1px solid #cbd5e1;
+        color: #334155;
+        padding: 10px 16px;
+        border-radius: 8px;
+        font-family: 'Inter', system-ui, sans-serif;
+        font-size: 0.95rem;
+        font-weight: 500;
+        box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+        transition: all 0.2s ease;
+        appearance: none;
+        -webkit-appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+        background-size: 16px;
+        padding-right: 40px;
+        cursor: pointer;
+    }
+
+    .premium-filter:focus, .premium-filter:hover {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        outline: none;
+    }
+  </style>
 </head>
 
 <body>
@@ -1105,7 +1169,7 @@
     <header>
       <div class="header-left">
         <span style="color: var(--text); font-size: 0.9rem; font-weight: 500;">Developed by <strong style="color: var(--accent2);">Dr. GOPAL RAJENDRAN</strong></span>
-        <span style="font-size: 0.75rem; color: var(--muted); font-family: var(--mono);">V1.7</span>
+        <span style="font-size: 0.75rem; color: var(--muted); font-family: var(--mono);">V - 2</span>
       </div>
       <div class="header-center">
         <div style="font-size: 0.8rem; font-weight: 700; letter-spacing: 2px; color: var(--gold); margin-bottom: 8px; text-transform: uppercase; font-family: var(--mono);">
@@ -1126,7 +1190,7 @@
           ADMIN LOGIN
         </a>
         <!-- Faculty Login Button -->
-        <button id="btn-faculty-nav" onclick="showFacultyLogin()" class="btn-sm" style="display:inline-flex; align-items:center; gap:0.5rem; font-size:0.75rem; padding:0.45rem 1rem; border-radius:6px;">
+        <button id="btn-faculty-nav" onclick="showFacultyLogin()" class="btn-sm premium-btn" style="display:inline-flex; align-items:center; gap:0.5rem; font-size:0.75rem; padding:0.45rem 1rem; border-radius:6px;">
           <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
           FACULTY LOGIN
         </button>
@@ -1186,7 +1250,7 @@
           </div>
         </div>
 
-        <button class="btn-primary" id="s-login-btn" onclick="studentLoginStep()">Sign In &rarr;</button>
+        <button class="btn-primary premium-btn" id="s-login-btn" onclick="studentLoginStep()">🎓 Sign In &rarr;</button>
 
         <div id="s-otp-buttons" style="display:none; gap:0.5rem; margin-top:0.5rem;">
           <button class="btn-primary" id="s-otp-submit-btn" onclick="otpResetStep()" style="flex:1;">Reset Password &rarr;</button>
@@ -1347,25 +1411,25 @@
             onblur="this.style.borderColor='var(--border)'">
 
           <!-- Batch filter dropdown -->
-          <select id="filter-batch"
+          <select id="filter-batch" class="premium-filter"
             style="padding:0.65rem 0.8rem;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:0.82rem;outline:none;cursor:pointer;"
             onchange="applyFilters()">
             <option value="">All Years</option>
           </select>
 
           <!-- Program filter dropdown -->
-          <select id="filter-program"
+          <select id="filter-program" class="premium-filter"
             style="padding:0.65rem 0.8rem;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:0.82rem;outline:none;cursor:pointer;"
             onchange="applyFilters()">
             <option value="">All Programs</option>
           </select>
 
           <!-- Earned Credits Filters & Sorting UI (V16.0) -->
-          <select id="filter-credit-exact" onchange="applyFilters()"
+          <select id="filter-credit-exact" class="premium-filter" onchange="applyFilters()"
             style="padding:0.65rem 0.8rem;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:0.82rem;outline:none;cursor:pointer;">
             <option value="">All Credits</option>
           </select>
-          <select id="sort-credits" onchange="applyFilters()"
+          <select id="sort-credits" class="premium-filter" onchange="applyFilters()"
             style="padding:0.65rem 0.8rem;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:0.82rem;outline:none;cursor:pointer;">
             <option value="">Sort Credits: Default</option>
             <option value="desc">High to Low (⬆️)</option>
@@ -1373,7 +1437,7 @@
           </select>
 
           <!-- Eligibility filter dropdown (V10.0) -->
-          <select id="filter-eligibility"
+          <select id="filter-eligibility" class="premium-filter"
             style="padding:0.65rem 0.8rem;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:0.82rem;outline:none;cursor:pointer;"
             onchange="applyFilters()">
             <option value="all">🎓 All</option>

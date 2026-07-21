@@ -525,6 +525,9 @@ function logout() {
   // Ensure student login is shown (not faculty login container)
   showStudentLoginUI();
 
+  // Ver 2.0 — Reset Zero-Gap Kill-Switch on logout
+  document.body.classList.remove('logged-in-state');
+
   // Clear the SEN/Password input fields and hide alerts
   resetStudentLoginUI();
 }
@@ -778,6 +781,10 @@ async function studentLoginStep() {
           currentStudent = alResult.student;
           renderStudentDash(currentStudent);
           showPage('student-dash');
+          // Ver 2.0 — Zero-Gap Kill-Switch
+          document.body.classList.add('logged-in-state');
+          const loginAreas1 = document.querySelectorAll('#login-section, .login-box, .login-container');
+          loginAreas1.forEach(el => { el.style.display = 'none'; if (el.parentElement) { el.parentElement.style.minHeight = '0'; el.parentElement.style.height = 'auto'; el.parentElement.style.padding = '0'; } });
           var loginSec = document.getElementById('loginSection');
           if (loginSec) loginSec.style.display = 'none';
           var loginContainer = document.getElementById('student-login-container');
@@ -822,6 +829,10 @@ async function studentLoginStep() {
       currentStudent = result.student;
       renderStudentDash(currentStudent);
       showPage('student-dash');
+      // Ver 2.0 — Zero-Gap Kill-Switch
+      document.body.classList.add('logged-in-state');
+      const loginAreas2 = document.querySelectorAll('#login-section, .login-box, .login-container');
+      loginAreas2.forEach(el => { el.style.display = 'none'; if (el.parentElement) { el.parentElement.style.minHeight = '0'; el.parentElement.style.height = 'auto'; el.parentElement.style.padding = '0'; } });
       var loginSec = document.getElementById('loginSection');
       if (loginSec) loginSec.style.display = 'none';
       var loginContainer = document.getElementById('student-login-container');
@@ -1401,6 +1412,10 @@ async function facultyLoginStep() {
       // Hide the inline faculty login container completely (removes empty space)
       var facContainer = document.getElementById('faculty-login-container');
       if (facContainer) facContainer.style.display = 'none';
+      // Ver 2.0 — Zero-Gap Kill-Switch
+      document.body.classList.add('logged-in-state');
+      const loginAreasF = document.querySelectorAll('#login-section, .login-box, .login-container');
+      loginAreasF.forEach(el => { el.style.display = 'none'; if (el.parentElement) { el.parentElement.style.minHeight = '0'; el.parentElement.style.height = 'auto'; el.parentElement.style.padding = '0'; } });
       // Navigate to faculty dashboard
       showPage('faculty-dash');
       // Show the faculty dashboard container and smooth-scroll into view
@@ -1436,6 +1451,8 @@ function facultyLogout() {
   sessionStorage.removeItem(FACULTY_SESSION);
   currentFacultyEmail = null;
   window.students = [];
+  // Ver 2.0 — Reset Zero-Gap Kill-Switch on logout
+  document.body.classList.remove('logged-in-state');
   // Return to landing and show the student login (not the faculty form)
   showPage('landing');
   showStudentLoginUI();

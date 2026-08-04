@@ -1055,26 +1055,204 @@ window.triggerTaggedUpload = function () {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 window.loadCurriculumEditor = function () {
-  const dropdown = document.getElementById('curriculum-edit-key');
-  const container = document.getElementById('curriculum-gui-container');
-  if (!dropdown || !container) return;
+    const dropdown = document.getElementById('curriculum-edit-key');
+    const container = document.getElementById('curriculum-gui-container');
+    if (!dropdown || !container) return;
 
-  const key = dropdown.value;
-  window.currentEditingKey = key;
+    const key = dropdown.value;
+    window.currentEditingKey = key;
 
-  const rules = (window.CURRICULUM_RULES && window.CURRICULUM_RULES[key]) ? window.CURRICULUM_RULES[key] : [];
+    // Ensure rule arrays exist safely
+    if (!window.CURRICULUM_RULES) window.CURRICULUM_RULES = {};
+    if (!window.CURRICULUM_RULES[key]) window.CURRICULUM_RULES[key] = [];
+    
+    const rules = window.CURRICULUM_RULES[key];
 
-  if (rules.length === 0) {
-    container.innerHTML = `<p style="color:var(--muted)">No curriculum rules defined for ${key}. Use Bulk Upload or add rules.</p>`;
-    return;
-  }
+    if (rules.length === 0) {
+        container.innerHTML = `
+            <div style="text-align:center; padding: 2rem; color: #64748b;">
+                <p>No curriculum rules defined for ${key}.</p>
+                <p>Use "Bulk Upload Excel Curriculum" or create a category below.</p>
+            </div>
+            <button onclick="createNewMainCategory()" style="width:100%; padding:15px; margin-top:20px; background:#10b981; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">➕ Create New Main Category</button>
+        `;
+        return;
+    }
 
-  container.innerHTML = rules.map((r, idx) => `
-    <div style="background:var(--s1); padding:15px; border-radius:8px; border:1px solid var(--border);">
-      <h3>${idx + 1}. ${esc(r.category)} (Min Credits: ${r.minCredits})</h3>
-      <p style="font-size:0.85rem; color:var(--sub)">Course Codes: ${(r.codes || []).join(', ')}</p>
-    </div>
-  `).join('');
+    let html = '';
+
+    rules.forEach((mainCat, mainIndex) => {
+        // Auto-upgrade legacy arrays to the new Sub-Category format
+        let subCats = mainCat.subCategories || [];
+        if (subCats.length === 0 && mainCat.codes && mainCat.codes.length > 0) {
+            subCats = [{ name: "General Courses", minCredits: mainCat.minCredits, codes: mainCat.codes }];
+            mainCat.subCategories = subCats; // Save the upgrade
+        }
+
+        // --- 1. MAIN CATEGORY CONTAINER ---
+        html += `
+        <div style="background:white; padding:20px; border-radius:8px; border:1px solid #93c5fd; margin-bottom:20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:10px;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <h3 style="margin:0; color:#0ea5e9; font-size:1.4rem;">📁 ${esc(mainCat.category)}</h3>
+                    <button onclick="renameMainCategory(${mainIndex})" style="background:#0ea5e9; color:white; border:none; border-radius:4px; padding:4px 10px; cursor:pointer; font-size:0.9rem; font-weight:bold;">Rename</button>
+                </div>
+                <button onclick="deleteMainCategory(${mainIndex})" style="background:#ef4444; color:white; border:none; border-radius:4px; padding:6px 12px; cursor:pointer; font-weight:bold;">🗑️ Delete Main Category</button>
+            </div>
+            
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:15px;">
+                <span style="color:#10b981; font-weight:bold; font-size:1.1rem;">Total Required: ${mainCat.minCredits} Credits</span>
+                <button onclick="editMainCredits(${mainIndex})" style="background:#64748b; color:white; border:none; border-radius:4px; padding:4px 10px; cursor:pointer; font-size:0.9rem; font-weight:bold;">Edit Credits</button>
+            </div>
+        `;
+
+        // --- 2. SUB CATEGORIES LOOP ---
+        subCats.forEach((sub, subIndex) => {
+            html += `
+            <div style="background:#0f172a; padding:15px; border-radius:8px; margin-bottom:15px; color:white; box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid #334155; padding-bottom:10px;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <h4 style="margin:0; font-size:1.2rem; color:#f8fafc;">📄 ${esc(sub.name)}</h4>
+                        <button onclick="renameSubCategory(${mainIndex}, ${subIndex})" style="background:#0ea5e9; color:white; border:none; border-radius:4px; padding:4px 10px; cursor:pointer; font-size:0.8rem; font-weight:bold;">Rename</button>
+                    </div>
+                    <button onclick="deleteSubCategory(${mainIndex}, ${subIndex})" style="background:transparent; border:1px solid #ef4444; color:#ef4444; border-radius:4px; padding:4px 10px; cursor:pointer; font-size:0.8rem;">🗑️ Remove Sub</button>
+                </div>
+                
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:15px;">
+                    <span style="color:#94a3b8; font-size:1rem;">(Min ${sub.minCredits} Credits)</span>
+                    <button onclick="editSubCredits(${mainIndex}, ${subIndex})" style="background:#475569; color:white; border:none; border-radius:4px; padding:4px 10px; cursor:pointer; font-size:0.8rem;">Edit Credits</button>
+                </div>
+
+                <div style="overflow-x:auto;">
+                    <table style="width:100%; text-align:left; border-collapse:collapse; margin-bottom:15px; min-width: 500px;">
+                        <thead>
+                            <tr style="border-bottom:2px solid #334155; color:#94a3b8; font-size:0.8rem; text-transform:uppercase;">
+                                <th style="padding:10px 5px;">CODE</th>
+                                <th style="padding:10px 5px;">COURSE NAME</th>
+                                <th style="padding:10px 5px; text-align:center;">CREDITS</th>
+                                <th style="padding:10px 5px; text-align:right;">ACTIONS</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            if (sub.codes && sub.codes.length > 0) {
+                sub.codes.forEach((code, codeIndex) => {
+                    const info = window.getCourseInfo(code);
+                    html += `
+                            <tr style="border-bottom:1px solid #1e293b; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#1e293b'" onmouseout="this.style.backgroundColor='transparent'">
+                                <td style="padding:12px 5px; font-weight:bold; color:#f8fafc;">${esc(code)}</td>
+                                <td style="padding:12px 5px; color:#cbd5e1;">${esc(info.name)}</td>
+                                <td style="padding:12px 5px; color:#3b82f6; font-weight:bold; text-align:center;">${info.credits}</td>
+                                <td style="padding:12px 5px; text-align:right; white-space: nowrap;">
+                                    <button onclick="editCourseCode(${mainIndex}, ${subIndex}, ${codeIndex})" style="background:#eab308; color:#451a03; border:none; border-radius:4px; padding:4px 10px; cursor:pointer; font-size:0.8rem; margin-right:5px; font-weight:bold;">Edit</button>
+                                    <button onclick="removeCourseCode(${mainIndex}, ${subIndex}, ${codeIndex})" style="background:#ef4444; color:white; border:none; border-radius:4px; padding:4px 10px; cursor:pointer; font-size:0.8rem; font-weight:bold;">Remove</button>
+                                </td>
+                            </tr>
+                    `;
+                });
+            } else {
+                 html += `<tr><td colspan="4" style="padding:20px 0; text-align:center; color:#64748b;">No courses added yet. Click below to add one.</td></tr>`;
+            }
+
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+                <button onclick="addCourseToSub(${mainIndex}, ${subIndex})" style="background:#2563eb; color:white; border:none; border-radius:6px; padding:10px 15px; cursor:pointer; font-weight:bold;">➕ Add Course to ${esc(sub.name)}</button>
+            </div>
+            `;
+        });
+
+        html += `
+            <button onclick="addSubCategory(${mainIndex})" style="background:#10b981; color:white; border:none; border-radius:6px; padding:10px 15px; cursor:pointer; font-weight:bold;">➕ Add Sub-Category</button>
+        </div>
+        `;
+    });
+
+    // Add the global "Create New Main Category" button at the absolute bottom
+    html += `<button onclick="createNewMainCategory()" style="width:100%; padding:15px; margin-top:10px; background:#10b981; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer; font-size:1.1rem; box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.3);">➕ Create New Main Category</button>`;
+
+    container.innerHTML = html;
+};
+
+// --- CURRICULUM UI HELPER FUNCTIONS ---
+
+window.createNewMainCategory = function() {
+    const name = prompt("Enter new Main Category name (e.g., '1. Core Courses'):");
+    if(!name) return;
+    window.CURRICULUM_RULES[window.currentEditingKey].push({ category: name, minCredits: 0, subCategories: [] });
+    window.loadCurriculumEditor();
+};
+
+window.renameMainCategory = function(mIndex) {
+    const cat = window.CURRICULUM_RULES[window.currentEditingKey][mIndex];
+    const newName = prompt("Rename Main Category:", cat.category);
+    if(newName) { cat.category = newName; window.loadCurriculumEditor(); }
+};
+
+window.deleteMainCategory = function(mIndex) {
+    if(confirm("Are you sure you want to delete this ENTIRE main category and all its subjects?")) {
+        window.CURRICULUM_RULES[window.currentEditingKey].splice(mIndex, 1);
+        window.loadCurriculumEditor();
+    }
+};
+
+window.editMainCredits = function(mIndex) {
+    const cat = window.CURRICULUM_RULES[window.currentEditingKey][mIndex];
+    const creds = prompt("Enter total required credits for this category:", cat.minCredits);
+    if(creds !== null && !isNaN(creds)) { cat.minCredits = parseFloat(creds); window.loadCurriculumEditor(); }
+};
+
+window.addSubCategory = function(mIndex) {
+    const cat = window.CURRICULUM_RULES[window.currentEditingKey][mIndex];
+    const name = prompt("Enter Sub-Category name (e.g., 'General Courses'):");
+    if(name) {
+        if(!cat.subCategories) cat.subCategories = [];
+        cat.subCategories.push({ name: name, minCredits: 0, codes: [] });
+        window.loadCurriculumEditor();
+    }
+};
+
+window.renameSubCategory = function(mIndex, sIndex) {
+    const sub = window.CURRICULUM_RULES[window.currentEditingKey][mIndex].subCategories[sIndex];
+    const newName = prompt("Rename Sub-Category:", sub.name);
+    if(newName) { sub.name = newName; window.loadCurriculumEditor(); }
+};
+
+window.deleteSubCategory = function(mIndex, sIndex) {
+    if(confirm("Delete this sub-category and all its subjects?")) {
+        window.CURRICULUM_RULES[window.currentEditingKey][mIndex].subCategories.splice(sIndex, 1);
+        window.loadCurriculumEditor();
+    }
+};
+
+window.editSubCredits = function(mIndex, sIndex) {
+    const sub = window.CURRICULUM_RULES[window.currentEditingKey][mIndex].subCategories[sIndex];
+    const creds = prompt("Enter min credits for this sub-category:", sub.minCredits);
+    if(creds !== null && !isNaN(creds)) { sub.minCredits = parseFloat(creds); window.loadCurriculumEditor(); }
+};
+
+window.addCourseToSub = function(mIndex, sIndex) {
+    const sub = window.CURRICULUM_RULES[window.currentEditingKey][mIndex].subCategories[sIndex];
+    const code = prompt("Enter exact Course Code (e.g., 'MGT1001'):");
+    if(code) {
+        sub.codes.push(code.toUpperCase().trim());
+        window.loadCurriculumEditor();
+    }
+};
+
+window.editCourseCode = function(mIndex, sIndex, cIndex) {
+    const sub = window.CURRICULUM_RULES[window.currentEditingKey][mIndex].subCategories[sIndex];
+    const newCode = prompt("Edit Course Code:", sub.codes[cIndex]);
+    if(newCode) { sub.codes[cIndex] = newCode.toUpperCase().trim(); window.loadCurriculumEditor(); }
+};
+
+window.removeCourseCode = function(mIndex, sIndex, cIndex) {
+    if(confirm("Remove this course code from the basket?")) {
+        window.CURRICULUM_RULES[window.currentEditingKey][mIndex].subCategories[sIndex].codes.splice(cIndex, 1);
+        window.loadCurriculumEditor();
+    }
 };
 
 window.resetCurriculumEditor = function () {

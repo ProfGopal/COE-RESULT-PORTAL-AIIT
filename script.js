@@ -775,56 +775,88 @@ window.closeFacultyStudentView = function () {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function renderStudentDash(student) {
-  var senLabel = document.getElementById('dash-sen-label');
-  if (senLabel) senLabel.textContent = student.sen;
+    // Safe extractions
+    const studentName = student.name || 'Unknown Student';
+    const studentSen = student.sen || 'N/A';
+    const studentProg = student.program || '';
+    const studentSchool = student.school || 'AIIT';
+    const rawCgpa = parseFloat(student.cgpa);
+    const cgpa = (!isNaN(rawCgpa) && rawCgpa !== 0) ? rawCgpa.toFixed(2) : "N/A";
+    
+    let totalCredits = 0;
+    let validCourses = [];
 
-  var nameEl = document.getElementById('dash-name');
-  if (nameEl) nameEl.textContent = student.name;
+    if (student.courses && Array.isArray(student.courses)) {
+        validCourses = student.courses.filter(c => c && c.code && c.code.trim() !== '' && c.code.trim() !== 'NAN');
+        
+        // Calculate total credits from passed courses if the totalCredits variable is 0
+        validCourses.forEach(c => {
+            if (!['F', 'AB', 'DE', 'I', 'U'].includes(String(c.grade).toUpperCase())) {
+                totalCredits += parseFloat(c.credits) || 0;
+            }
+        });
+    }
+    
+    // Use explicitly uploaded credit total if it exists and is > 0, otherwise use calculated
+    const finalCredits = (parseFloat(student.totalCredits) > 0) ? parseFloat(student.totalCredits) : totalCredits;
 
-  var progEl = document.getElementById('dash-program');
-  if (progEl) progEl.textContent = student.program || '';
+    // UI Updates
+    const senLabel = document.getElementById('dash-sen-label');
+    if (senLabel) senLabel.textContent = studentSen;
 
-  var schoolEl = document.getElementById('dash-school');
-  if (schoolEl) schoolEl.textContent = student.school ? ' · ' + student.school : '';
+    const nameEl = document.getElementById('dash-name');
+    if (nameEl) nameEl.textContent = studentName;
 
-  var avatarEl = document.getElementById('dash-avatar');
-  if (avatarEl) avatarEl.textContent = (student.name || 'S').charAt(0);
+    const progEl = document.getElementById('dash-program');
+    if (progEl) progEl.textContent = studentProg;
 
-  var cgpaVal = parseFloat(student.cgpa);
-  var cgpa = (!isNaN(cgpaVal) && cgpaVal !== 0) ? cgpaVal.toFixed(2) : "N/A";
-  var creditsVal = parseFloat(student.totalCredits || student.totalCreditEarned);
-  var credits = (!isNaN(creditsVal) && creditsVal !== 0) ? String(creditsVal) : "N/A";
+    const schoolEl = document.getElementById('dash-school');
+    if (schoolEl) schoolEl.textContent = ' · ' + studentSchool;
 
-  var cgpaEl = document.getElementById('dash-cgpa');
-  if (cgpaEl) cgpaEl.textContent = cgpa;
+    const avatarEl = document.getElementById('dash-avatar');
+    if (avatarEl) avatarEl.textContent = studentName.charAt(0).toUpperCase();
 
-  var ceEl = document.getElementById('dash-ce');
-  if (ceEl) ceEl.textContent = credits;
+    const cgpaEl = document.getElementById('dash-cgpa');
+    if (cgpaEl) cgpaEl.textContent = cgpa;
 
-  var validCourses = (student.courses || []).filter(c => c && c.code && c.code.trim() !== '');
-  var ncEl = document.getElementById('dash-nc');
-  if (ncEl) ncEl.textContent = validCourses.length;
+    const ceEl = document.getElementById('dash-ce');
+    if (ceEl) ceEl.textContent = finalCredits;
 
-  var tbody = document.getElementById('courses-tbody');
-  if (tbody) {
-    tbody.innerHTML = validCourses.map(c => `
-      <tr>
-        <td><strong>${esc(c.code)}</strong></td>
-        <td>${esc(c.name || getCourseInfo(c.code).name)}</td>
-        <td>${esc(c.type || 'Core')}</td>
-        <td>${c.credits || getCourseInfo(c.code).credits}</td>
-        <td>${c.marks !== undefined ? c.marks : '—'}</td>
-        <td><span class="badge ${['F', 'AB'].includes(String(c.grade).toUpperCase()) ? 'fail' : 'pass'}">${esc(c.grade)}</span></td>
-        <td>${c.gradePoints !== undefined ? c.gradePoints : '—'}</td>
-        <td>${c.creditsEarned !== undefined ? c.creditsEarned : c.credits}</td>
-      </tr>
-    `).join('');
-  }
+    const ncEl = document.getElementById('dash-nc');
+    if (ncEl) ncEl.textContent = validCourses.length;
 
-  var auditTab = document.getElementById('sdash-audit-tab');
-  if (auditTab) {
-    auditTab.innerHTML = window.evaluateDegree(student);
-  }
+    // Render the Courses Table
+    const tbody = document.getElementById('courses-tbody');
+    if (tbody) {
+        if (validCourses.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:20px;">No course data available.</td></tr>`;
+        } else {
+            tbody.innerHTML = validCourses.map(c => {
+                const gradeStr = String(c.grade).toUpperCase().trim();
+                const isFail = ['F', 'AB', 'DE', 'I', 'U'].includes(gradeStr);
+                const earnedCr = isFail ? 0 : (c.credits || 0);
+
+                return `
+                <tr>
+                    <td><strong>${esc(c.code)}</strong></td>
+                    <td>${esc(c.name)}</td>
+                    <td>${esc(c.type)}</td>
+                    <td>${c.credits || 0}</td>
+                    <td>${c.marks || '—'}</td>
+                    <td><span class="badge ${isFail ? 'fail' : 'pass'}">${esc(c.grade)}</span></td>
+                    <td>${c.gradePoints || '—'}</td>
+                    <td>${earnedCr}</td>
+                </tr>
+                `;
+            }).join('');
+        }
+    }
+
+    // Render Degree Audit
+    const auditTab = document.getElementById('sdash-audit-tab');
+    if (auditTab) {
+        auditTab.innerHTML = window.evaluateDegree(student);
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1232,39 +1264,67 @@ window.uploadStagedFiles = function() {
                 const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
                 const rows = XLSX.utils.sheet_to_json(firstSheet);
 
-                rows.forEach(row => {
-                    const cleanRow = {};
-                    for (let key in row) cleanRow[key.toString().replace(/[^a-zA-Z0-9]/g, '').toLowerCase()] = row[key];
+                    // --- AGGRESSIVE FUZZY EXCEL PARSER ---
+                    rows.forEach(row => {
+                        const cleanRow = {};
+                        // Standardize all keys to lowercase, removing spaces and special characters
+                        for (let key in row) {
+                            cleanRow[key.toString().replace(/[^a-zA-Z0-9]/g, '').toLowerCase()] = row[key];
+                        }
 
-                    const sen = String(cleanRow['sen'] || cleanRow['rollno'] || '').toUpperCase().trim();
-                    if (!sen) return;
+                        // 1. Extract Student Identifiers
+                        const sen = String(cleanRow['sen'] || cleanRow['rollno'] || '').toUpperCase().trim();
+                        if (!sen) return;
 
-                    if (!allParsedStudents[sen]) {
-                        allParsedStudents[sen] = {
-                            sen: sen,
-                            name: cleanRow['name'] || cleanRow['studentname'] || "Unknown",
-                            program: uploadProg,
-                            batch: uploadBatch,
-                            school: cleanRow['school'] || cleanRow['institute'] || "AIIT",
-                            cgpa: cleanRow['cgpa'] || 0,
-                            totalCredits: cleanRow['totalcredits'] || cleanRow['creditsearned'] || 0,
-                            courses: []
-                        };
-                    }
+                        if (!allParsedStudents[sen]) {
+                            allParsedStudents[sen] = {
+                                sen: sen,
+                                name: cleanRow['studentname'] || cleanRow['name'] || "Unknown",
+                                program: uploadProg,
+                                batch: uploadBatch,
+                                school: cleanRow['school'] || cleanRow['institute'] || "AIIT",
+                                cgpa: parseFloat(cleanRow['cgpa']) || 0,
+                                totalCredits: parseFloat(cleanRow['creditbalance']) || parseFloat(cleanRow['totalcredits']) || 0,
+                                courses: []
+                            };
+                        }
 
-                    const courseCode = String(cleanRow['coursecode'] || cleanRow['code'] || '').trim().toUpperCase();
-                    if (courseCode) {
-                        allParsedStudents[sen].courses.push({
-                            code: courseCode,
-                            name: cleanRow['coursetitle'] || cleanRow['coursename'] || "",
-                            credits: parseFloat(cleanRow['credits']) || parseFloat(cleanRow['coursecredits']) || 3,
-                            grade: String(cleanRow['grade'] || '').toUpperCase().trim(),
-                            type: cleanRow['type'] || cleanRow['coursetype'] || 'Core',
-                            marks: cleanRow['marks'] || 0,
-                            gradePoints: cleanRow['gradepoints'] || 0
-                        });
-                    }
-                });
+                        // 2. Extract Course Data (Handling numbered headers like "1coursecode")
+                        let courseCode = "";
+                        let courseName = "";
+                        let credits = 3;
+                        let grade = "";
+                        let marks = 0;
+                        let type = "Core";
+
+                        // Search the cleanRow for any key containing "coursecode" or "code"
+                        for (let key in cleanRow) {
+                            if (key.includes('coursecode') || key === 'code') {
+                                courseCode = String(cleanRow[key]).trim().toUpperCase();
+                            } else if (key.includes('coursetitle') || key.includes('coursename')) {
+                                courseName = String(cleanRow[key]).trim();
+                            } else if (key.includes('creditregistered') || key.includes('coursecredits') || key === 'credits') {
+                                credits = parseFloat(cleanRow[key]);
+                            } else if (key.includes('finalgrade') || key === 'grade') {
+                                grade = String(cleanRow[key]).toUpperCase().trim();
+                            } else if (key.includes('totalmarks') || key === 'marks') {
+                                marks = parseFloat(cleanRow[key]);
+                            } else if (key.includes('coursetype') || key === 'type') {
+                                type = String(cleanRow[key]).trim();
+                            }
+                        }
+
+                        if (courseCode && courseCode !== "NAN" && courseCode !== "UNDEFINED") {
+                            allParsedStudents[sen].courses.push({
+                                code: courseCode,
+                                name: courseName,
+                                credits: isNaN(credits) ? 3 : credits,
+                                grade: grade,
+                                type: type,
+                                marks: isNaN(marks) ? 0 : marks
+                            });
+                        }
+                    });
             } catch (err) {
                 console.error(`Error parsing ${file.name}:`, err);
             }

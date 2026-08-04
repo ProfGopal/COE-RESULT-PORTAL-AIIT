@@ -675,24 +675,35 @@ window.facultyLogout = function () {
 };
 
 window.facultyViewAll = async function () {
-  syncBar('Loading student records…', true);
-  try {
-    var res = await fetch(scriptURL + "?action=getStudents");
-    var data = await res.json();
-    if (Array.isArray(data)) {
-      window.STUDENTS = data;
-      window.ALL_STUDENTS = data;
-      renderStudentTable(data);
-    } else if (data && Array.isArray(data.students)) {
-      window.STUDENTS = data.students;
-      window.ALL_STUDENTS = data.students;
-      renderStudentTable(data.students);
+    syncBar('Loading student records from Cloud Database…', true);
+    try {
+        // FIX: Use the correct '?action=load' codeword to match the backend
+        var res = await fetch(scriptURL + "?action=load");
+        var data = await res.json();
+        var students = Array.isArray(data) ? data : (data.students || []);
+        
+        window.STUDENTS = students;
+        window.ALL_STUDENTS = students;
+        
+        // Auto-populate Faculty Dropdown Filters based on live cloud data
+        const uniqueBatches = [...new Set(students.map(s => String(s.batch || '').trim()).filter(Boolean))];
+        const uniqueProgs = [...new Set(students.map(s => String(s.program || '').trim()).filter(Boolean))];
+        
+        const facultyDash = document.getElementById('faculty-dash') || document.querySelector('.faculty-section');
+        if (facultyDash) {
+             const selects = facultyDash.querySelectorAll('select');
+             if(selects.length >= 2) {
+                 selects[0].innerHTML = `<option value="">All Years</option>` + uniqueBatches.map(b => `<option value="${b}">${b}</option>`).join('');
+                 selects[1].innerHTML = `<option value="">All Programs</option>` + uniqueProgs.map(p => `<option value="${p}">${p}</option>`).join('');
+             }
+        }
+
+        renderStudentTable(students);
+    } catch (err) {
+        console.error("Failed to load students:", err);
+    } finally {
+        syncBar('', false);
     }
-  } catch (err) {
-    console.error("Failed to load students:", err);
-  } finally {
-    syncBar('', false);
-  }
 };
 
 window.facultyFilterBacklogs = function () {
@@ -738,29 +749,35 @@ window.applyFilters = function () {
 };
 
 function renderStudentTable(students) {
-  var tbody = document.getElementById('faculty-dir-tbody');
-  var badge = document.getElementById('faculty-dir-badge');
-  if (badge) badge.textContent = `${students.length} students`;
-  if (!tbody) return;
+    var tbody = document.getElementById('faculty-dir-tbody') || document.querySelector('#faculty-dash tbody');
+    var badge = document.querySelector('#faculty-dash .badge') || document.getElementById('faculty-dir-badge');
+    
+    if (badge) badge.textContent = `${students.length} students`;
+    if (!tbody) return;
 
-  if (!students || students.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--muted)">No matching student records found.</td></tr>`;
-    return;
-  }
+    if (!students || students.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:2rem;color:#64748b;font-size:1.1rem;">No matching student records found.</td></tr>`;
+        return;
+    }
 
-  tbody.innerHTML = students.map(s => {
-    var cgpa = parseFloat(s.cgpa) ? parseFloat(s.cgpa).toFixed(2) : 'N/A';
-    var credits = s.totalCredits || s.totalCreditEarned || 'N/A';
-    var backlogs = s.backlogs !== undefined ? s.backlogs : (s.courses ? s.courses.filter(c => ['F', 'AB', 'DE', 'I'].includes(String(c.grade).toUpperCase())).length : 0);
-    return `<tr>
-      <td>${esc(s.sen)}</td>
-      <td><strong>${esc(s.name)}</strong></td>
-      <td>${cgpa}</td>
-      <td>${credits}</td>
-      <td><span class="badge ${backlogs > 0 ? 'fail' : 'pass'}">${backlogs}</span></td>
-      <td><button class="btn-sm primary" onclick="openFacultyStudentView('${esc(s.sen)}')">View Profile</button></td>
-    </tr>`;
-  }).join('');
+    tbody.innerHTML = students.map(s => {
+        var cgpa = parseFloat(s.cgpa) ? parseFloat(s.cgpa).toFixed(2) : 'N/A';
+        var credits = s.totalCredits || s.totalCreditEarned || '0';
+        
+        // Smart Backlog calculation
+        var validCourses = s.courses ? s.courses.filter(c => c && c.code && c.code !== 'NAN') : [];
+        var backlogs = window.getActiveBacklogs ? window.getActiveBacklogs(validCourses).length : 0;
+        
+        return `
+        <tr style="border-bottom:1px solid #e2e8f0; transition: background 0.2s;" onmouseover="this.style.backgroundColor='#f8fafc'" onmouseout="this.style.backgroundColor='transparent'">
+            <td style="padding:12px; font-weight:bold; color:#0f172a;">${esc(s.sen)}</td>
+            <td style="padding:12px;">${esc(s.name)}</td>
+            <td style="padding:12px; color:#3b82f6; font-weight:bold;">${cgpa}</td>
+            <td style="padding:12px; font-weight:bold;">${credits}</td>
+            <td style="padding:12px;"><span style="padding:4px 8px; border-radius:4px; font-weight:bold; background:${backlogs > 0 ? '#fee2e2' : '#dcfce3'}; color:${backlogs > 0 ? '#dc2626' : '#16a34a'};">${backlogs}</span></td>
+            <td style="padding:12px;"><button style="background:#0ea5e9; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-weight:bold;" onclick="openFacultyStudentView('${esc(s.sen)}')">Details</button></td>
+        </tr>`;
+    }).join('');
 }
 
 window.openFacultyStudentView = function (sen) {
@@ -887,9 +904,9 @@ function renderStudentDash(student) {
     const ncEl = document.getElementById('dash-nc');
     if (ncEl) ncEl.textContent = validCourses.length;
 
-    // FIX: Update the "Completed Credits: 0 | Backlog: 0" light blue ribbon dynamically
+    // FIX: Protected DOM Update. Ensures we only target the small ribbon box, not the entire page wrapper!
     document.querySelectorAll('div, p, span').forEach(el => {
-        if (el.textContent.includes('Completed Credits:') && el.textContent.includes('Backlog')) {
+        if (el.textContent && el.textContent.includes('Completed Credits:') && el.textContent.includes('Backlog') && el.textContent.length < 150) {
             el.innerHTML = `Completed Credits: <strong style="color:#0f172a; margin-right: 15px;">${finalCredits}</strong> | <span style="margin-left: 15px;">Active Backlog Courses: <strong style="color:#ef4444;">${activeBacklogs.length}</strong></span>`;
         }
     });

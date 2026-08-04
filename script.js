@@ -81,6 +81,12 @@ const COURSE_DICT = {
 
 window.CUSTOM_COURSE_DICT = JSON.parse(localStorage.getItem('AIIT_CUSTOM_COURSES')) || {};
 
+window.formatCgpa = function(val) {
+    let num = parseFloat(val);
+    if (isNaN(num) || num === 0) return "N/A";
+    return num.toFixed(2);
+};
+
 window.getCourseInfo = function (code) {
     if (!code) return { name: "Course Title", credits: 3 };
     let cleanCode = String(code).toUpperCase().trim();
@@ -770,7 +776,7 @@ function renderStudentTable(students) {
     }
 
     tbody.innerHTML = students.map(s => {
-        var cgpa = parseFloat(s.cgpa) ? parseFloat(s.cgpa).toFixed(2) : 'N/A';
+        var cgpa = window.formatCgpa(s.cgpa);
         var credits = s.totalCredits || s.totalCreditEarned || '0';
         
         // Smart Backlog calculation
@@ -825,7 +831,7 @@ window.openFacultyStudentView = function (sen) {
                     <div style="display:flex; flex-wrap:wrap; gap:15px; margin-top:10px;">
                         <span style="background:#f8fafc; padding:6px 12px; border-radius:6px; font-weight:bold; border:1px solid #cbd5e1;">Program: ${esc(s.program || 'N/A')}</span>
                         <span style="background:#f8fafc; padding:6px 12px; border-radius:6px; font-weight:bold; border:1px solid #cbd5e1;">Batch: ${esc(s.batch || 'N/A')}</span>
-                        <span style="background:#ecfdf5; padding:6px 12px; border-radius:6px; font-weight:bold; color:#10b981; border:1px solid #a7f3d0;">CGPA: ${s.cgpa || 'N/A'}</span>
+                        <span style="background:#ecfdf5; padding:6px 12px; border-radius:6px; font-weight:bold; color:#10b981; border:1px solid #a7f3d0;">CGPA: ${window.formatCgpa(s.cgpa)}</span>
                         <span style="background:#eff6ff; padding:6px 12px; border-radius:6px; font-weight:bold; color:#3b82f6; border:1px solid #bfdbfe;">Total Credits: ${s.totalCredits || '0'}</span>
                     </div>
                 </div>
@@ -879,8 +885,7 @@ function renderStudentDash(student) {
     const studentProg = student.program || '';
     const studentSchool = student.school || 'AIIT';
     
-    const rawCgpa = parseFloat(student.cgpa);
-    const cgpa = (!isNaN(rawCgpa) && rawCgpa > 0) ? rawCgpa.toFixed(2) : "N/A";
+    const cgpa = window.formatCgpa(student.cgpa);
     const finalCredits = parseFloat(student.totalCredits) || 0;
     
     let validCourses = [];
@@ -1691,11 +1696,17 @@ window.addCourseToSub = function(mIndex, sIndex) {
         const name = prompt(`2/3: Enter Course Name for ${cleanCode}:`, "New Course");
         const creds = prompt(`3/3: Enter Credits for ${cleanCode}:`, "3");
         
+        let parsedCreds = 3;
+        if (creds !== null && creds !== undefined && String(creds).trim() !== "") {
+            parsedCreds = parseFloat(creds);
+            if (isNaN(parsedCreds)) parsedCreds = 3;
+        }
+
         sub.codes.push(cleanCode);
         
         // Save to Custom Dictionary so it renders correctly everywhere
         if (!window.CUSTOM_COURSE_DICT) window.CUSTOM_COURSE_DICT = {};
-        window.CUSTOM_COURSE_DICT[cleanCode] = { name: name || "Unknown", credits: parseFloat(creds) || 3 };
+        window.CUSTOM_COURSE_DICT[cleanCode] = { name: name || "Unknown", credits: parsedCreds };
         localStorage.setItem('AIIT_CUSTOM_COURSES', JSON.stringify(window.CUSTOM_COURSE_DICT));
         
         window.loadCurriculumEditor();
@@ -1715,8 +1726,14 @@ window.editCourseCode = function(mIndex, sIndex, cIndex) {
         const newName = prompt(`2/3: Edit Course Name for ${cleanCode}:`, existingInfo.name);
         const newCreds = prompt(`3/3: Edit Credits for ${cleanCode}:`, existingInfo.credits);
         
+        let parsedCreds = 3;
+        if (newCreds !== null && newCreds !== undefined && String(newCreds).trim() !== "") {
+            parsedCreds = parseFloat(newCreds);
+            if (isNaN(parsedCreds)) parsedCreds = 3;
+        }
+
         if (!window.CUSTOM_COURSE_DICT) window.CUSTOM_COURSE_DICT = {};
-        window.CUSTOM_COURSE_DICT[cleanCode] = { name: newName || "Unknown", credits: parseFloat(newCreds) || 3 };
+        window.CUSTOM_COURSE_DICT[cleanCode] = { name: newName || "Unknown", credits: parsedCreds };
         localStorage.setItem('AIIT_CUSTOM_COURSES', JSON.stringify(window.CUSTOM_COURSE_DICT));
         
         window.loadCurriculumEditor(); 

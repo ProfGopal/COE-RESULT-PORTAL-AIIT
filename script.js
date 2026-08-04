@@ -644,7 +644,6 @@ window.facultyLoginStep = async function () {
         var response = await fetch(scriptURL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
-            // FIX: Action MUST be 'verifyfaculty' to match backend.gs
             body: JSON.stringify({ action: 'verifyfaculty', email: email, password: pass }) 
         });
         var result = await response.json();
@@ -652,13 +651,18 @@ window.facultyLoginStep = async function () {
         if (result && result.status === 'success') {
             if (btn) btn.innerHTML = "✅ Access Granted";
             
-            // --- DIGITAL SHREDDER FOR FACULTY UI ---
-            const loginBox = btn ? btn.closest('.bg-white') || btn.closest('.login-wrapper') : null;
-            if (loginBox) loginBox.remove();
+            // --- AGGRESSIVE DIGITAL SHREDDER ---
+            // Completely remove the login form container from the DOM so it cannot show up at the bottom
+            const loginWrapper = document.getElementById('faculty-login-container') || btn.closest('.bg-white') || btn.closest('form') || document.querySelector('.login-section');
+            if (loginWrapper) {
+                loginWrapper.style.display = 'none';
+                loginWrapper.remove();
+            }
             
-            document.querySelectorAll('h1, h2, h3, p').forEach(textNode => {
-                if (textNode.textContent.includes('Faculty Login') || textNode.textContent.includes('Authorized AIIT faculty')) {
-                    textNode.style.display = 'none';
+            // Also hide any stray login headers or text nodes
+            document.querySelectorAll('h1, h2, h3, p, div').forEach(node => {
+                if (node.textContent && (node.textContent.includes('Faculty Login') || node.textContent.includes('Authorized AIIT faculty'))) {
+                    node.style.display = 'none';
                 }
             });
 
@@ -675,7 +679,7 @@ window.facultyLoginStep = async function () {
             var label = document.getElementById('faculty-email-label');
             if (label) label.textContent = email;
             
-            window.facultyViewAll(); // Load the universal directory
+            window.facultyViewAll(); 
         } else {
             showErr('faculty-err', '⚠ ' + ((result && result.message) || 'Invalid credentials.'), ['f-pass']);
             if (btn) { btn.innerHTML = originalBtnText; btn.disabled = false; }
@@ -2541,5 +2545,32 @@ document.addEventListener('click', async function(e) {
                     setTimeout(() => { btn.innerHTML = originalText; btn.style.backgroundColor = ""; }, 1000);
                 });
         }
+    }
+});
+
+// ============================================================================
+// 11. SECURE LOGOUT RESET SEQUENCE (Ver 2.1)
+// ============================================================================
+
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('button') || e.target.closest('a');
+    if (!btn) return;
+    
+    if (btn.textContent && btn.textContent.trim() === 'Logout') {
+        e.preventDefault();
+        
+        // Clear session memory
+        sessionStorage.clear();
+        localStorage.removeItem('coe_student_session');
+        
+        // Hide all dashboards
+        document.querySelectorAll('#faculty-dash, #student-dash, .dashboard-fullscreen-overlay').forEach(el => {
+            if (el) el.style.display = 'none';
+        });
+        
+        document.body.classList.remove('overlay-active');
+        
+        // Hard reload to clean state
+        window.location.href = window.location.pathname;
     }
 });

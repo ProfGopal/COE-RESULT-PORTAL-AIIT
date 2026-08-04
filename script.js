@@ -1481,25 +1481,45 @@ window.adminLogin = function() {
         if (data.status === 'success') {
             if (btn) btn.innerHTML = "✅ Access Granted";
             
-            // Secure the session memory
+            // 1. Secure the session memory
             localStorage.setItem('isLoggedIn', 'true');
             localStorage.setItem('userRole', 'admin');
             sessionStorage.setItem('ADMIN_SESSION', 'active');
             
-            // Trigger the Zero-Gap Dashboard Layout
-            document.body.classList.add('overlay-active');
-            const dashboard = document.getElementById('admin-dashboard') || document.getElementById('dashboard-section');
+            // 2. Aggressive DOM Nuke to destroy the Login Box
+            const loginContainers = document.querySelectorAll('#login-section, .login-wrapper, .login-container');
+            loginContainers.forEach(el => el.style.display = 'none');
             
-            if (dashboard) {
-                dashboard.classList.add('dashboard-fullscreen-overlay');
-                dashboard.style.display = 'block';
-                window.scrollTo({ top: 0, behavior: 'instant' });
+            // Failsafe: Hide the parent container of the button just in case HTML IDs differ
+            const formParent = btn.closest('.bg-white') || btn.closest('form');
+            if (formParent && formParent.parentElement) {
+                formParent.parentElement.style.display = 'none';
             }
-            
-            // Hide the login box container
-            const loginSection = document.getElementById('login-section') || document.querySelector('.login-container');
-            if(loginSection) loginSection.style.display = 'none';
 
+            // 3. Find and Show the Admin Panel (Scanning all possible naming conventions)
+            const adminDash = document.getElementById('admin-panel') || 
+                              document.getElementById('admin-dashboard') || 
+                              document.getElementById('admin-container') || 
+                              document.getElementById('dashboard-section') || 
+                              document.querySelector('.admin-wrapper');
+            
+            if (adminDash) {
+                // Trigger the Ver 1.2 Zero-Gap Layout Overlay
+                document.body.classList.add('overlay-active');
+                adminDash.classList.add('dashboard-fullscreen-overlay');
+                adminDash.style.display = 'block';
+                window.scrollTo({ top: 0, behavior: 'instant' });
+            } else {
+                // ULTIMATE FALLBACK: If HTML IDs still don't match, forcibly reload the page 
+                // so the browser's native session checker builds the dashboard for us.
+                window.location.reload();
+            }
+
+            // 4. Force the dashboard to fetch the Google Sheet data immediately
+            if (typeof loadData === 'function') loadData();
+            if (typeof fetchStudents === 'function') fetchStudents();
+            if (typeof renderAdminDashboard === 'function') renderAdminDashboard();
+            
         } else {
             // Display the Google Cloud error message
             if (errorBox) {

@@ -2023,3 +2023,112 @@ document.addEventListener('click', function(e) {
         }
     }
 });
+
+// ============================================================================
+// 10. DANGER ZONE GLOBAL HIJACKER (Ver 3.8)
+// ============================================================================
+
+document.addEventListener('click', async function(e) {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+
+    // --- 1. CLEAR ALL RECORDS ---
+    if (btn.textContent.includes('Clear All Records') || btn.innerText.includes('Clear All Records')) {
+        e.preventDefault();
+        
+        var adminPass = window.currentAdminPassword || sessionStorage.getItem('coe_admin_auth') || '';
+        if (!adminPass) { alert("Session expired. Please log in again."); return; }
+        
+        if (!confirm("⚠️ DANGER: Permanently delete ALL student records from the database? This cannot be undone.")) return;
+
+        const originalText = btn.innerHTML;
+        btn.innerHTML = "⏳ Clearing Database...";
+        btn.disabled = true;
+
+        try {
+            var res = await fetch(scriptURL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({ action: 'clearall', adminPassword: adminPass })
+            });
+            var data = await res.json();
+            
+            if (data.status === 'success') {
+                alert(`✅ ${data.message || 'All student records have been permanently deleted.'}`);
+                if (typeof window.applyAdminFilters === 'function') window.applyAdminFilters();
+            } else {
+                alert(`❌ Failed: ${data.message}`);
+            }
+        } catch (err) {
+            alert('❌ Error: ' + err.message);
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    }
+
+    // --- 2. CLEAR ALL STUDENT PASSWORDS ---
+    else if (btn.textContent.includes('Clear ALL Student Passwords')) {
+        e.preventDefault();
+        
+        var adminPass = window.currentAdminPassword || sessionStorage.getItem('coe_admin_auth') || '';
+        if (!adminPass) { alert("Session expired. Please log in again."); return; }
+        
+        if (!confirm("⚠️ DANGER: Reset passwords for EVERY single student in the system?")) return;
+
+        const originalText = btn.innerHTML;
+        btn.innerHTML = "⏳ Resetting Passwords...";
+        btn.disabled = true;
+
+        try {
+            var res = await fetch(scriptURL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({ action: 'clearallpasswords', adminPassword: adminPass })
+            });
+            var data = await res.json();
+            
+            if (data.status === 'success') {
+                alert(`✅ ${data.message}`);
+                if (typeof window.applyAdminFilters === 'function') window.applyAdminFilters();
+            } else {
+                alert(`❌ Failed: ${data.message}`);
+            }
+        } catch (err) { alert('❌ Error: ' + err.message); } 
+        finally { btn.innerHTML = originalText; btn.disabled = false; }
+    }
+
+    // --- 3. CLEAR SINGLE STUDENT PASSWORD ---
+    else if (btn.textContent.includes('Clear Password') && !btn.textContent.includes('ALL')) {
+        e.preventDefault();
+        
+        // Find the input field next to the button
+        const senInput = document.querySelector('input[placeholder*="SEN"]') || document.getElementById('reset-sen-input');
+        const sen = senInput ? senInput.value.trim().toUpperCase() : '';
+        
+        if (!sen) { alert("⚠️ Please enter a valid SEN number first."); return; }
+        if (!confirm(`Are you sure you want to clear the password for ${sen}?`)) return;
+
+        const originalText = btn.innerHTML;
+        btn.innerHTML = "⏳ Clearing...";
+        btn.disabled = true;
+
+        try {
+            var res = await fetch(scriptURL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({ action: 'clearpassword', sen: sen })
+            });
+            var data = await res.json();
+            
+            if (data.status === 'success') {
+                alert(`✅ Password reset successfully for ${sen}.`);
+                if (senInput) senInput.value = '';
+                if (typeof window.applyAdminFilters === 'function') window.applyAdminFilters();
+            } else {
+                alert(`❌ Failed: ${data.message}`);
+            }
+        } catch (err) { alert('❌ Error: ' + err.message); } 
+        finally { btn.innerHTML = originalText; btn.disabled = false; }
+    }
+});

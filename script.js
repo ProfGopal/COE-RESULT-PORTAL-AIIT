@@ -781,7 +781,6 @@ function renderStudentDash(student) {
     const studentProg = student.program || '';
     const studentSchool = student.school || 'AIIT';
     const rawCgpa = parseFloat(student.cgpa);
-    const cgpa = (!isNaN(rawCgpa) && rawCgpa !== 0) ? rawCgpa.toFixed(2) : "N/A";
     
     let totalCredits = 0;
     let validCourses = [];
@@ -797,7 +796,7 @@ function renderStudentDash(student) {
         });
     }
     
-    // Use explicitly uploaded credit total if it exists and is > 0, otherwise use calculated
+    // Use explicitly uploaded credit total if it exists, otherwise use calculated
     const finalCredits = (parseFloat(student.totalCredits) > 0) ? parseFloat(student.totalCredits) : totalCredits;
 
     // UI Updates
@@ -810,14 +809,12 @@ function renderStudentDash(student) {
     const progEl = document.getElementById('dash-program');
     if (progEl) progEl.textContent = studentProg;
 
-    const schoolEl = document.getElementById('dash-school');
-    if (schoolEl) schoolEl.textContent = ' · ' + studentSchool;
-
     const avatarEl = document.getElementById('dash-avatar');
     if (avatarEl) avatarEl.textContent = studentName.charAt(0).toUpperCase();
 
     const cgpaEl = document.getElementById('dash-cgpa');
-    if (cgpaEl) cgpaEl.textContent = cgpa;
+    // FIX: Display CGPA if it is > 0
+    if (cgpaEl) cgpaEl.textContent = (!isNaN(rawCgpa) && rawCgpa > 0) ? rawCgpa.toFixed(2) : "N/A";
 
     const ceEl = document.getElementById('dash-ce');
     if (ceEl) ceEl.textContent = finalCredits;
@@ -852,8 +849,17 @@ function renderStudentDash(student) {
         }
     }
 
-    // Render Degree Audit
-    const auditTab = document.getElementById('sdash-audit-tab');
+    // FAILSAFE: Render Degree Audit dynamically if HTML container is missing
+    let auditTab = document.getElementById('sdash-audit-tab');
+    if (!auditTab) {
+        const tableContainer = document.querySelector('.table-container') || document.querySelector('table');
+        if (tableContainer) {
+            auditTab = document.createElement('div');
+            auditTab.id = 'sdash-audit-tab';
+            auditTab.style.marginTop = '30px';
+            tableContainer.parentElement.appendChild(auditTab);
+        }
+    }
     if (auditTab) {
         auditTab.innerHTML = window.evaluateDegree(student);
     }
@@ -937,30 +943,41 @@ window.removeSystemProgram = function (index) {
 };
 
 window.renderSystemPrograms = function () {
-  const container = document.getElementById('active-system-programs');
-  if (container) {
-    container.innerHTML = SYSTEM_PROGRAMS.map((p, i) => `<span style="background: #334155; padding: 5px 10px; border-radius: 4px; color: white;">${p.batch} ${p.program} <button onclick="removeSystemProgram(${i})" style="background:none; border:none; color:#ef4444; cursor:pointer;">✖</button></span>`).join('');
-  }
+    let sysProgs = [];
+    try { sysProgs = JSON.parse(localStorage.getItem('AIIT_SYSTEM_PROGRAMS')) || []; } catch(e){}
 
-  const currDropdown = document.getElementById('curriculum-edit-key');
-  if (currDropdown) {
-    currDropdown.innerHTML = SYSTEM_PROGRAMS.map(p => `<option value="${p.batch}_${p.program}">${p.batch} ${p.program}</option>`).join('');
-  }
+    // 1. Render Admin Setup Tags
+    const container = document.getElementById('active-system-programs');
+    if (container) {
+        container.innerHTML = sysProgs.map((p, i) => `<span style="background: #334155; padding: 5px 10px; border-radius: 4px; color: white; font-weight:bold;">${p.batch} ${p.program} <button onclick="removeSystemProgram(${i})" style="background:none; border:none; color:#ef4444; cursor:pointer; margin-left:5px;">✖</button></span>`).join('');
+    }
 
-  const uniqueBatches = [...new Set(SYSTEM_PROGRAMS.map(p => String(p.batch).trim()))];
-  const uniqueProgs = [...new Set(SYSTEM_PROGRAMS.map(p => String(p.program).trim()))];
+    const uniqueBatches = [...new Set(sysProgs.map(p => String(p.batch).trim()))];
+    const uniqueProgs = [...new Set(sysProgs.map(p => String(p.program).trim()))];
 
-  const batchFilter = document.getElementById('filter-batch');
-  if (batchFilter) {
-    batchFilter.innerHTML = `<option value="">All Years</option>` + uniqueBatches.map(b => `<option value="${b}">${b}</option>`).join('');
-  }
+    // 2. Sync Student Directory Filters EXACTLY
+    const batchFilter = document.getElementById('filter-batch');
+    if (batchFilter) batchFilter.innerHTML = `<option value="">All Years</option>` + uniqueBatches.map(b => `<option value="${b}">${b}</option>`).join('');
 
-  const progFilter = document.getElementById('filter-program');
-  if (progFilter) {
-    progFilter.innerHTML = `<option value="">All Programs</option>` + uniqueProgs.map(p => `<option value="${p}">${p}</option>`).join('');
-  }
+    const progFilter = document.getElementById('filter-program');
+    if (progFilter) progFilter.innerHTML = `<option value="">All Programs</option>` + uniqueProgs.map(p => `<option value="${p}">${p}</option>`).join('');
 
-  if (typeof window.updateUploadDropdowns === 'function') window.updateUploadDropdowns();
+    // 3. Sync Curriculum Editor Dropdown (Format: "Batch Program")
+    const currDropdown = document.getElementById('curriculum-edit-key');
+    if (currDropdown) {
+        const currentVal = currDropdown.value;
+        currDropdown.innerHTML = sysProgs.map(p => {
+            const key = `${p.batch} ${p.program}`;
+            return `<option value="${key}">${key}</option>`;
+        }).join('');
+        
+        // Try to keep previous selection, otherwise default to first
+        if (currentVal && sysProgs.some(p => `${p.batch} ${p.program}` === currentVal)) {
+            currDropdown.value = currentVal;
+        } else if (sysProgs.length > 0) {
+            currDropdown.value = `${sysProgs[0].batch} ${sysProgs[0].program}`;
+        }
+    }
 };
 
 window.updateUploadDropdowns = function () {
@@ -1765,65 +1782,70 @@ window.filterBacklogs = function () {
 };
 
 window.evaluateDegree = function (student) {
-  let latestCurriculum = {};
-  try {
-    const storedCurriculum = localStorage.getItem('AIIT_CUSTOM_CURRICULUM');
-    if (storedCurriculum) {
-      latestCurriculum = JSON.parse(storedCurriculum);
-      window.CURRICULUM_RULES = latestCurriculum;
+    let latestCurriculum = {};
+    try {
+        const storedCurriculum = localStorage.getItem('AIIT_CUSTOM_CURRICULUM');
+        if (storedCurriculum) {
+            latestCurriculum = JSON.parse(storedCurriculum);
+            window.CURRICULUM_RULES = latestCurriculum;
+        }
+    } catch (e) { }
+
+    const studentBatch = String(student.batch || "").trim();
+    const studentProg = String(student.program || "").trim();
+    
+    // Try multiple key formats to guarantee a match
+    const mapKeySpace = `${studentBatch} ${studentProg}`;
+    const mapKeyUnderscore = `${studentBatch}_${studentProg}`;
+
+    const rulesToUse = latestCurriculum[mapKeySpace] || latestCurriculum[mapKeyUnderscore] || window.CURRICULUM_RULES[mapKeySpace] || window.CURRICULUM_RULES[mapKeyUnderscore];
+    
+    if (!rulesToUse || rulesToUse.length === 0) {
+        return `<div style="text-align:center; padding:25px; background:#f8fafc; border-radius:10px; border:2px dashed #cbd5e1; margin-top:20px;">
+                    <h3 style="color:#ef4444; margin-top:0;">📭 Curriculum Not Mapped</h3>
+                    <p style="color:#475569; font-size:1.1rem;">No curriculum rules found for <b>${mapKeySpace}</b>.</p>
+                    <p style="font-size:0.9rem; color:#64748b;">Admin must go to "Manage Curriculum", select "${mapKeySpace}", and click Load/Save Curriculum.</p>
+                </div>`;
     }
-  } catch (e) { }
 
-  const studentBatch = String(student.batch || "").trim();
-  const studentProg = String(student.program || "").trim();
-  const mapKey = `${studentBatch}_${studentProg}`;
+    const cleanString = (str) => String(str).toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const earnedCourses = (student.courses || []).map(c => ({
+        ...c,
+        cleanCode: cleanString(c.code || c.CourseCode),
+        grade: String(c.grade || c.Grade || "").toUpperCase().trim()
+    }));
 
-  const rulesToUse = latestCurriculum[mapKey] || window.CURRICULUM_RULES[mapKey] || BASE_CURRICULUM["2024_MCA"];
-  if (!rulesToUse || rulesToUse.length === 0) {
-    return `<div style="text-align:center; padding:20px;">
-              <h3>📭 Curriculum Not Mapped</h3>
-              <p>No curriculum rules found for ${studentBatch} ${studentProg}.</p>
-            </div>`;
-  }
+    let auditHTML = `<div class="audit-wrapper" style="padding:20px; background:#f8fafc; border-radius:10px; border: 1px solid #e2e8f0; margin-top: 20px;">`;
+    auditHTML += `<h3 style="margin-top:0; color:#0f172a; border-bottom:2px solid #cbd5e1; padding-bottom:10px;">🎓 Degree Audit Report (${mapKeySpace})</h3>`;
 
-  const cleanString = (str) => String(str).toUpperCase().replace(/[^A-Z0-9]/g, '');
-  const earnedCourses = (student.courses || []).map(c => ({
-    ...c,
-    cleanCode: cleanString(c.code || c.CourseCode),
-    grade: String(c.grade || c.Grade || "").toUpperCase().trim()
-  }));
+    rulesToUse.forEach(mainBasket => {
+        let basketEarned = 0;
+        let courseListHTML = "";
 
-  let auditHTML = `<div class="audit-wrapper" style="padding:15px; background:var(--s2); border-radius:10px;">`;
-  auditHTML += `<h3>🎓 Degree Audit Report (${studentBatch} ${studentProg})</h3>`;
+        (mainBasket.codes || []).forEach(reqCode => {
+            const cleanReq = cleanString(reqCode);
+            const match = earnedCourses.find(c => c.cleanCode === cleanReq && !['F', 'AB', 'DE', 'I', 'U'].includes(c.grade));
+            if (match) {
+                const info = window.getCourseInfo(reqCode);
+                basketEarned += parseFloat(match.credits || info.credits || 0);
+                courseListHTML += `<li style="color:#10b981; font-weight:bold; margin-bottom:5px;">✅ ${reqCode} - ${info.name} (${match.credits || info.credits} Cr) [Grade: ${match.grade}]</li>`;
+            } else {
+                const info = window.getCourseInfo(reqCode);
+                courseListHTML += `<li style="color:#ef4444; margin-bottom:5px;">❌ ${reqCode} - ${info.name} (${info.credits} Cr)</li>`;
+            }
+        });
 
-  rulesToUse.forEach(mainBasket => {
-    let basketEarned = 0;
-    let courseListHTML = "";
-
-    (mainBasket.codes || []).forEach(reqCode => {
-      const cleanReq = cleanString(reqCode);
-      const match = earnedCourses.find(c => c.cleanCode === cleanReq && !['F', 'AB'].includes(c.grade));
-      if (match) {
-        const info = getCourseInfo(reqCode);
-        basketEarned += (match.credits || info.credits);
-        courseListHTML += `<li style="color:#22c55e">✅ ${reqCode} - ${info.name} (${match.credits || info.credits} Cr)</li>`;
-      } else {
-        const info = getCourseInfo(reqCode);
-        courseListHTML += `<li style="color:#ef4444">❌ ${reqCode} - ${info.name} (${info.credits} Cr)</li>`;
-      }
+        const isComplete = basketEarned >= mainBasket.minCredits;
+        auditHTML += `
+          <div style="margin-top:15px; padding:15px; background:white; border-radius:8px; border-left: 5px solid ${isComplete ? '#10b981' : '#ef4444'}; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <h4 style="margin:0; color:#1e293b; font-size:1.1rem;">${esc(mainBasket.category)} (Earned: ${basketEarned} / Required: ${mainBasket.minCredits})</h4>
+            <ul style="list-style:none; padding-left:0; margin-top:10px;">${courseListHTML}</ul>
+          </div>
+        `;
     });
 
-    const isComplete = basketEarned >= mainBasket.minCredits;
-    auditHTML += `
-      <div style="margin-top:15px; padding:12px; background:var(--s1); border-radius:8px; border-left: 4px solid ${isComplete ? '#22c55e' : '#ef4444'}">
-        <h4>${esc(mainBasket.category)} (Earned: ${basketEarned} / Required: ${mainBasket.minCredits})</h4>
-        <ul style="list-style:none; padding-left:0; margin-top:8px;">${courseListHTML}</ul>
-      </div>
-    `;
-  });
-
-  auditHTML += `</div>`;
-  return auditHTML;
+    auditHTML += `</div>`;
+    return auditHTML;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════

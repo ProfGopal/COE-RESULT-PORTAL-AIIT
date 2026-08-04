@@ -81,7 +81,7 @@ const COURSE_DICT = {
 
 window.CUSTOM_COURSE_DICT = JSON.parse(localStorage.getItem('AIIT_CUSTOM_COURSES')) || {};
 
-window.getCourseInfo = function(code) {
+window.getCourseInfo = function (code) {
   if (window.CUSTOM_COURSE_DICT && window.CUSTOM_COURSE_DICT[code]) {
     let cr = window.CUSTOM_COURSE_DICT[code].credits;
     return {
@@ -104,7 +104,7 @@ const BASE_CURRICULUM = {
     { category: "1. School Core (Includes Languages & Soft Skills)", minCredits: 17, codes: ["CSE5129", "MAT5005", "ENG5004", "CSE6004", "CSE6005", "CSE6006", "FRE1001", "GER1001", "SPA1001", "SSK2002", "SSK3002", "ENG5001", "CSE3050"] },
     { category: "2. Program Core", minCredits: 29, codes: ["CSE5067", "CSE5002", "CSE5005", "CSE5004", "CSE5012", "CSE5011", "CSE5013", "CSE5017", "CSE5009", "CSE5010", "CSE5008", "CSE5006", "CSE5007", "MGT5101", "CSE6007", "CSE6008", "CSE6009"] },
     { category: "3. Discipline Electives", minCredits: 28, codes: ["CSE5029", "CSE5032", "CSE5033", "CSE5028", "CSE5039", "CSE5040", "CSE5041", "CSE5042", "CSE5043", "CSE5044", "CSE5045", "CSE5046", "CSE5047", "CSE5048", "MGT5007", "MAT5006", "CSE5052", "CSE5053", "CSE5034", "CSE5019", "CSE5024"] },
-    { category: "4. Open Elective", minCredits: 6, codes: ["OPEN_ELECTIVE_CATCHALL"] } 
+    { category: "4. Open Elective", minCredits: 6, codes: ["OPEN_ELECTIVE_CATCHALL"] }
   ]
 };
 
@@ -269,20 +269,20 @@ function gasPost(payload) {
 //  3. PAGE ROUTING & AUTHENTICATION
 // ═══════════════════════════════════════════════════════════════════════════════
 
-window.showPage = function(id) {
+window.showPage = function (id) {
   document.querySelectorAll('.page').forEach(function (p) { p.classList.remove('active'); });
   var target = document.getElementById(id);
   if (target) target.classList.add('active');
   window.scrollTo(0, 0);
 };
 
-window.showStudentLogin = function() {
+window.showStudentLogin = function () {
   resetStudentLoginUI();
   showPage('landing');
   showStudentLoginUI();
 };
 
-window.showStudentLoginUI = function() {
+window.showStudentLoginUI = function () {
   var sContainer = document.getElementById('student-login-container');
   var fContainer = document.getElementById('faculty-login-container');
   if (sContainer) sContainer.style.display = 'flex';
@@ -293,7 +293,7 @@ window.showStudentLoginUI = function() {
   }, 150);
 };
 
-window.showFacultyLogin = function() {
+window.showFacultyLogin = function () {
   var sContainer = document.getElementById('student-login-container');
   var fContainer = document.getElementById('faculty-login-container');
   if (sContainer) sContainer.style.display = 'none';
@@ -302,11 +302,11 @@ window.showFacultyLogin = function() {
   if (fPage) showPage('faculty-login');
 };
 
-window.goAdmin = function() {
+window.goAdmin = function () {
   window.location.href = 'admin-hidden.html';
 };
 
-window.logout = function() {
+window.logout = function () {
   localStorage.removeItem('isLoggedIn');
   localStorage.removeItem('userRole');
   sessionStorage.clear();
@@ -314,7 +314,7 @@ window.logout = function() {
   window.location.reload(true);
 };
 
-window.studentLogin = function(studentData) {
+window.studentLogin = function (studentData) {
   document.body.classList.add('overlay-active');
   const dashboardContainer = document.getElementById('student-dash') || document.getElementById('student-dashboard');
   if (dashboardContainer) {
@@ -324,7 +324,7 @@ window.studentLogin = function(studentData) {
   }
 };
 
-window.facultyLogin = function() {
+window.facultyLogin = function () {
   document.body.classList.add('overlay-active');
   const dashboardContainer = document.getElementById('faculty-dash') || document.getElementById('faculty-dashboard');
   if (dashboardContainer) {
@@ -349,7 +349,7 @@ function resetStudentLoginUI() {
   isNewUser = false;
 }
 
-window.onSenInput = function() {
+window.onSenInput = function () {
   hideAlerts('student');
   var pf = document.getElementById('s-pass-field');
   if (pf) pf.style.display = 'block';
@@ -373,7 +373,7 @@ window.onSenInput = function() {
   isNewUser = false;
 };
 
-window.requestOtpReset = async function() {
+window.requestOtpReset = async function () {
   var rawSen = document.getElementById('s-sen').value;
   var sen = sanitize(rawSen).toUpperCase();
   hideAlerts('student');
@@ -418,7 +418,7 @@ window.requestOtpReset = async function() {
   }
 };
 
-window.otpResetStep = async function() {
+window.otpResetStep = async function () {
   var rawSen = document.getElementById('s-sen').value;
   var sen = sanitize(rawSen).toUpperCase();
   var otp = sanitize(document.getElementById('s-otp').value).trim();
@@ -470,7 +470,7 @@ window.otpResetStep = async function() {
   }
 };
 
-window.cancelOtpResetUI = function() {
+window.cancelOtpResetUI = function () {
   document.getElementById('s-login-title').textContent = 'Student Login';
   document.getElementById('s-pass-field').style.display = 'block';
   document.getElementById('s-newpass-fields').style.display = 'none';
@@ -485,7 +485,7 @@ window.cancelOtpResetUI = function() {
   hideAlerts('student');
 };
 
-window.studentLoginStep = async function() {
+window.studentLoginStep = async function () {
   var rawSen = document.getElementById('s-sen').value;
   var sen = sanitize(rawSen).toUpperCase();
   hideAlerts('student');
@@ -611,7 +611,7 @@ window.studentLoginStep = async function() {
 //  4. FACULTY FLOW & STUDENT DIRECTORY
 // ═══════════════════════════════════════════════════════════════════════════════
 
-window.facultyLoginStep = async function() {
+window.facultyLoginStep = async function () {
   var email = sanitize(document.getElementById('f-email').value);
   var pass = document.getElementById('f-pass').value;
   hideAlerts('faculty');
@@ -647,11 +647,11 @@ window.facultyLoginStep = async function() {
   }
 };
 
-window.facultyLogout = function() {
+window.facultyLogout = function () {
   showPage('landing');
 };
 
-window.facultyViewAll = async function() {
+window.facultyViewAll = async function () {
   syncBar('Loading student records…', true);
   try {
     var res = await fetch(scriptURL + "?action=getStudents");
@@ -672,11 +672,11 @@ window.facultyViewAll = async function() {
   }
 };
 
-window.facultyFilterBacklogs = function() {
+window.facultyFilterBacklogs = function () {
   window.filterBacklogs();
 };
 
-window.facultyFilterCredits = function() {
+window.facultyFilterCredits = function () {
   var inp = document.getElementById('faculty-credit-input');
   var maxCr = parseFloat(inp ? inp.value : 0);
   if (isNaN(maxCr) || maxCr <= 0) return window.facultyViewAll();
@@ -688,7 +688,7 @@ window.facultyFilterCredits = function() {
   renderStudentTable(filtered);
 };
 
-window.applyFilters = function() {
+window.applyFilters = function () {
   var searchInp = document.getElementById('faculty-search-input');
   var search = searchInp ? searchInp.value.toLowerCase().trim() : '';
 
@@ -728,7 +728,7 @@ function renderStudentTable(students) {
   tbody.innerHTML = students.map(s => {
     var cgpa = parseFloat(s.cgpa) ? parseFloat(s.cgpa).toFixed(2) : 'N/A';
     var credits = s.totalCredits || s.totalCreditEarned || 'N/A';
-    var backlogs = s.backlogs !== undefined ? s.backlogs : (s.courses ? s.courses.filter(c => ['F','AB','DE','I'].includes(String(c.grade).toUpperCase())).length : 0);
+    var backlogs = s.backlogs !== undefined ? s.backlogs : (s.courses ? s.courses.filter(c => ['F', 'AB', 'DE', 'I'].includes(String(c.grade).toUpperCase())).length : 0);
     return `<tr>
       <td>${esc(s.sen)}</td>
       <td><strong>${esc(s.name)}</strong></td>
@@ -740,7 +740,7 @@ function renderStudentTable(students) {
   }).join('');
 }
 
-window.openFacultyStudentView = function(sen) {
+window.openFacultyStudentView = function (sen) {
   var s = (window.ALL_STUDENTS || []).find(x => x.sen === sen);
   if (!s) return;
   var detailView = document.getElementById('faculty-student-detail-view');
@@ -761,7 +761,7 @@ window.openFacultyStudentView = function(sen) {
   }
 };
 
-window.closeFacultyStudentView = function() {
+window.closeFacultyStudentView = function () {
   var detailView = document.getElementById('faculty-student-detail-view');
   var wrapper = document.getElementById('faculty-table-wrapper');
   if (detailView) detailView.style.display = 'none';
@@ -812,7 +812,7 @@ function renderStudentDash(student) {
         <td>${esc(c.type || 'Core')}</td>
         <td>${c.credits || getCourseInfo(c.code).credits}</td>
         <td>${c.marks !== undefined ? c.marks : '—'}</td>
-        <td><span class="badge ${['F','AB'].includes(String(c.grade).toUpperCase()) ? 'fail' : 'pass'}">${esc(c.grade)}</span></td>
+        <td><span class="badge ${['F', 'AB'].includes(String(c.grade).toUpperCase()) ? 'fail' : 'pass'}">${esc(c.grade)}</span></td>
         <td>${c.gradePoints !== undefined ? c.gradePoints : '—'}</td>
         <td>${c.creditsEarned !== undefined ? c.creditsEarned : c.credits}</td>
       </tr>
@@ -829,7 +829,7 @@ function renderStudentDash(student) {
 //  6. ADMIN DASHBOARD & SYSTEM SETUP
 // ═══════════════════════════════════════════════════════════════════════════════
 
-window.adminLogin = async function() {
+window.adminLogin = async function () {
   var email = sanitize(document.getElementById('a-email').value);
   var pass = document.getElementById('a-pass').value;
   hideAlerts('admin');
@@ -867,13 +867,13 @@ window.adminLogin = async function() {
   }
 };
 
-window.adminLogout = function() {
+window.adminLogout = function () {
   sessionStorage.removeItem(ADMIN_SESSION);
   window.currentAdminPassword = null;
   showPage('admin-login');
 };
 
-window.switchAdminTab = function(tabId, btnElement) {
+window.switchAdminTab = function (tabId, btnElement) {
   document.querySelectorAll('.admin-tab-content').forEach(tab => tab.classList.remove('active'));
   document.querySelectorAll('.admin-tab-btn').forEach(btn => btn.classList.remove('active'));
   var target = document.getElementById(tabId);
@@ -881,7 +881,7 @@ window.switchAdminTab = function(tabId, btnElement) {
   if (btnElement) btnElement.classList.add('active');
 };
 
-window.addSystemProgram = function() {
+window.addSystemProgram = function () {
   const b = document.getElementById('new-batch-input').value.trim();
   const p = document.getElementById('new-program-input').value.trim();
   if (!b || !p) return alert("Please enter both Batch and Program.");
@@ -894,7 +894,7 @@ window.addSystemProgram = function() {
   }
 };
 
-window.removeSystemProgram = function(index) {
+window.removeSystemProgram = function (index) {
   if (confirm("Remove this program? It will no longer appear in dropdowns.")) {
     SYSTEM_PROGRAMS.splice(index, 1);
     localStorage.setItem('AIIT_SYSTEM_PROGRAMS', JSON.stringify(SYSTEM_PROGRAMS));
@@ -902,36 +902,36 @@ window.removeSystemProgram = function(index) {
   }
 };
 
-window.renderSystemPrograms = function() {
+window.renderSystemPrograms = function () {
   const container = document.getElementById('active-system-programs');
   if (container) {
     container.innerHTML = SYSTEM_PROGRAMS.map((p, i) => `<span style="background: #334155; padding: 5px 10px; border-radius: 4px; color: white;">${p.batch} ${p.program} <button onclick="removeSystemProgram(${i})" style="background:none; border:none; color:#ef4444; cursor:pointer;">✖</button></span>`).join('');
   }
-  
+
   const currDropdown = document.getElementById('curriculum-edit-key');
   if (currDropdown) {
     currDropdown.innerHTML = SYSTEM_PROGRAMS.map(p => `<option value="${p.batch}_${p.program}">${p.batch} ${p.program}</option>`).join('');
   }
-  
+
   if (typeof window.updateUploadDropdowns === 'function') window.updateUploadDropdowns();
 };
 
-window.updateUploadDropdowns = function() {
+window.updateUploadDropdowns = function () {
   let systemPrograms = [];
-  try { systemPrograms = JSON.parse(localStorage.getItem('AIIT_SYSTEM_PROGRAMS')) || []; } catch(e){}
-  
+  try { systemPrograms = JSON.parse(localStorage.getItem('AIIT_SYSTEM_PROGRAMS')) || []; } catch (e) { }
+
   const uniqueBatches = [...new Set(systemPrograms.map(p => String(p.batch).trim()))];
   const uniqueProgs = [...new Set(systemPrograms.map(p => String(p.program).trim()))];
-  
+
   const batchOptions = `<option value="">-- Select Batch --</option>` + uniqueBatches.map(b => `<option value="${b}">${b}</option>`).join('');
   const progOptions = `<option value="">-- Select Program --</option>` + uniqueProgs.map(p => `<option value="${p}">${p}</option>`).join('');
-  
+
   document.querySelectorAll('.file-year-select').forEach(sel => {
     const currentVal = sel.value;
     sel.innerHTML = batchOptions;
     if (uniqueBatches.includes(currentVal)) sel.value = currentVal;
   });
-  
+
   document.querySelectorAll('.file-program-select').forEach(sel => {
     const currentVal = sel.value;
     sel.innerHTML = progOptions;
@@ -939,7 +939,7 @@ window.updateUploadDropdowns = function() {
   });
 };
 
-window.clearPassword = async function() {
+window.clearPassword = async function () {
   var senInput = document.getElementById('reset-sen-input');
   var sen = sanitize(senInput ? senInput.value : '').toUpperCase();
   var statusEl = document.getElementById('reset-status');
@@ -962,7 +962,7 @@ window.clearPassword = async function() {
   }
 };
 
-window.clearAllRecords = async function() {
+window.clearAllRecords = async function () {
   var adminPass = window.currentAdminPassword || sessionStorage.getItem(ADMIN_SESSION) || '';
   if (!adminPass) return alert("Session expired. Please log in again.");
   if (!confirm("DANGER: Permanently delete ALL student records from backend?")) return;
@@ -983,7 +983,7 @@ window.clearAllRecords = async function() {
   }
 };
 
-window.applyAdminFilters = async function() {
+window.applyAdminFilters = async function () {
   var tbody = document.getElementById('admin-tbody');
   var totalStu = document.getElementById('total-stu');
   if (!tbody) return;
@@ -1017,7 +1017,7 @@ window.applyAdminFilters = async function() {
   }
 };
 
-window.openAdminStudentView = function(sen) {
+window.openAdminStudentView = function (sen) {
   var detailView = document.getElementById('admin-student-detail-view');
   var wrapper = document.getElementById('admin-table-wrapper');
   var injected = document.getElementById('admin-injected-student-data');
@@ -1027,14 +1027,14 @@ window.openAdminStudentView = function(sen) {
   if (injected) injected.innerHTML = `<p>Loading student ${esc(sen)}...</p>`;
 };
 
-window.closeAdminStudentView = function() {
+window.closeAdminStudentView = function () {
   var detailView = document.getElementById('admin-student-detail-view');
   var wrapper = document.getElementById('admin-table-wrapper');
   if (detailView) detailView.style.display = 'none';
   if (wrapper) wrapper.style.display = 'block';
 };
 
-window.handleFileDrop = function(e) {
+window.handleFileDrop = function (e) {
   e.preventDefault();
   const files = e.dataTransfer.files;
   if (files.length > 0) {
@@ -1046,7 +1046,7 @@ window.handleFileDrop = function(e) {
   }
 };
 
-window.triggerTaggedUpload = function() {
+window.triggerTaggedUpload = function () {
   alert("File ready for processing. Feature integrated.");
 };
 
@@ -1054,7 +1054,7 @@ window.triggerTaggedUpload = function() {
 //  7. CURRICULUM EDITOR & CLOUD SYNC
 // ═══════════════════════════════════════════════════════════════════════════════
 
-window.loadCurriculumEditor = function() {
+window.loadCurriculumEditor = function () {
   const dropdown = document.getElementById('curriculum-edit-key');
   const container = document.getElementById('curriculum-gui-container');
   if (!dropdown || !container) return;
@@ -1077,7 +1077,7 @@ window.loadCurriculumEditor = function() {
   `).join('');
 };
 
-window.resetCurriculumEditor = function() {
+window.resetCurriculumEditor = function () {
   if (confirm("Reset curriculum rules to defaults?")) {
     window.CURRICULUM_RULES = BASE_CURRICULUM;
     localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(BASE_CURRICULUM));
@@ -1086,7 +1086,7 @@ window.resetCurriculumEditor = function() {
   }
 };
 
-window.clearEntireCurriculum = function() {
+window.clearEntireCurriculum = function () {
   const key = document.getElementById('curriculum-edit-key').value;
   if (confirm(`⚠️ WARNING: Permanently delete curriculum for ${key}?`)) {
     window.CURRICULUM_RULES[key] = [];
@@ -1293,7 +1293,7 @@ window.evaluateDegree = function (student) {
       latestCurriculum = JSON.parse(storedCurriculum);
       window.CURRICULUM_RULES = latestCurriculum;
     }
-  } catch (e) {}
+  } catch (e) { }
 
   const studentBatch = String(student.batch || "").trim();
   const studentProg = String(student.program || "").trim();
@@ -1323,7 +1323,7 @@ window.evaluateDegree = function (student) {
 
     (mainBasket.codes || []).forEach(reqCode => {
       const cleanReq = cleanString(reqCode);
-      const match = earnedCourses.find(c => c.cleanCode === cleanReq && !['F','AB'].includes(c.grade));
+      const match = earnedCourses.find(c => c.cleanCode === cleanReq && !['F', 'AB'].includes(c.grade));
       if (match) {
         const info = getCourseInfo(reqCode);
         basketEarned += (match.credits || info.credits);
@@ -1368,62 +1368,62 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // --- BULLETPROOF CLOUD SAVE HIJACKER ---
-document.addEventListener('click', function(e) {
-    // Target the closest button element
-    const btn = e.target.closest('button');
-    
-    // Check if this is the Save Curriculum button
-    if (btn && btn.textContent.includes('Save Curriculum Updates')) {
-        e.preventDefault(); // Stop any default page refreshes
-        
-        // 1. Ensure local memory is updated first
-        if (typeof window.CURRICULUM_RULES !== 'undefined') {
-            localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(window.CURRICULUM_RULES));
-        }
-        
-        const curriculumJSON = localStorage.getItem('AIIT_CUSTOM_CURRICULUM');
-        
-        // 2. Force the Cloud Push BEFORE showing the success alert
-        if (curriculumJSON && typeof scriptURL !== 'undefined' && scriptURL !== "YOUR_WEB_APP_URL_HERE") {
-            const originalText = btn.innerHTML;
-            
-            // Show loading state on the button
-            btn.innerHTML = "⏳ Saving to Cloud...";
-            btn.style.backgroundColor = "#eab308"; // Yellow warning color
-            
-            const formData = new FormData();
-            formData.append('action', 'saveCurriculum');
-            formData.append('curriculumData', curriculumJSON);
+document.addEventListener('click', function (e) {
+  // Target the closest button element
+  const btn = e.target.closest('button');
 
-            fetch(scriptURL, { method: 'POST', body: formData })
-                .then(res => res.text())
-                .then(txt => {
-                    console.log("☁️ Manual Cloud Sync:", txt);
-                    
-                    // Show success state on the button
-                    btn.innerHTML = "✅ Saved to Cloud!";
-                    btn.style.backgroundColor = "#22c55e"; // Green success color
-                    
-                    // Wait half a second, then show the popup alert and reset the button
-                    setTimeout(() => {
-                        btn.innerHTML = originalText;
-                        btn.style.backgroundColor = ""; 
-                        alert("✅ CLOUD SYNC COMPLETE: Curriculum Updated Successfully! The Degree Audit engine is now using these rules globally.");
-                    }, 500);
-                })
-                .catch(err => {
-                    console.error("☁️ Cloud Error:", err);
-                    btn.innerHTML = "❌ Sync Failed";
-                    btn.style.backgroundColor = "#ef4444";
-                    
-                    setTimeout(() => {
-                        btn.innerHTML = originalText;
-                        btn.style.backgroundColor = "";
-                        alert("❌ CLOUD SYNC FAILED: Your internet may have dropped. Changes only saved locally.");
-                    }, 500);
-                });
-        } else {
-            alert("⚠️ Curriculum Updated Locally, but Cloud Sync failed. Ensure your scriptURL is correctly pasted at the top of script.js.");
-        }
+  // Check if this is the Save Curriculum button
+  if (btn && btn.textContent.includes('Save Curriculum Updates')) {
+    e.preventDefault(); // Stop any default page refreshes
+
+    // 1. Ensure local memory is updated first
+    if (typeof window.CURRICULUM_RULES !== 'undefined') {
+      localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(window.CURRICULUM_RULES));
     }
+
+    const curriculumJSON = localStorage.getItem('AIIT_CUSTOM_CURRICULUM');
+
+    // 2. Force the Cloud Push BEFORE showing the success alert
+    if (curriculumJSON && typeof scriptURL !== 'undefined' && scriptURL !== "YOUR_WEB_APP_URL_HERE") {
+      const originalText = btn.innerHTML;
+
+      // Show loading state on the button
+      btn.innerHTML = "⏳ Saving to Cloud...";
+      btn.style.backgroundColor = "#eab308"; // Yellow warning color
+
+      const formData = new FormData();
+      formData.append('action', 'saveCurriculum');
+      formData.append('curriculumData', curriculumJSON);
+
+      fetch(scriptURL, { method: 'POST', body: formData })
+        .then(res => res.text())
+        .then(txt => {
+          console.log("☁️ Manual Cloud Sync:", txt);
+
+          // Show success state on the button
+          btn.innerHTML = "✅ Saved to Cloud!";
+          btn.style.backgroundColor = "#22c55e"; // Green success color
+
+          // Wait half a second, then show the popup alert and reset the button
+          setTimeout(() => {
+            btn.innerHTML = originalText;
+            btn.style.backgroundColor = "";
+            alert("✅ CLOUD SYNC COMPLETE: Curriculum Updated Successfully! The Degree Audit engine is now using these rules globally.");
+          }, 500);
+        })
+        .catch(err => {
+          console.error("☁️ Cloud Error:", err);
+          btn.innerHTML = "❌ Sync Failed";
+          btn.style.backgroundColor = "#ef4444";
+
+          setTimeout(() => {
+            btn.innerHTML = originalText;
+            btn.style.backgroundColor = "";
+            alert("❌ CLOUD SYNC FAILED: Your internet may have dropped. Changes only saved locally.");
+          }, 500);
+        });
+    } else {
+      alert("⚠️ Curriculum Updated Locally, but Cloud Sync failed. Ensure your scriptURL is correctly pasted at the top of script.js.");
+    }
+  }
 });

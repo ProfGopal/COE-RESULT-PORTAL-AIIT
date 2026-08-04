@@ -637,7 +637,7 @@
   <!-- VERSION TAG -->
   <div
     style="position:fixed;top:0;left:0;z-index:300;padding:0.35rem 1rem;font-size:0.68rem;color:var(--muted);pointer-events:none;font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-right-radius:6px;">
-    Version <strong style="color:var(--accent)">Ver 3.1</strong>
+    Version <strong style="color:var(--accent)">Ver 3.2</strong>
   </div>
 
   <!-- DEVELOPER CREDIT -->
@@ -715,31 +715,19 @@
       <div style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 20px;">
           <h4 style="color: #64748b; font-size: 0.85rem; letter-spacing: 1px; margin-bottom: 15px; text-transform: uppercase;">UPLOAD RESULT EXCEL</h4>
           
-          <!-- BATCH & PROGRAM MATCHING DROPDOWNS -->
-          <div style="display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap;">
-              <div style="flex: 1; min-width: 200px;">
-                  <label style="display: block; font-size: 0.8rem; font-weight: bold; color: #475569; margin-bottom: 5px;">1. Select Batch Year:</label>
-                  <select class="file-year-select" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; background: white; font-weight: bold; color: #1e293b;">
-                      <option value="">-- Select Batch --</option>
-                  </select>
-              </div>
-              <div style="flex: 1; min-width: 200px;">
-                  <label style="display: block; font-size: 0.8rem; font-weight: bold; color: #475569; margin-bottom: 5px;">2. Select Program:</label>
-                  <select class="file-program-select" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; background: white; font-weight: bold; color: #1e293b;">
-                      <option value="">-- Select Program --</option>
-                  </select>
-              </div>
-          </div>
-
           <!-- MULTI-FILE DRAG & DROP BOX -->
-          <div id="drop-zone" onclick="document.getElementById('excel-upload').click()" ondragover="event.preventDefault()" ondrop="handleFileDrop(event)" style="border: 2px dashed #94a3b8; border-radius: 10px; padding: 30px; text-align: center; background: #f8fafc; cursor: pointer; transition: all 0.2s;">
-              <div style="font-size: 2rem; margin-bottom: 10px;">📊</div>
-              <p id="upload-status-text" style="font-weight: bold; color: #1e293b; margin: 0 0 5px 0;">Click or drag & drop Excel file(s) here</p>
-              <p style="font-size: 0.8rem; color: #64748b; margin: 0;">You can select multiple files (.xlsx, .xls) at once. Required columns: SEN, Name, Course Code, Credits, Grade</p>
-              
-              <!-- MULTIPLE FILE INPUT -->
+          <div id="drop-zone" onclick="document.getElementById('excel-upload').click()" ondragover="event.preventDefault()" ondrop="handleFileDrop(event)" style="border: 2px dashed #3b82f6; border-radius: 10px; padding: 30px; text-align: center; background: #eff6ff; cursor: pointer; transition: all 0.2s;">
+              <div style="font-size: 2rem; margin-bottom: 10px;">📂</div>
+              <p id="upload-status-text" style="font-weight: bold; color: #1e293b; margin: 0 0 5px 0;">Click or drag & drop Excel file(s) here first</p>
+              <p style="font-size: 0.8rem; color: #64748b; margin: 0;">Files will be staged below. You can assign Batches and Programs before uploading.</p>
               <input type="file" id="excel-upload" accept=".xlsx, .xls" multiple style="display: none;" onchange="triggerTaggedUpload()">
           </div>
+
+          <!-- DYNAMIC STAGING AREA -->
+          <div id="file-staging-area"></div>
+          
+          <!-- MASTER UPLOAD BUTTON (Hidden until files are staged) -->
+          <button id="process-uploads-btn" onclick="uploadStagedFiles()" style="display:none; width: 100%; margin-top: 20px; padding: 15px; background: #10b981; color: white; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.3);">🚀 Upload All Files to Cloud DB</button>
       </div>
       </div><!-- /tab-results -->
 

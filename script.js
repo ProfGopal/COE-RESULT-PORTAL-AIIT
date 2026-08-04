@@ -913,6 +913,19 @@ window.renderSystemPrograms = function () {
     currDropdown.innerHTML = SYSTEM_PROGRAMS.map(p => `<option value="${p.batch}_${p.program}">${p.batch} ${p.program}</option>`).join('');
   }
 
+  const uniqueBatches = [...new Set(SYSTEM_PROGRAMS.map(p => String(p.batch).trim()))];
+  const uniqueProgs = [...new Set(SYSTEM_PROGRAMS.map(p => String(p.program).trim()))];
+
+  const batchFilter = document.getElementById('filter-batch');
+  if (batchFilter) {
+    batchFilter.innerHTML = `<option value="">All Years</option>` + uniqueBatches.map(b => `<option value="${b}">${b}</option>`).join('');
+  }
+
+  const progFilter = document.getElementById('filter-program');
+  if (progFilter) {
+    progFilter.innerHTML = `<option value="">All Programs</option>` + uniqueProgs.map(p => `<option value="${p}">${p}</option>`).join('');
+  }
+
   if (typeof window.updateUploadDropdowns === 'function') window.updateUploadDropdowns();
 };
 
@@ -1035,8 +1048,10 @@ window.closeAdminStudentView = function () {
 };
 
 // ============================================================================
-// MULTI-FILE EXCEL PARSER & BATCH MATCHING ENGINE (Ver 3.1)
+// FILE STAGING ENGINE & CLOUD UPLOADER (Ver 3.2)
 // ============================================================================
+
+window.stagedFiles = [];
 
 window.handleFileDrop = function (e) {
     e.preventDefault();
@@ -1054,31 +1069,86 @@ window.triggerTaggedUpload = function () {
     const input = document.getElementById('excel-upload');
     if (!input || !input.files || input.files.length === 0) return;
 
-    const files = Array.from(input.files);
+    // Push selected files into the global staging array
+    Array.from(input.files).forEach(file => {
+        window.stagedFiles.push(file);
+    });
 
-    // 1. Read Batch & Program Dropdowns
-    const batchSelect = document.querySelector('.file-year-select');
-    const progSelect = document.querySelector('.file-program-select');
+    input.value = ""; // Clear input so the same file can be selected again if needed
+    window.renderStagedFiles();
+};
 
-    const uploadBatch = batchSelect ? batchSelect.value.trim() : "";
-    const uploadProg = progSelect ? progSelect.value.trim() : "";
+window.renderStagedFiles = function() {
+    const container = document.getElementById('file-staging-area');
+    const uploadBtn = document.getElementById('process-uploads-btn');
+    if (!container) return;
 
-    if (!uploadBatch || !uploadProg) {
-        alert("⚠️ Please select both a Batch and a Program from the dropdowns above before uploading files.");
-        input.value = ""; 
+    if (window.stagedFiles.length === 0) {
+        container.innerHTML = "";
+        if (uploadBtn) uploadBtn.style.display = 'none';
         return;
     }
 
-    const statusText = document.getElementById('upload-status-text');
-    if (statusText) statusText.innerHTML = `⏳ Processing ${files.length} file(s) for ${uploadBatch} ${uploadProg}...`;
+    // Pull active batches/programs dynamically
+    let systemPrograms = [];
+    try { systemPrograms = JSON.parse(localStorage.getItem('AIIT_SYSTEM_PROGRAMS')) || []; } catch (e) { }
+    
+    const uniqueBatches = [...new Set(systemPrograms.map(p => String(p.batch).trim()))];
+    const uniqueProgs = [...new Set(systemPrograms.map(p => String(p.program).trim()))];
+
+    const batchOptions = `<option value="">-- Select Batch --</option>` + uniqueBatches.map(b => `<option value="${b}">${b}</option>`).join('');
+    const progOptions = `<option value="">-- Select Program --</option>` + uniqueProgs.map(p => `<option value="${p}">${p}</option>`).join('');
+
+    let html = '<div style="margin-top: 20px; display: flex; flex-direction: column; gap: 10px;">';
+    
+    // Generate a distinct UI row for every staged file
+    window.stagedFiles.forEach((file, index) => {
+        html += `
+        <div style="display:flex; flex-wrap:wrap; align-items:center; gap:10px; background:white; padding:15px; border-radius:8px; border:1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+            <div style="flex: 1; min-width: 200px; font-weight:bold; color:#0f172a;">📄 ${esc(file.name)}</div>
+            <select id="stage-batch-${index}" style="padding:10px; border-radius:6px; border:1px solid #94a3b8; background:#f8fafc; font-weight:bold; color:#1e293b;">${batchOptions}</select>
+            <select id="stage-prog-${index}" style="padding:10px; border-radius:6px; border:1px solid #94a3b8; background:#f8fafc; font-weight:bold; color:#1e293b;">${progOptions}</select>
+            <button onclick="removeStagedFile(${index})" style="background:#ef4444; color:white; border:none; padding:10px 15px; border-radius:6px; cursor:pointer; font-weight:bold;">✖</button>
+        </div>
+        `;
+    });
+    html += '</div>';
+
+    container.innerHTML = html;
+    if (uploadBtn) uploadBtn.style.display = 'block';
+};
+
+window.removeStagedFile = function(index) {
+    window.stagedFiles.splice(index, 1);
+    window.renderStagedFiles();
+};
+
+window.uploadStagedFiles = function() {
+    if (window.stagedFiles.length === 0) return;
+
+    // 1. Pre-flight Check: Ensure all dropdowns are selected
+    for (let i = 0; i < window.stagedFiles.length; i++) {
+        const b = document.getElementById(`stage-batch-${i}`).value;
+        const p = document.getElementById(`stage-prog-${i}`).value;
+        if (!b || !p) {
+            alert(`⚠️ Please select a Batch and Program for file #${i + 1} before uploading.`);
+            return;
+        }
+    }
+
+    const btn = document.getElementById('process-uploads-btn');
+    if (btn) { btn.innerHTML = "⏳ Parsing Excel Data..."; btn.disabled = true; }
 
     let allParsedStudents = {};
     let filesProcessed = 0;
 
-    // 2. Loop through every selected Excel file
-    files.forEach((file, fileIdx) => {
+    // 2. Iterate and Parse Each Staged File
+    window.stagedFiles.forEach((file, index) => {
+        const uploadBatch = document.getElementById(`stage-batch-${index}`).value;
+        const uploadProg = document.getElementById(`stage-prog-${index}`).value;
+
         const reader = new FileReader();
-        reader.onload = function (e) {
+        reader.onload = function(e) {
             try {
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, { type: 'array' });
@@ -1087,9 +1157,7 @@ window.triggerTaggedUpload = function () {
 
                 rows.forEach(row => {
                     const cleanRow = {};
-                    for (let key in row) {
-                        cleanRow[key.toString().replace(/[^a-zA-Z0-9]/g, '').toLowerCase()] = row[key];
-                    }
+                    for (let key in row) cleanRow[key.toString().replace(/[^a-zA-Z0-9]/g, '').toLowerCase()] = row[key];
 
                     const sen = String(cleanRow['sen'] || cleanRow['rollno'] || '').toUpperCase().trim();
                     if (!sen) return;
@@ -1120,58 +1188,53 @@ window.triggerTaggedUpload = function () {
                         });
                     }
                 });
-
             } catch (err) {
-                console.error(`Error parsing file ${file.name}:`, err);
+                console.error(`Error parsing ${file.name}:`, err);
             }
 
             filesProcessed++;
 
-            // 3. When all files are done reading, send the compiled payload to Google Sheets
-            if (filesProcessed === files.length) {
+            // 3. Fire the Payload to Google Sheets when all files finish parsing
+            if (filesProcessed === window.stagedFiles.length) {
                 const payloadStudents = Object.values(allParsedStudents);
 
                 if (payloadStudents.length === 0) {
-                    alert("❌ No valid student records found in the uploaded file(s). Ensure Excel sheets contain a 'SEN' column.");
-                    if (statusText) statusText.innerHTML = "Click or drag & drop Excel file(s) here";
-                    input.value = "";
+                    alert("❌ No valid student records found.");
+                    resetStagingUI();
                     return;
                 }
 
-                if (statusText) statusText.innerHTML = `☁️ Syncing ${payloadStudents.length} student profiles to Google Sheets...`;
-
+                if (btn) btn.innerHTML = `☁️ Syncing ${payloadStudents.length} students to Cloud...`;
                 const adminPass = window.currentAdminPassword || sessionStorage.getItem('coe_admin_auth') || '';
 
                 fetch(scriptURL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain' },
-                    body: JSON.stringify({
-                        action: 'upsert',
-                        adminPassword: adminPass,
-                        students: payloadStudents
-                    })
+                    body: JSON.stringify({ action: 'upsert', adminPassword: adminPass, students: payloadStudents })
                 })
                 .then(res => res.json())
                 .then(result => {
                     if (result.status === 'success') {
-                        alert(`✅ SUCCESS! ${files.length} file(s) parsed and ${payloadStudents.length} student records synchronized under Batch ${uploadBatch} - ${uploadProg}.`);
+                        alert(`✅ SUCCESS! ${window.stagedFiles.length} file(s) parsed and ${payloadStudents.length} student records synchronized.`);
+                        window.stagedFiles = []; // Clear staging
+                        window.renderStagedFiles();
                         if (typeof window.applyAdminFilters === 'function') window.applyAdminFilters();
                     } else {
                         alert(`❌ Cloud Upload Failed: ${result.message}`);
                     }
                 })
-                .catch(err => {
-                    alert(`❌ Network Error during upload: ${err.message}`);
-                })
-                .finally(() => {
-                    if (statusText) statusText.innerHTML = "Click or drag & drop Excel file(s) here";
-                    input.value = ""; 
-                });
+                .catch(err => { alert(`❌ Network Error: ${err.message}`); })
+                .finally(() => { resetStagingUI(); });
             }
         };
         reader.readAsArrayBuffer(file);
     });
 };
+
+function resetStagingUI() {
+    const btn = document.getElementById('process-uploads-btn');
+    if (btn) { btn.innerHTML = "🚀 Upload All Files to Cloud DB"; btn.disabled = false; }
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  7. CURRICULUM EDITOR & CLOUD SYNC

@@ -1427,3 +1427,115 @@ document.addEventListener('click', function (e) {
     }
   }
 });
+
+// ============================================================================
+// 8. ADMIN LOGIN SECURE OVERRIDE (Ver 2.4)
+// ============================================================================
+
+// 1. Stop native HTML forms from accidentally bypassing our JavaScript
+document.addEventListener('submit', function(e) {
+    e.preventDefault();
+});
+
+// 2. The Bulletproof Admin Login Function
+window.adminLogin = function() {
+    // Safely grab inputs
+    const emailInput = document.querySelector('input[type="email"]') || document.querySelectorAll('input')[0];
+    const passInput = document.querySelector('input[type="password"]') || document.querySelectorAll('input')[1];
+    
+    const email = emailInput ? emailInput.value.trim() : "";
+    const password = passInput ? passInput.value.trim() : "";
+    
+    const btn = document.querySelector('button');
+    const originalBtnText = btn ? btn.innerHTML : "Login &rarr;";
+    
+    // Find the pink error box to display messages
+    const errorBoxes = document.querySelectorAll('.text-red-500, .bg-red-50, [style*="color: red"], .error-message, .alert');
+    let errorBox = null;
+    if (errorBoxes.length > 0) errorBox = errorBoxes[0];
+    
+    if (!scriptURL || scriptURL.includes("YOUR_WEB_APP_URL_HERE")) {
+        if (errorBox) { errorBox.style.display = 'block'; errorBox.innerHTML = "⚠ ERROR: scriptURL is missing in script.js"; }
+        return;
+    }
+
+    // Show loading state
+    if (btn) {
+        btn.innerHTML = "⏳ Authenticating...";
+        btn.style.opacity = "0.7";
+        btn.style.pointerEvents = "none";
+    }
+
+    // 3. Fire the EXACT payload the V10 backend expects
+    fetch(scriptURL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' }, // Avoids CORS blocking
+        body: JSON.stringify({
+            action: 'verifyadmin', // MUST exactly match backend.gs
+            email: email,
+            password: password
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.status === 'success') {
+            if (btn) btn.innerHTML = "✅ Access Granted";
+            
+            // Secure the session memory
+            localStorage.setItem('isLoggedIn', 'true');
+            localStorage.setItem('userRole', 'admin');
+            sessionStorage.setItem('ADMIN_SESSION', 'active');
+            
+            // Trigger the Zero-Gap Dashboard Layout
+            document.body.classList.add('overlay-active');
+            const dashboard = document.getElementById('admin-dashboard') || document.getElementById('dashboard-section');
+            
+            if (dashboard) {
+                dashboard.classList.add('dashboard-fullscreen-overlay');
+                dashboard.style.display = 'block';
+                window.scrollTo({ top: 0, behavior: 'instant' });
+            }
+            
+            // Hide the login box container
+            const loginSection = document.getElementById('login-section') || document.querySelector('.login-container');
+            if(loginSection) loginSection.style.display = 'none';
+
+        } else {
+            // Display the Google Cloud error message
+            if (errorBox) {
+                errorBox.style.display = 'block';
+                errorBox.innerHTML = `⚠ ${data.message}`;
+            } else {
+                alert(`⚠ ${data.message}`);
+            }
+            if (btn) {
+                btn.innerHTML = originalBtnText;
+                btn.style.opacity = "1";
+                btn.style.pointerEvents = "auto";
+            }
+        }
+    })
+    .catch(err => {
+        if (errorBox) {
+            errorBox.style.display = 'block';
+            errorBox.innerHTML = `⚠ Network Error: Check your internet connection.`;
+        }
+        if (btn) {
+            btn.innerHTML = originalBtnText;
+            btn.style.opacity = "1";
+            btn.style.pointerEvents = "auto";
+        }
+    });
+};
+
+// 4. Aggressively hijack the physical Login button 
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('button');
+    if (btn && (btn.textContent.includes('Login') || btn.textContent.includes('Sign In'))) {
+        // Check if we are physically on the Admin page to avoid hijacking Student login
+        if (document.body.textContent.includes('COE administrator access') || document.title.includes('Admin')) {
+            e.preventDefault();
+            window.adminLogin();
+        }
+    }
+});

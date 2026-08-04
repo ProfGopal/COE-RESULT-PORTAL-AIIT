@@ -1880,30 +1880,34 @@ async function facultySearchStudent() {
  * @returns {{ isSupported, isEligible, audit, totalEarnedInBuckets }}
  */
 function evaluateDegree(student) {
-  const safeBatch = String(student.batch || "").trim();
-  const safeProgram = String(student.program || "").trim();
-  const exactKey = `${safeBatch}_${safeProgram}`;
-  
-  // CRITICAL FIX: Always fetch the freshest data right now to prevent Cross-Tab Stale Memory
-  let freshCurriculumDB = {};
+  // 1. ALWAYS pull the absolute latest curriculum from memory right now, don't rely on old variables
+  let latestCurriculum = {};
   try {
-      const saved = localStorage.getItem('AIIT_CUSTOM_CURRICULUM');
-      freshCurriculumDB = saved ? JSON.parse(saved) : (window.CURRICULUM_RULES || {});
+      const storedCurriculum = localStorage.getItem('AIIT_CUSTOM_CURRICULUM');
+      if (storedCurriculum) {
+          latestCurriculum = JSON.parse(storedCurriculum);
+          window.CURRICULUM_RULES = latestCurriculum; // Force global update
+      }
   } catch (e) {
-      freshCurriculumDB = window.CURRICULUM_RULES || {};
+      console.warn("Failed to parse latest curriculum rules.");
+      latestCurriculum = window.CURRICULUM_RULES || {};
   }
 
-  let rules = freshCurriculumDB[exactKey];
+  // 2. Determine the exact key for this student
+  const studentBatch = String(student.batch || "").trim();
+  const studentProg = String(student.program || "").trim();
+  const mapKey = `${studentBatch}_${studentProg}`;
+
+  let rulesToUse = latestCurriculum[mapKey];
   
-  // UNIVERSAL FUZZY MATCHER 
-  const fuzzyTarget = exactKey.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-  
-  if (!rules || rules.length === 0) {
-      const matchedKey = Object.keys(freshCurriculumDB).find(k => 
+  // RETAIN UNIVERSAL FUZZY MATCHING
+  const fuzzyTarget = mapKey.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+  if (!rulesToUse || rulesToUse.length === 0) {
+      const matchedKey = Object.keys(latestCurriculum).find(k => 
           k.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() === fuzzyTarget
       );
       if (matchedKey) {
-          rules = freshCurriculumDB[matchedKey];
+          rulesToUse = latestCurriculum[matchedKey];
       }
   }
 
@@ -1917,48 +1921,49 @@ function evaluateDegree(student) {
   });
 
   // Reject if empty and return the database keys for the diagnostic UI
-  if (!rules || rules.length === 0) {
+  if (!rulesToUse || rulesToUse.length === 0) {
       return { 
           isSupported: false, 
-          safeBatch, 
-          safeProgram, 
+          safeBatch: studentBatch, 
+          safeProgram: studentProg, 
           isSystemKnown, 
           fuzzyTarget, 
-          availableKeys: Object.keys(freshCurriculumDB).join(", ") 
+          availableKeys: Object.keys(latestCurriculum).join(", ") 
       };
   }
 
+  // 3. BULLETPROOF COURSE MATCHER: Strips all accidental spaces and hyphens
+  const cleanString = (str) => String(str).toUpperCase().replace(/[^A-Z0-9]/g, '');
+  
+  // Clean the student's earned courses so they match perfectly no matter how the Excel was typed
+  const earnedCourses = (student.courses || []).map(c => ({
+      ...c,
+      cleanCode: cleanString(c.code || c.CourseCode || ""),
+      grade: String(c.grade || c.Grade || "").toUpperCase().trim()
+  }));
+
   // Clone rules for this audit
-  let audit = JSON.parse(JSON.stringify(rules));
+  let audit = JSON.parse(JSON.stringify(rulesToUse));
   let totalEarnedOverall = 0;
-
-  const passedCourses = (student.courses || []).filter(c =>
-    c && c.code && !['F', 'FAIL', 'AB'].includes(String(c.grade || '').trim().toUpperCase())
-  );
-
-  // Deduplicate — keep one entry per course code
-  const uniquePassed = [];
-  const seenCodes = new Set();
-  passedCourses.forEach(c => {
-    const code = String(c.code || '').trim().toUpperCase();
-    if (code && !seenCodes.has(code)) { uniquePassed.push(c); seenCodes.add(code); }
-  });
 
   // Handle both flat (V1.0) and hierarchical (V2.0) rule formats
   const isHierarchical = audit.length > 0 && Array.isArray(audit[0].subCategories);
 
   if (isHierarchical) {
-    // V2.0: Distribute passed courses into Sub-Categories
-    uniquePassed.forEach(c => {
-      const code = String(c.code || '').trim().toUpperCase();
+    // V2.0: Distribute passed courses into Sub-Categories using cleanString matching
+    earnedCourses.forEach(sc => {
+      if (['F', 'FAIL', 'AB', 'DE', 'I', 'U'].includes(sc.grade)) return;
+
+      const code = sc.code || '';
+      const cleanCode = sc.cleanCode;
       const cInfo = getCourseInfo(code);
-      const creds = parseFloat(c.credits || c.creditEarned) || cInfo.credits;
-      const cObj = { code: code, title: c.title || c.name || cInfo.name, cred: creds };
+      const creds = parseFloat(sc.credits || sc.creditEarned) || cInfo.credits;
+      const cObj = { code: code, title: sc.title || sc.name || cInfo.name, cred: creds };
 
       let found = false;
       audit.forEach(main => {
         (main.subCategories || []).forEach(sub => {
-          if ((sub.codes || []).some(sc => sc.toUpperCase() === code)) {
+          if ((sub.codes || []).some(scCode => cleanString(scCode) === cleanCode)) {
             if (!sub.completedList) sub.completedList = [];
             sub.completedList.push(cObj);
             sub.earned = (sub.earned || 0) + creds;
@@ -1980,7 +1985,8 @@ function evaluateDegree(student) {
         // Build Pending list for this sub-category
         sub.pendingList = [];
         (sub.codes || []).forEach(code => {
-          const isCompleted = sub.completedList && sub.completedList.some(comp => comp.code === code.toUpperCase());
+          const cleanRequired = cleanString(code);
+          const isCompleted = sub.completedList && sub.completedList.some(comp => cleanString(comp.code) === cleanRequired);
           if (!isCompleted) {
             const pInfo = getCourseInfo(code);
             sub.pendingList.push({ code: code, title: pInfo.name, cred: pInfo.credits });
@@ -1997,7 +2003,7 @@ function evaluateDegree(student) {
     // V1.0 flat format — legacy compatibility path
     const batchClean = String(student.batch || '').match(/(20\d{2})/) ? String(student.batch).match(/(20\d{2})/)[1] : String(student.batch || '').trim();
     const legacyRuleKey = `${batchClean}_${student.program}`;
-    const legacyRules = CURRICULUM_RULES[legacyRuleKey];
+    const legacyRules = latestCurriculum[legacyRuleKey];
     if (!legacyRules) return { isSupported: false, isEligible: false };
 
     let legacyAudit = legacyRules.map(r => ({
@@ -2010,37 +2016,38 @@ function evaluateDegree(student) {
     }));
 
     let totalEarnedInBuckets = 0;
-    const FAIL_GRADES = ['F', 'FAIL', 'AB'];
-    const passedCoursesFlat = (student.courses || []).filter(c =>
-      c && c.code && !FAIL_GRADES.includes(String(c.grade || '').trim().toUpperCase())
+    const passedCoursesFlat = earnedCourses.filter(c =>
+      !['F', 'FAIL', 'AB', 'DE', 'I', 'U'].includes(c.grade)
     );
     const passedMapFlat = {};
     passedCoursesFlat.forEach(c => {
-      const code = String(c.code || '').trim().toUpperCase();
+      const code = c.code || '';
+      const cleanCode = c.cleanCode;
       if (!code) return;
       const cr = parseFloat(c.credits || c.creditEarned || 0) || 0;
-      if (!passedMapFlat[code] || cr > passedMapFlat[code].credits) {
+      if (!passedMapFlat[cleanCode] || cr > passedMapFlat[cleanCode].credits) {
         const cInfo = getCourseInfo(code);
-        passedMapFlat[code] = { code, title: c.title || c.name || cInfo.name, credits: cr || cInfo.credits };
+        passedMapFlat[cleanCode] = { code, cleanCode, title: c.title || c.name || cInfo.name, credits: cr || cInfo.credits };
       }
     });
 
     const knownCodes = new Set();
-    legacyAudit.slice(0, 3).forEach(cat => cat.codes.forEach(c => knownCodes.add(c.toUpperCase())));
+    legacyAudit.slice(0, 3).forEach(cat => cat.codes.forEach(c => knownCodes.add(cleanString(c))));
 
     Object.values(passedMapFlat).forEach(pc => {
-      const code = pc.code.toUpperCase();
-      const cInfo = getCourseInfo(pc.code);
+      const code = pc.code;
+      const cleanCode = pc.cleanCode;
+      const cInfo = getCourseInfo(code);
       const title = pc.title || cInfo.name;
       const cred = pc.credits || cInfo.credits;
-      let catIndex = legacyAudit.findIndex((cat, i) => i < 3 && cat.codes.some(bc => bc.toUpperCase() === code));
+      let catIndex = legacyAudit.findIndex((cat, i) => i < 3 && cat.codes.some(bc => cleanString(bc) === cleanCode));
       if (catIndex !== -1) {
         legacyAudit[catIndex].earned += pc.credits;
         totalEarnedInBuckets += pc.credits;
         legacyAudit[catIndex].completedList.push({ code: pc.code, title, cred });
       } else if (legacyAudit[3]) {
-        const inCat4 = legacyAudit[3].codes.some(bc => bc.toUpperCase() === code);
-        if (inCat4 || !knownCodes.has(code)) {
+        const inCat4 = legacyAudit[3].codes.some(bc => cleanString(bc) === cleanCode);
+        if (inCat4 || !knownCodes.has(cleanCode)) {
           legacyAudit[3].earned += pc.credits;
           totalEarnedInBuckets += pc.credits;
           legacyAudit[3].completedList.push({ code: pc.code, title, cred });
@@ -2051,7 +2058,8 @@ function evaluateDegree(student) {
     legacyAudit.slice(0, 3).forEach(cat => {
       cat.codes.forEach(code => {
         if (code === 'OPEN_ELECTIVE_CATCHALL') return;
-        if (!cat.completedList.some(comp => comp.code === code)) {
+        const cleanRequired = cleanString(code);
+        if (!cat.completedList.some(comp => cleanString(comp.code) === cleanRequired)) {
           const pInfo = getCourseInfo(code);
           cat.pendingList.push({ code, title: pInfo.name, cred: pInfo.credits });
         }
@@ -3915,4 +3923,57 @@ window.syncCloudCurriculum = function() {
 
 // Run the sync engine the second the page finishes loading
 document.addEventListener("DOMContentLoaded", window.syncCloudCurriculum);
+
+// --- MANUAL CLOUD SAVE ENFORCER ---
+document.addEventListener('click', function(e) {
+    // Find the closest button element in case the user clicked an icon inside the button
+    const btn = e.target.closest('button');
+    
+    // Target the specific green save button
+    if (btn && btn.textContent.includes('Save Curriculum Updates')) {
+        const originalText = btn.innerHTML;
+        
+        // Wait 500ms to allow the portal's original save function to finish updating LocalStorage
+        setTimeout(() => {
+            const curriculumJSON = localStorage.getItem('AIIT_CUSTOM_CURRICULUM');
+            
+            if (curriculumJSON && typeof scriptURL !== 'undefined') {
+                // Update button UI to show progress
+                btn.innerHTML = "⏳ Saving to Cloud...";
+                btn.style.backgroundColor = "#eab308"; // Yellow warning color
+                
+                const formData = new FormData();
+                formData.append('action', 'saveCurriculum');
+                formData.append('curriculumData', curriculumJSON);
+
+                fetch(scriptURL, { method: 'POST', body: formData })
+                    .then(res => res.text())
+                    .then(txt => {
+                        console.log("☁️ Manual Cloud Sync:", txt);
+                        // Show success UI
+                        btn.innerHTML = "✅ Saved to Cloud!";
+                        btn.style.backgroundColor = "#22c55e"; // Green success color
+                        
+                        // Revert button to normal after 3 seconds
+                        setTimeout(() => {
+                            btn.innerHTML = originalText;
+                            btn.style.backgroundColor = ""; // Remove inline style
+                        }, 3000);
+                    })
+                    .catch(err => {
+                        console.error("☁️ Cloud Error:", err);
+                        btn.innerHTML = "❌ Cloud Sync Failed";
+                        btn.style.backgroundColor = "#ef4444"; // Red error color
+                        
+                        setTimeout(() => {
+                            btn.innerHTML = originalText;
+                            btn.style.backgroundColor = "";
+                        }, 3000);
+                    });
+            } else {
+                console.warn("Could not find scriptURL or local curriculum data to sync.");
+            }
+        }, 500);
+    }
+});
 

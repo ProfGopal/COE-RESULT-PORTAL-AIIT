@@ -609,39 +609,65 @@ window.studentLoginStep = async function () {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 window.facultyLoginStep = async function () {
-  var email = sanitize(document.getElementById('f-email').value);
-  var pass = document.getElementById('f-pass').value;
-  hideAlerts('faculty');
+    var emailInput = document.getElementById('f-email');
+    var passInput = document.getElementById('f-pass');
+    var email = emailInput ? emailInput.value.trim() : "";
+    var pass = passInput ? passInput.value : "";
+    hideAlerts('faculty');
 
-  if (!email || !pass) {
-    showErr('faculty-err', 'Please enter email and password.', ['f-email', 'f-pass']);
-    return;
-  }
-
-  var btn = document.getElementById('f-login-btn');
-  if (btn) btn.disabled = true;
-
-  try {
-    var response = await fetch(scriptURL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'facultylogin', email: email, password: pass })
-    });
-    var result = await response.json();
-
-    if (result && result.status === 'success') {
-      var label = document.getElementById('faculty-email-label');
-      if (label) label.textContent = email;
-      showPage('faculty-dash');
-      window.facultyViewAll();
-    } else {
-      showErr('faculty-err', '⚠ ' + ((result && result.message) || 'Invalid faculty credentials.'), ['f-pass']);
+    if (!email || !pass) {
+        showErr('faculty-err', 'Please enter email and password.', ['f-email', 'f-pass']);
+        return;
     }
-  } catch (err) {
-    showErr('faculty-err', '✗ Connection error: ' + err.message);
-  } finally {
-    if (btn) btn.disabled = false;
-  }
+
+    var btn = document.getElementById('f-login-btn');
+    const originalBtnText = btn ? btn.innerHTML : "Faculty Sign In &rarr;";
+    if (btn) { btn.innerHTML = "⏳ Authenticating..."; btn.disabled = true; }
+
+    try {
+        var response = await fetch(scriptURL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            // FIX: Action MUST be 'verifyfaculty' to match backend.gs
+            body: JSON.stringify({ action: 'verifyfaculty', email: email, password: pass }) 
+        });
+        var result = await response.json();
+
+        if (result && result.status === 'success') {
+            if (btn) btn.innerHTML = "✅ Access Granted";
+            
+            // --- DIGITAL SHREDDER FOR FACULTY UI ---
+            const loginBox = btn ? btn.closest('.bg-white') || btn.closest('.login-wrapper') : null;
+            if (loginBox) loginBox.remove();
+            
+            document.querySelectorAll('h1, h2, h3, p').forEach(textNode => {
+                if (textNode.textContent.includes('Faculty Login') || textNode.textContent.includes('Authorized AIIT faculty')) {
+                    textNode.style.display = 'none';
+                }
+            });
+
+            // Show Faculty Dashboard
+            const facultyDash = document.getElementById('faculty-dash') || document.getElementById('faculty-dashboard') || document.querySelector('.faculty-section');
+            if (facultyDash) {
+                facultyDash.style.display = 'block';
+                facultyDash.classList.add('dashboard-fullscreen-overlay');
+            }
+            
+            document.body.classList.add('overlay-active');
+            window.scrollTo({ top: 0, behavior: 'instant' });
+
+            var label = document.getElementById('faculty-email-label');
+            if (label) label.textContent = email;
+            
+            window.facultyViewAll(); // Load the universal directory
+        } else {
+            showErr('faculty-err', '⚠ ' + ((result && result.message) || 'Invalid credentials.'), ['f-pass']);
+            if (btn) { btn.innerHTML = originalBtnText; btn.disabled = false; }
+        }
+    } catch (err) {
+        showErr('faculty-err', '✗ Connection error: ' + err.message);
+        if (btn) { btn.innerHTML = originalBtnText; btn.disabled = false; }
+    }
 };
 
 window.facultyLogout = function () {
@@ -821,31 +847,25 @@ window.closeFacultyStudentView = function () {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function renderStudentDash(student) {
-    // Safe extractions
+    // Safe extractions directly from DB
     const studentName = student.name || 'Unknown Student';
     const studentSen = student.sen || 'N/A';
     const studentProg = student.program || '';
     const studentSchool = student.school || 'AIIT';
-    const rawCgpa = parseFloat(student.cgpa);
     
-    let totalCredits = 0;
+    const rawCgpa = parseFloat(student.cgpa);
+    const cgpa = (!isNaN(rawCgpa) && rawCgpa > 0) ? rawCgpa.toFixed(2) : "N/A";
+    const finalCredits = parseFloat(student.totalCredits) || 0;
+    
     let validCourses = [];
-
     if (student.courses && Array.isArray(student.courses)) {
         validCourses = student.courses.filter(c => c && c.code && c.code.trim() !== '' && c.code.trim() !== 'NAN');
-        
-        // Calculate total credits from passed courses if the totalCredits variable is 0
-        validCourses.forEach(c => {
-            if (!['F', 'AB', 'DE', 'I', 'U'].includes(String(c.grade).toUpperCase())) {
-                totalCredits += parseFloat(c.credits) || 0;
-            }
-        });
     }
-    
-    // Use explicitly uploaded credit total if it exists, otherwise use calculated
-    const finalCredits = (parseFloat(student.totalCredits) > 0) ? parseFloat(student.totalCredits) : totalCredits;
 
-    // UI Updates
+    // Calculate Active Backlogs
+    let activeBacklogs = window.getActiveBacklogs(validCourses);
+
+    // UI Updates for Badges
     const senLabel = document.getElementById('dash-sen-label');
     if (senLabel) senLabel.textContent = studentSen;
 
@@ -859,8 +879,7 @@ function renderStudentDash(student) {
     if (avatarEl) avatarEl.textContent = studentName.charAt(0).toUpperCase();
 
     const cgpaEl = document.getElementById('dash-cgpa');
-    // FIX: Display CGPA if it is > 0
-    if (cgpaEl) cgpaEl.textContent = (!isNaN(rawCgpa) && rawCgpa > 0) ? rawCgpa.toFixed(2) : "N/A";
+    if (cgpaEl) cgpaEl.textContent = cgpa;
 
     const ceEl = document.getElementById('dash-ce');
     if (ceEl) ceEl.textContent = finalCredits;
@@ -868,8 +887,12 @@ function renderStudentDash(student) {
     const ncEl = document.getElementById('dash-nc');
     if (ncEl) ncEl.textContent = validCourses.length;
 
-        // Calculate Active Backlogs
-        let activeBacklogs = window.getActiveBacklogs(validCourses);
+    // FIX: Update the "Completed Credits: 0 | Backlog: 0" light blue ribbon dynamically
+    document.querySelectorAll('div, p, span').forEach(el => {
+        if (el.textContent.includes('Completed Credits:') && el.textContent.includes('Backlog')) {
+            el.innerHTML = `Completed Credits: <strong style="color:#0f172a; margin-right: 15px;">${finalCredits}</strong> | <span style="margin-left: 15px;">Active Backlog Courses: <strong style="color:#ef4444;">${activeBacklogs.length}</strong></span>`;
+        }
+    });
 
         // Inject Tab UI Structure
         let tableContainer = document.getElementById('courses-tbody');
@@ -1359,14 +1382,17 @@ window.uploadStagedFiles = function() {
                         };
                     }
 
-                    // --- THE FIX: GRAB DATA FROM GREEN SUMMARY ROWS ---
-                    let cgpaKey = Object.keys(cleanRow).find(k => k.includes('cgpa'));
+                    // --- THE FIX: STRICT MATCHING FOR SUMMARY ROWS ---
+                    
+                    let cgpaKey = Object.keys(cleanRow).find(k => k === 'cgpa' || k === 'finalcgpa');
                     if (cgpaKey) {
                         let cgpaVal = parseFloat(cleanRow[cgpaKey]);
                         if (!isNaN(cgpaVal) && cgpaVal > 0) allParsedStudents[sen].cgpa = cgpaVal;
                     }
 
-                    let credKey = Object.keys(cleanRow).find(k => k.includes('creditearned') || k.includes('totalcredit'));
+                    // STRICT FIX: Only look for exactly "earned" or "totalcredits". 
+                    // Prevents accidentally grabbing "1-Total Credit points" (which causes the 494/629 bug).
+                    let credKey = Object.keys(cleanRow).find(k => k === '1creditearned' || k === 'creditearned' || k === 'totalcredits' || k === 'creditbalance');
                     if (credKey) {
                         let credVal = parseFloat(cleanRow[credKey]);
                         if (!isNaN(credVal) && credVal > 0) allParsedStudents[sen].totalCredits = credVal;

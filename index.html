@@ -1321,7 +1321,7 @@
     <header>
       <div class="header-left">
         <span style="color: var(--text); font-size: 0.9rem; font-weight: 500;">Developed by <strong style="color: var(--accent2);">Dr. GOPAL RAJENDRAN</strong></span>
-        <span style="font-size: 0.75rem; color: var(--muted); font-family: var(--mono);">Ver 2.0</span>
+        <span style="font-size: 0.75rem; color: var(--muted); font-family: var(--mono);">Ver 2.3</span>
       </div>
       <div class="header-center">
         <div style="font-size: 0.8rem; font-weight: 700; letter-spacing: 2px; color: var(--gold); margin-bottom: 8px; text-transform: uppercase; font-family: var(--mono);">
@@ -1611,20 +1611,6 @@
             ⚠️ Filter: Has Backlogs
           </button>
 
-          <div style="display:flex;align-items:center;gap:0.4rem;">
-            <input type="number" id="faculty-credit-input"
-              placeholder="Credits below…"
-              style="width:130px;padding:0.65rem 0.8rem;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:0.85rem;outline:none;"
-              onfocus="this.style.borderColor='var(--orange)'"
-              onblur="this.style.borderColor='var(--border)'"
-              onkeydown="if(event.key==='Enter')facultyFilterCredits()">
-            <button onclick="facultyFilterCredits()"
-              style="padding:0.65rem 1rem;font-family:var(--sans);font-size:0.82rem;font-weight:600;border-radius:8px;border:1px solid rgba(234,88,12,0.5);background:rgba(234,88,12,0.08);color:var(--orange);cursor:pointer;transition:all 0.2s;"
-              onmouseover="this.style.background='rgba(234,88,12,0.18)'"
-              onmouseout="this.style.background='rgba(234,88,12,0.08)'">
-              🎓 Filter Credits
-            </button>
-          </div>
         </div>
 
         <div class="alert err" id="faculty-search-err" style="display:none"></div>

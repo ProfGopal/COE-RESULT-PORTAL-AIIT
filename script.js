@@ -742,47 +742,70 @@ window.facultyViewAll = async function () {
     }
 };
 
+window.facultyFilterAndSort = function() {
+    if (!window.STUDENTS && !window.ALL_STUDENTS) return;
+    let students = [...(window.STUDENTS || window.ALL_STUDENTS || [])];
+
+    // 1. Grab Active Filters
+    const searchInput = document.querySelector('#faculty-dash input[type="text"]') || document.querySelector('.faculty-section input');
+    const searchTxt = searchInput ? searchInput.value.toLowerCase().trim() : "";
+    
+    const selects = document.querySelectorAll('#faculty-dash select, .faculty-section select');
+    const batchSel = selects[0] ? selects[0].value.trim() : "";
+    const progSel = selects[1] ? selects[1].value.trim() : "";
+    const creditSel = selects[2] ? selects[2].value.trim() : ""; // Credit filter dropdown
+    const sortSel = selects[3] ? selects[3].value.trim() : "";   // Sort credits dropdown
+
+    // 2. Filter Students
+    let filtered = students.filter(s => {
+        const matchSearch = !searchTxt || String(s.sen || '').toLowerCase().includes(searchTxt) || String(s.name || '').toLowerCase().includes(searchTxt);
+        const matchBatch = !batchSel || String(s.batch || '').trim() === batchSel;
+        const matchProg = !progSel || String(s.program || '').trim() === progSel;
+        
+        const studentCredits = String(s.totalCredits || s.totalCreditEarned || '0').trim();
+        const matchCredit = !creditSel || creditSel === "All Credits" || studentCredits === creditSel;
+        
+        return matchSearch && matchBatch && matchProg && matchCredit;
+    });
+
+    // 3. Populate Unique Credits Dropdown dynamically based on current batch/program context
+    if (selects[2] && selects[2].options.length <= 2) {
+        const uniqueCredits = [...new Set(students.map(s => String(s.totalCredits || s.totalCreditEarned || '0').trim()))].sort((a,b) => parseFloat(a) - parseFloat(b));
+        selects[2].innerHTML = `<option value="">All Credits</option>` + uniqueCredits.map(c => `<option value="${c}">${c} Credits</option>`).join('');
+        if (creditSel) selects[2].value = creditSel;
+    }
+
+    // 4. Sort Students by Credits
+    if (sortSel === "Low to High" || sortSel.toLowerCase().includes("low") || sortSel === "asc") {
+        filtered.sort((a, b) => (parseFloat(a.totalCredits || a.totalCreditEarned || 0) - parseFloat(b.totalCredits || b.totalCreditEarned || 0)));
+    } else if (sortSel === "High to Low" || sortSel.toLowerCase().includes("high") || sortSel === "desc") {
+        filtered.sort((a, b) => (parseFloat(b.totalCredits || b.totalCreditEarned || 0) - parseFloat(a.totalCredits || a.totalCreditEarned || 0)));
+    }
+
+    renderStudentTable(filtered);
+};
+
+window.applyFilters = window.facultyFilterAndSort;
+
 window.facultyFilterBacklogs = function () {
   window.filterBacklogs();
 };
 
-window.facultyFilterCredits = function () {
-  var inp = document.getElementById('faculty-credit-input');
-  var maxCr = parseFloat(inp ? inp.value : 0);
-  if (isNaN(maxCr) || maxCr <= 0) return window.facultyViewAll();
+document.addEventListener('change', function(e) {
+    if (e.target.closest('#faculty-dash') || e.target.closest('.faculty-section')) {
+        if (typeof window.facultyFilterAndSort === 'function') {
+            window.facultyFilterAndSort();
+        }
+    }
+});
 
-  var filtered = (window.ALL_STUDENTS || []).filter(s => {
-    var cr = parseFloat(s.totalCredits || s.totalCreditEarned || 0);
-    return cr < maxCr;
-  });
-  renderStudentTable(filtered);
-};
-
-window.applyFilters = function () {
-  var searchInp = document.getElementById('faculty-search-input');
-  var search = searchInp ? searchInp.value.toLowerCase().trim() : '';
-
-  var batchSel = document.getElementById('filter-batch');
-  var batch = batchSel ? batchSel.value : '';
-
-  var progSel = document.getElementById('filter-program');
-  var prog = progSel ? progSel.value : '';
-
-  var eligibleSel = document.getElementById('filter-eligibility');
-  var elig = eligibleSel ? eligibleSel.value : 'all';
-
-  var filtered = (window.ALL_STUDENTS || []).filter(s => {
-    var matchSearch = !search || String(s.sen || '').toLowerCase().includes(search) || String(s.name || '').toLowerCase().includes(search);
-    var matchBatch = !batch || String(s.batch || '') === batch;
-    var matchProg = !prog || String(s.program || '') === prog;
-    var matchElig = true;
-    if (elig === 'eligible') matchElig = (s.eligible === true || s.degreeEligible === true);
-    if (elig === 'not_eligible') matchElig = (s.eligible === false || s.degreeEligible === false);
-    return matchSearch && matchBatch && matchProg && matchElig;
-  });
-
-  renderStudentTable(filtered);
-};
+document.addEventListener('input', function(e) {
+    if ((e.target.closest('#faculty-dash') || e.target.closest('.faculty-section')) && e.target.type === 'text') {
+        if (typeof window.facultyFilterAndSort === 'function') {
+            window.facultyFilterAndSort();
+        }
+    }
+});
 
 function renderStudentTable(students) {
     var tbody = document.getElementById('faculty-dir-tbody') || document.querySelector('#faculty-dash tbody');

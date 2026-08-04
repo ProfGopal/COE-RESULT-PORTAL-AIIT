@@ -1429,21 +1429,21 @@ document.addEventListener('click', function (e) {
 });
 
 // ============================================================================
-// 8. ADMIN LOGIN SECURE OVERRIDE (Ver 2.6 Universal Reveal)
+// 8. ADMIN LOGIN NATIVE RESTORATION (Ver 2.8)
 // ============================================================================
 
 document.addEventListener('submit', function(e) { e.preventDefault(); });
 
-window.adminLogin = function() {
+window.adminLogin = async function() {
     const emailInput = document.querySelector('input[type="email"]') || document.querySelectorAll('input')[0];
     const passInput = document.querySelector('input[type="password"]') || document.querySelectorAll('input')[1];
-    
+
     const email = emailInput ? emailInput.value.trim() : "";
     const password = passInput ? passInput.value.trim() : "";
-    
+
     const btn = document.querySelector('button');
     const originalBtnText = btn ? btn.innerHTML : "Login &rarr;";
-    
+
     if (!scriptURL || scriptURL.includes("YOUR_WEB_APP_URL_HERE")) {
         alert("⚠ ERROR: scriptURL is missing in script.js");
         return;
@@ -1454,80 +1454,48 @@ window.adminLogin = function() {
         btn.style.pointerEvents = "none";
     }
 
-    fetch(scriptURL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({
-            action: 'verifyadmin',
-            email: email,
-            password: password
-        })
-    })
-    .then(res => res.json())
-    .then(data => {
+    try {
+        // 1. Send the exact payload the V10 Backend requires
+        const response = await fetch(scriptURL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({
+                action: 'verifyadmin', 
+                email: email,
+                password: password
+            })
+        });
+
+        const data = await response.json();
+
         if (data.status === 'success') {
             if (btn) btn.innerHTML = "✅ Access Granted";
-            
-            // 1. Secure the session memory
+
+            // 2. Secure Native Session Memory (Crucial for admin functions)
+            window.currentAdminPassword = password;
+            sessionStorage.setItem('coe_admin_auth', password); // Matches your ADMIN_SESSION var
             localStorage.setItem('isLoggedIn', 'true');
             localStorage.setItem('userRole', 'admin');
-            sessionStorage.setItem('ADMIN_SESSION', 'active');
-            
-            // --- 2. DIGITAL SHREDDER: Destroy the Login Box ---
-            let loginBox = null;
-            if (btn) {
-                // Find the main white card holding the button and inputs
-                loginBox = btn.closest('.bg-white') || btn.closest('.shadow-lg') || btn.closest('.max-w-md');
-            }
-            
-            // Completely delete the box from the live webpage
-            if (loginBox) {
-                loginBox.remove();
-            } else {
-                // Fallback: If classes differ, destroy the parent container of the email input
-                const emailInput = document.querySelector('input[type="email"]');
-                if (emailInput && emailInput.parentElement && emailInput.parentElement.parentElement) {
-                    emailInput.parentElement.parentElement.remove();
-                }
-            }
 
-            // Hide any loose text floating outside the box
-            document.querySelectorAll('h1, h2, h3, p, span').forEach(textNode => {
-                if (textNode.textContent.includes('Admin Login') || textNode.textContent.includes('administrator access')) {
-                    textNode.style.display = 'none';
-                }
-            });
+            // 3. TRIGGER NATIVE PAGE ROUTING
+            if (typeof showPage === 'function') {
+                showPage('admin-dash'); // This natively hides the login box!
+            } 
 
-            // --- 3. UNHIDE THE DASHBOARD ---
-            // Search for your specific admin dashboard ID
-            const adminDash = document.getElementById('admin-panel') || 
-                              document.getElementById('admin-dashboard') || 
-                              document.getElementById('dashboard-section') || 
-                              document.querySelector('.admin-dashboard');
-            
+            // 4. Force Zero-Gap Overlay
+            const adminDash = document.getElementById('admin-dash');
             if (adminDash) {
+                document.body.classList.add('overlay-active');
+                adminDash.classList.add('dashboard-fullscreen-overlay');
                 adminDash.style.display = 'block';
-                adminDash.classList.add('dashboard-fullscreen-overlay'); // Applies zero-gap fix
-            } else {
-                // ULTIMATE FALLBACK: Unhide EVERY hidden main div on the page
-                document.querySelectorAll('body > div, body > section, body > main').forEach(el => {
-                    const compStyle = window.getComputedStyle(el);
-                    if (compStyle.display === 'none' && !el.classList.contains('login')) {
-                        el.style.display = 'block';
-                        el.classList.add('dashboard-fullscreen-overlay');
-                    }
-                });
+                window.scrollTo({ top: 0, behavior: 'instant' });
             }
 
-            // Lock background scrolling and jump to top
-            document.body.classList.add('overlay-active');
-            window.scrollTo({ top: 0, behavior: 'instant' });
-            
-            // 4. Force the dashboard to fetch the Google Sheet data immediately
-            if (typeof loadData === 'function') loadData();
-            if (typeof fetchStudents === 'function') fetchStudents();
-            if (typeof populateTable === 'function') populateTable();
-            
+            // 5. Initialize Native Dashboard Functions
+            if (typeof renderSystemPrograms === 'function') renderSystemPrograms();
+            if (typeof loadCurriculumEditor === 'function') loadCurriculumEditor();
+            if (typeof applyAdminFilters === 'function') applyAdminFilters();
+
         } else {
             alert(`⚠ ${data.message}`);
             if (btn) {
@@ -1535,20 +1503,19 @@ window.adminLogin = function() {
                 btn.style.pointerEvents = "auto";
             }
         }
-    })
-    .catch(err => {
+    } catch (err) {
         alert(`⚠ Network Error: Check your internet connection.`);
         if (btn) {
             btn.innerHTML = originalBtnText;
             btn.style.pointerEvents = "auto";
         }
-    });
+    }
 };
 
 // Aggressively hijack physical Login button on Admin page
 document.addEventListener('click', function(e) {
     const btn = e.target.closest('button');
-    if (btn && (btn.textContent.includes('Login') || btn.textContent.includes('Sign In'))) {
+    if (btn && (btn.textContent.includes('Login') || btn.textContent.includes('Sign In') || btn.textContent.includes('Access'))) {
         if (document.body.textContent.includes('COE administrator access') || document.title.includes('Admin')) {
             e.preventDefault();
             window.adminLogin();

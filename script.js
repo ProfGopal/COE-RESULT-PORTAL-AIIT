@@ -92,21 +92,34 @@ window.getCourseInfo = function (code) {
     if (!code) return { name: "Course Title", credits: 3 };
     let cleanCode = String(code).toUpperCase().trim();
     
+    // 1. Check Custom Course Dictionary in memory or local storage
+    if (!window.CUSTOM_COURSE_DICT) {
+        try { window.CUSTOM_COURSE_DICT = JSON.parse(localStorage.getItem('AIIT_CUSTOM_COURSES')) || {}; } catch(e){}
+    }
+    
     if (window.CUSTOM_COURSE_DICT && window.CUSTOM_COURSE_DICT[cleanCode]) {
-        let cr = window.CUSTOM_COURSE_DICT[cleanCode].credits;
-        let n = window.CUSTOM_COURSE_DICT[cleanCode].name;
-        return {
-            name: (n && n !== "Course Title" && n !== "Pending DB Update") ? n : cleanCode,
-            credits: (cr !== undefined && cr !== null && !isNaN(cr)) ? parseFloat(cr) : 3
-        };
+        let item = window.CUSTOM_COURSE_DICT[cleanCode];
+        let cr = item.credits;
+        let n = item.name;
+        if (n && n !== "Course Title" && n !== "Pending DB Update" && n !== cleanCode) {
+            return {
+                name: n,
+                credits: (cr !== undefined && cr !== null && !isNaN(cr)) ? parseFloat(cr) : 3
+            };
+        }
     }
+
+    // 2. Fallback to standard COURSE_DICT if available
     if (typeof COURSE_DICT !== 'undefined' && COURSE_DICT[cleanCode]) {
-        let cr = COURSE_DICT[cleanCode].credits;
+        let item = COURSE_DICT[cleanCode];
+        let cr = item.credits;
         return {
-            name: COURSE_DICT[cleanCode].name,
+            name: item.name || cleanCode,
             credits: (cr !== undefined && cr !== null && !isNaN(cr)) ? parseFloat(cr) : 3
         };
     }
+
+    // 3. Final Fallback: Return clean code
     return { name: cleanCode, credits: 3 };
 };
 
@@ -2076,6 +2089,26 @@ window.evaluateDegree = function (student) {
 
     const rulesToUse = latestCurriculum[mapKeySpace] || latestCurriculum[mapKeyUnderscore] || window.CURRICULUM_RULES[mapKeySpace] || window.CURRICULUM_RULES[mapKeyUnderscore];
     
+    if (rulesToUse) {
+        rulesToUse.forEach(main => {
+            let subs = main.subCategories || [];
+            if (subs.length === 0 && main.codes) subs = [{ codes: main.codes }];
+            subs.forEach(sub => {
+                if (sub.items && Array.isArray(sub.items)) {
+                    sub.items.forEach(it => {
+                        if (it.code && it.name && it.name !== 'Course Title') {
+                            if (!window.CUSTOM_COURSE_DICT) window.CUSTOM_COURSE_DICT = {};
+                            window.CUSTOM_COURSE_DICT[String(it.code).toUpperCase().trim()] = {
+                                name: it.name,
+                                credits: parseFloat(it.credits) || 3
+                            };
+                        }
+                    });
+                }
+            });
+        });
+    }
+
     if (!rulesToUse || rulesToUse.length === 0) {
         return `<div style="text-align:center; padding:25px; background:#f8fafc; border-radius:10px; border:2px dashed #cbd5e1; margin-top:20px;">
                     <h3 style="color:#ef4444; margin-top:0;">📭 Curriculum Not Mapped</h3>

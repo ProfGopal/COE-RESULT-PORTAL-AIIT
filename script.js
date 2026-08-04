@@ -651,18 +651,18 @@ window.facultyLoginStep = async function () {
         if (result && result.status === 'success') {
             if (btn) btn.innerHTML = "✅ Access Granted";
             
-            // --- AGGRESSIVE DIGITAL SHREDDER ---
-            // Completely remove the login form container from the DOM so it cannot show up at the bottom
-            const loginWrapper = document.getElementById('faculty-login-container') || btn.closest('.bg-white') || btn.closest('form') || document.querySelector('.login-section');
+            // --- ABSOLUTE DOM OBLITERATION OF LOGIN WRAPPER ---
+            const loginWrapper = document.getElementById('faculty-login-wrapper');
             if (loginWrapper) {
                 loginWrapper.style.display = 'none';
                 loginWrapper.remove();
             }
             
-            // Also hide any stray login headers or text nodes
-            document.querySelectorAll('h1, h2, h3, p, div').forEach(node => {
-                if (node.textContent && (node.textContent.includes('Faculty Login') || node.textContent.includes('Authorized AIIT faculty'))) {
-                    node.style.display = 'none';
+            // Fallback check for any stray login elements
+            document.querySelectorAll('.login-container, .bg-white').forEach(el => {
+                if (el.textContent && el.textContent.includes('Faculty Login')) {
+                    el.style.display = 'none';
+                    el.remove();
                 }
             });
 
@@ -690,8 +690,11 @@ window.facultyLoginStep = async function () {
     }
 };
 
-window.facultyLogout = function () {
-  showPage('landing');
+window.facultyLogout = function() {
+    sessionStorage.clear();
+    localStorage.removeItem('coe_student_session');
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    window.location.reload();
 };
 
 window.facultyViewAll = async function () {

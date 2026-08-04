@@ -1321,7 +1321,7 @@
     <header>
       <div class="header-left">
         <span style="color: var(--text); font-size: 0.9rem; font-weight: 500;">Developed by <strong style="color: var(--accent2);">Dr. GOPAL RAJENDRAN</strong></span>
-        <span style="font-size: 0.75rem; color: var(--muted); font-family: var(--mono);">Ver 2.1</span>
+        <span style="font-size: 0.75rem; color: var(--muted); font-family: var(--mono);">Ver 2.2</span>
       </div>
       <div class="header-center">
         <div style="font-size: 0.8rem; font-weight: 700; letter-spacing: 2px; color: var(--gold); margin-bottom: 8px; text-transform: uppercase; font-family: var(--mono);">
@@ -1511,28 +1511,30 @@
   </div>
 
   <!-- FACULTY LOGIN PAGE -->
-  <div id="faculty-login" class="page">
-    <div class="login-wrap">
-      <div class="login-box">
-        <button class="back-btn" onclick="showPage('landing')">← Back</button>
-        <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.6rem">
-          <div class="login-title" style="margin-bottom:0">Faculty Login</div>
-          <div class="faculty-badge">👩‍🏫 Faculty</div>
+  <div id="faculty-login-wrapper">
+    <div id="faculty-login" class="page">
+      <div class="login-wrap">
+        <div class="login-box">
+          <button class="back-btn" onclick="showPage('landing')">← Back</button>
+          <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.6rem">
+            <div class="login-title" style="margin-bottom:0">Faculty Login</div>
+            <div class="faculty-badge">👩‍🏫 Faculty</div>
+          </div>
+          <p class="login-sub">Authorized AIIT faculty only. Enter your institutional email and temporary password.</p>
+          <div class="alert err" id="faculty-err"></div>
+          <div class="alert ok" id="faculty-ok"></div>
+          <div class="field">
+            <label for="f-email">Institutional Email</label>
+            <input type="email" id="f-email" placeholder="yourname@blr.amity.edu" autocomplete="email"
+              onkeydown="if(event.key==='Enter')facultyLoginStep()">
+          </div>
+          <div class="field">
+            <label for="f-pass">Password</label>
+            <input type="password" id="f-pass" placeholder="Your password" autocomplete="current-password"
+              onkeydown="if(event.key==='Enter')facultyLoginStep()">
+          </div>
+          <button class="btn-primary" id="f-login-btn" onclick="facultyLoginStep()">Faculty Sign In →</button>
         </div>
-        <p class="login-sub">Authorized AIIT faculty only. Enter your institutional email and temporary password.</p>
-        <div class="alert err" id="faculty-err"></div>
-        <div class="alert ok" id="faculty-ok"></div>
-        <div class="field">
-          <label for="f-email">Institutional Email</label>
-          <input type="email" id="f-email" placeholder="yourname@blr.amity.edu" autocomplete="email"
-            onkeydown="if(event.key==='Enter')facultyLoginStep()">
-        </div>
-        <div class="field">
-          <label for="f-pass">Password</label>
-          <input type="password" id="f-pass" placeholder="Your password" autocomplete="current-password"
-            onkeydown="if(event.key==='Enter')facultyLoginStep()">
-        </div>
-        <button class="btn-primary" id="f-login-btn" onclick="facultyLoginStep()">Faculty Sign In →</button>
       </div>
     </div>
   </div>

@@ -1468,38 +1468,65 @@ window.adminLogin = function() {
         if (data.status === 'success') {
             if (btn) btn.innerHTML = "✅ Access Granted";
             
-            // Secure the session memory
+            // 1. Secure the session memory
             localStorage.setItem('isLoggedIn', 'true');
             localStorage.setItem('userRole', 'admin');
+            sessionStorage.setItem('ADMIN_SESSION', 'active');
             
-            // --- UNIVERSAL PHASE-SHIFT DOM TRANSITION ---
+            // --- 2. DIGITAL SHREDDER: Destroy the Login Box ---
+            let loginBox = null;
+            if (btn) {
+                // Find the main white card holding the button and inputs
+                loginBox = btn.closest('.bg-white') || btn.closest('.shadow-lg') || btn.closest('.max-w-md');
+            }
             
-            // 1. Physically hide the HTML Form and the text container
-            const loginForm = document.querySelector('form');
-            if (loginForm) loginForm.style.display = 'none';
-            
-            document.querySelectorAll('h1, h2, h3, p').forEach(textNode => {
+            // Completely delete the box from the live webpage
+            if (loginBox) {
+                loginBox.remove();
+            } else {
+                // Fallback: If classes differ, destroy the parent container of the email input
+                const emailInput = document.querySelector('input[type="email"]');
+                if (emailInput && emailInput.parentElement && emailInput.parentElement.parentElement) {
+                    emailInput.parentElement.parentElement.remove();
+                }
+            }
+
+            // Hide any loose text floating outside the box
+            document.querySelectorAll('h1, h2, h3, p, span').forEach(textNode => {
                 if (textNode.textContent.includes('Admin Login') || textNode.textContent.includes('administrator access')) {
                     textNode.style.display = 'none';
                 }
             });
 
-            // 2. Scan the page for the hidden dashboard and forcefully unhide it
-            document.querySelectorAll('div, section, main').forEach(el => {
-                // Check if it's a major hidden container
-                const compStyle = window.getComputedStyle(el);
-                if (compStyle.display === 'none' && el.id !== 'login-section' && el.children.length > 0) {
-                    el.style.display = 'block';
-                    el.classList.add('dashboard-fullscreen-overlay');
-                }
-            });
+            // --- 3. UNHIDE THE DASHBOARD ---
+            // Search for your specific admin dashboard ID
+            const adminDash = document.getElementById('admin-panel') || 
+                              document.getElementById('admin-dashboard') || 
+                              document.getElementById('dashboard-section') || 
+                              document.querySelector('.admin-dashboard');
+            
+            if (adminDash) {
+                adminDash.style.display = 'block';
+                adminDash.classList.add('dashboard-fullscreen-overlay'); // Applies zero-gap fix
+            } else {
+                // ULTIMATE FALLBACK: Unhide EVERY hidden main div on the page
+                document.querySelectorAll('body > div, body > section, body > main').forEach(el => {
+                    const compStyle = window.getComputedStyle(el);
+                    if (compStyle.display === 'none' && !el.classList.contains('login')) {
+                        el.style.display = 'block';
+                        el.classList.add('dashboard-fullscreen-overlay');
+                    }
+                });
+            }
 
+            // Lock background scrolling and jump to top
             document.body.classList.add('overlay-active');
             window.scrollTo({ top: 0, behavior: 'instant' });
             
-            // 3. Trigger your original load functions to populate the tables
+            // 4. Force the dashboard to fetch the Google Sheet data immediately
             if (typeof loadData === 'function') loadData();
             if (typeof fetchStudents === 'function') fetchStudents();
+            if (typeof populateTable === 'function') populateTable();
             
         } else {
             alert(`⚠ ${data.message}`);

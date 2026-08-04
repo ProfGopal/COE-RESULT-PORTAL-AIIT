@@ -713,13 +713,13 @@ window.facultyLogout = function() {
 window.facultyViewAll = async function () {
     syncBar('Loading student records from Cloud Database…', true);
     try {
-        // FIX: Use the correct '?action=load' codeword to match the backend
         var res = await fetch(scriptURL + "?action=load");
         var data = await res.json();
         var students = Array.isArray(data) ? data : (data.students || []);
         
         window.STUDENTS = students;
         window.ALL_STUDENTS = students;
+        window.RENDERED_STUDENTS = students;
         
         // Auto-populate Faculty Dropdown Filters based on live cloud data
         const uniqueBatches = [...new Set(students.map(s => String(s.batch || '').trim()).filter(Boolean))];
@@ -727,11 +727,14 @@ window.facultyViewAll = async function () {
         
         const facultyDash = document.getElementById('faculty-dash') || document.querySelector('.faculty-section');
         if (facultyDash) {
-             const selects = facultyDash.querySelectorAll('select');
-             if(selects.length >= 2) {
-                 selects[0].innerHTML = `<option value="">All Years</option>` + uniqueBatches.map(b => `<option value="${b}">${b}</option>`).join('');
-                 selects[1].innerHTML = `<option value="">All Programs</option>` + uniqueProgs.map(p => `<option value="${p}">${p}</option>`).join('');
-             }
+             const batchSel = document.getElementById('filter-batch');
+             const progSel = document.getElementById('filter-program');
+             if (batchSel) batchSel.innerHTML = `<option value="">All Years</option>` + uniqueBatches.map(b => `<option value="${b}">${b}</option>`).join('');
+             if (progSel) progSel.innerHTML = `<option value="">All Programs</option>` + uniqueProgs.map(p => `<option value="${p}">${p}</option>`).join('');
+        }
+
+        if (typeof window.buildCreditCheckboxDropdown === 'function') {
+            window.buildCreditCheckboxDropdown(students);
         }
 
         renderStudentTable(students);
@@ -746,43 +749,137 @@ window.facultyFilterAndSort = function() {
     if (!window.STUDENTS && !window.ALL_STUDENTS) return;
     let students = [...(window.STUDENTS || window.ALL_STUDENTS || [])];
 
-    // 1. Grab Active Filters
-    const searchInput = document.querySelector('#faculty-dash input[type="text"]') || document.querySelector('.faculty-section input');
+    // 1. Grab Search & Dropdown Values
+    const searchInput = document.getElementById('faculty-search-input') || document.querySelector('#faculty-dash input[type="text"]');
     const searchTxt = searchInput ? searchInput.value.toLowerCase().trim() : "";
     
-    const selects = document.querySelectorAll('#faculty-dash select, .faculty-section select');
-    const batchSel = selects[0] ? selects[0].value.trim() : "";
-    const progSel = selects[1] ? selects[1].value.trim() : "";
-    const creditSel = selects[2] ? selects[2].value.trim() : ""; // Credit filter dropdown
-    const sortSel = selects[3] ? selects[3].value.trim() : "";   // Sort credits dropdown
+    const batchSel = document.getElementById('filter-batch') ? document.getElementById('filter-batch').value.trim() : "";
+    const progSel = document.getElementById('filter-program') ? document.getElementById('filter-program').value.trim() : "";
+    const sortSel = document.getElementById('sort-credits') ? document.getElementById('sort-credits').value.trim() : "";
 
-    // 2. Filter Students
+    // 2. Grab Checked Credit Checkboxes
+    const checkedCreditBoxes = document.querySelectorAll('.credit-checkbox:checked');
+    const selectedCredits = Array.from(checkedCreditBoxes).map(cb => cb.value);
+
+    // 3. Grab Eligibility Threshold Input & Toggle Mode
+    const thresholdInput = document.getElementById('eligibility-threshold-input');
+    const thresholdVal = thresholdInput ? parseFloat(thresholdInput.value) : NaN;
+    const eligibilityModeSelect = document.getElementById('eligibility-mode-select');
+    const eligibilityMode = eligibilityModeSelect ? eligibilityModeSelect.value : "all"; // 'eligible' or 'not'
+
+    // 4. Apply Filters
     let filtered = students.filter(s => {
         const matchSearch = !searchTxt || String(s.sen || '').toLowerCase().includes(searchTxt) || String(s.name || '').toLowerCase().includes(searchTxt);
         const matchBatch = !batchSel || String(s.batch || '').trim() === batchSel;
         const matchProg = !progSel || String(s.program || '').trim() === progSel;
         
         const studentCredits = String(s.totalCredits || s.totalCreditEarned || '0').trim();
-        const matchCredit = !creditSel || creditSel === "All Credits" || studentCredits === creditSel;
-        
-        return matchSearch && matchBatch && matchProg && matchCredit;
+        const matchCredit = (selectedCredits.length === 0) || selectedCredits.includes(studentCredits);
+
+        // Eligibility Threshold Filter
+        let matchEligibility = true;
+        if (!isNaN(thresholdVal)) {
+            let earned = parseFloat(s.totalCredits || s.totalCreditEarned || 0);
+            if (eligibilityMode === 'eligible') {
+                matchEligibility = (earned >= thresholdVal);
+            } else if (eligibilityMode === 'not') {
+                matchEligibility = (earned < thresholdVal);
+            }
+        }
+
+        return matchSearch && matchBatch && matchProg && matchCredit && matchEligibility;
     });
 
-    // 3. Populate Unique Credits Dropdown dynamically based on current batch/program context
-    if (selects[2] && selects[2].options.length <= 2) {
-        const uniqueCredits = [...new Set(students.map(s => String(s.totalCredits || s.totalCreditEarned || '0').trim()))].sort((a,b) => parseFloat(a) - parseFloat(b));
-        selects[2].innerHTML = `<option value="">All Credits</option>` + uniqueCredits.map(c => `<option value="${c}">${c} Credits</option>`).join('');
-        if (creditSel) selects[2].value = creditSel;
-    }
-
-    // 4. Sort Students by Credits
-    if (sortSel === "Low to High" || sortSel.toLowerCase().includes("low") || sortSel === "asc") {
+    // 5. Sort Students
+    if (sortSel === "asc" || sortSel === "Low to High" || sortSel.toLowerCase().includes("low")) {
         filtered.sort((a, b) => (parseFloat(a.totalCredits || a.totalCreditEarned || 0) - parseFloat(b.totalCredits || b.totalCreditEarned || 0)));
-    } else if (sortSel === "High to Low" || sortSel.toLowerCase().includes("high") || sortSel === "desc") {
+    } else if (sortSel === "desc" || sortSel === "High to Low" || sortSel.toLowerCase().includes("high")) {
         filtered.sort((a, b) => (parseFloat(b.totalCredits || b.totalCreditEarned || 0) - parseFloat(a.totalCredits || a.totalCreditEarned || 0)));
     }
 
+    window.RENDERED_STUDENTS = filtered; // Cache for export
     renderStudentTable(filtered);
+};
+
+// Helper to build Excel-style Credit Checkbox Dropdown UI
+window.buildCreditCheckboxDropdown = function(students) {
+    const container = document.getElementById('credit-checkbox-container');
+    if (!container) return;
+
+    const uniqueCredits = [...new Set(students.map(s => String(s.totalCredits || s.totalCreditEarned || '0').trim()))].sort((a,b) => parseFloat(a) - parseFloat(b));
+    
+    container.innerHTML = `
+        <div style="position:relative; display:inline-block;">
+            <button onclick="const m = document.getElementById('credit-menu'); if(m) m.style.display = m.style.display === 'none' ? 'block' : 'none';" style="padding:0.65rem 0.8rem; background:var(--s2, #ffffff); border:1px solid var(--border, #cbd5e1); border-radius:8px; cursor:pointer; font-weight:bold; color:var(--text, #334155); font-size:0.82rem; font-family:var(--mono);">
+                📊 Filter Credits (${uniqueCredits.length}) ▼
+            </button>
+            <div id="credit-menu" style="display:none; position:absolute; top:100%; left:0; background:white; border:1px solid #cbd5e1; border-radius:8px; box-shadow:0 4px 6px rgba(0,0,0,0.15); padding:10px; z-index:100; min-width:160px; max-height:200px; overflow-y:auto; color:#1e293b;">
+                <div style="font-size:0.85rem; font-weight:bold; margin-bottom:5px; border-bottom:1px solid #e2e8f0; padding-bottom:3px;">Select Credits:</div>
+                ${uniqueCredits.map(c => `<label style="display:block; padding:4px 0; cursor:pointer; font-size:0.85rem;"><input type="checkbox" value="${c}" class="credit-checkbox" onchange="window.facultyFilterAndSort()"> ${c} Credits</label>`).join('')}
+            </div>
+        </div>
+    `;
+};
+
+// --- EXPORT SUITE ---
+window.exportFilteredToExcel = function() {
+    const dataToExport = (window.RENDERED_STUDENTS || window.STUDENTS || []).map((s, index) => ({
+        "S.No": index + 1,
+        "SEN Number": s.sen,
+        "Student Name": s.name,
+        "Program": s.program || 'N/A',
+        "Batch": s.batch || 'N/A',
+        "CGPA": typeof window.fmtCgpa === 'function' ? window.fmtCgpa(s.cgpa) : s.cgpa,
+        "Earned Credits": s.totalCredits || s.totalCreditEarned || 0,
+        "Active Backlogs": window.getActiveBacklogs ? window.getActiveBacklogs(s.courses).length : 0
+    }));
+
+    if (dataToExport.length === 0) { alert("No student data available to export."); return; }
+
+    if (typeof XLSX === 'undefined') { alert("Excel export library is loading. Please try again in a moment."); return; }
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Student Analytics");
+    XLSX.writeFile(workbook, "AIIT_Student_Report.xlsx");
+};
+
+window.exportFilteredToPDF = function() {
+    const students = window.RENDERED_STUDENTS || window.STUDENTS || [];
+    if (students.length === 0) { alert("No student data available to export."); return; }
+
+    if (!window.jspdf || !window.jspdf.jsPDF) { alert("PDF export library is loading. Please try again in a moment."); return; }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    doc.setFontSize(16);
+    doc.setTextColor(15, 23, 42);
+    doc.text("Amity University - AIIT Student Analytics Report", 14, 20);
+
+    doc.setFontSize(10);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Generated on: ${new Date().toLocaleDateString()} | Total Records: ${students.length}`, 14, 28);
+
+    const tableData = students.map((s, index) => [
+        index + 1,
+        s.sen,
+        s.name,
+        s.program || 'N/A',
+        typeof window.fmtCgpa === 'function' ? window.fmtCgpa(s.cgpa) : s.cgpa,
+        s.totalCredits || s.totalCreditEarned || 0,
+        window.getActiveBacklogs ? window.getActiveBacklogs(s.courses).length : 0
+    ]);
+
+    doc.autoTable({
+        startY: 35,
+        head: [['#', 'SEN', 'Student Name', 'Program', 'CGPA', 'Credits', 'Backlogs']],
+        body: tableData,
+        theme: 'grid',
+        headStyles: { fillColor: [59, 130, 246] }
+    });
+
+    doc.save("AIIT_Student_Report.pdf");
 };
 
 window.applyFilters = window.facultyFilterAndSort;

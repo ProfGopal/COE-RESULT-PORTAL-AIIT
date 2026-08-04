@@ -11,6 +11,9 @@
     href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap"
     rel="stylesheet">
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <!-- jsPDF for PDF Export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
   <style>
     /* V19.0 Mobile Optimization */
     .table-responsive { width: 100%; overflow-x: auto; display: block; -webkit-overflow-scrolling: touch; }
@@ -1321,7 +1324,7 @@
     <header>
       <div class="header-left">
         <span style="color: var(--text); font-size: 0.9rem; font-weight: 500;">Developed by <strong style="color: var(--accent2);">Dr. GOPAL RAJENDRAN</strong></span>
-        <span style="font-size: 0.75rem; color: var(--muted); font-family: var(--mono);">Ver 2.3</span>
+        <span style="font-size: 0.75rem; color: var(--muted); font-family: var(--mono);">Ver 2.4</span>
       </div>
       <div class="header-center">
         <div style="font-size: 0.8rem; font-weight: 700; letter-spacing: 2px; color: var(--gold); margin-bottom: 8px; text-transform: uppercase; font-family: var(--mono);">
@@ -1560,44 +1563,49 @@
           <input type="text" id="faculty-search-input"
             placeholder="Search SEN or Name…"
             style="flex:1;min-width:200px;padding:0.7rem 1rem;background:var(--s2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:0.9rem;outline:none;transition:border-color 0.15s;"
-            oninput="applyFilters()"
+            oninput="window.facultyFilterAndSort()"
             onfocus="this.style.borderColor='var(--accent)'"
             onblur="this.style.borderColor='var(--border)'">
 
           <!-- Batch filter dropdown -->
           <select id="filter-batch" class="premium-filter"
             style="padding:0.65rem 0.8rem;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:0.82rem;outline:none;cursor:pointer;"
-            onchange="applyFilters()">
+            onchange="window.facultyFilterAndSort()">
             <option value="">All Years</option>
           </select>
 
           <!-- Program filter dropdown -->
           <select id="filter-program" class="premium-filter"
             style="padding:0.65rem 0.8rem;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:0.82rem;outline:none;cursor:pointer;"
-            onchange="applyFilters()">
+            onchange="window.facultyFilterAndSort()">
             <option value="">All Programs</option>
           </select>
 
-          <!-- Earned Credits Filters & Sorting UI (V16.0) -->
-          <select id="filter-credit-exact" class="premium-filter" onchange="applyFilters()"
-            style="padding:0.65rem 0.8rem;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:0.82rem;outline:none;cursor:pointer;">
-            <option value="">All Credits</option>
-          </select>
-          <select id="sort-credits" class="premium-filter" onchange="applyFilters()"
+          <!-- Checkbox Credit Filter Container -->
+          <div id="credit-checkbox-container"></div>
+
+          <!-- Sort Credits Dropdown -->
+          <select id="sort-credits" class="premium-filter" onchange="window.facultyFilterAndSort()"
             style="padding:0.65rem 0.8rem;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:0.82rem;outline:none;cursor:pointer;">
             <option value="">Sort Credits: Default</option>
             <option value="desc">High to Low (⬆️)</option>
             <option value="asc">Low to High (⬇️)</option>
           </select>
 
-          <!-- Eligibility filter dropdown (V10.0) -->
-          <select id="filter-eligibility" class="premium-filter"
-            style="padding:0.65rem 0.8rem;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:0.82rem;outline:none;cursor:pointer;"
-            onchange="applyFilters()">
-            <option value="all">🎓 All</option>
-            <option value="eligible">✅ Degree Eligible</option>
-            <option value="not_eligible">❌ Not Eligible</option>
-          </select>
+          <!-- Eligibility Threshold Controls -->
+          <div style="display:flex; gap:5px; align-items:center; background:var(--s2); border:1px solid var(--border); padding:4px 10px; border-radius:8px;">
+            <span style="font-size:0.85rem; font-weight:bold; color:var(--muted);">Target Cr:</span>
+            <input type="number" id="eligibility-threshold-input" placeholder="e.g. 80" oninput="window.facultyFilterAndSort()" style="width:60px; border:none; outline:none; background:transparent; color:var(--text);">
+            <select id="eligibility-mode-select" onchange="window.facultyFilterAndSort()" style="border:none; background:transparent; font-weight:bold; color:var(--accent); cursor:pointer;">
+              <option value="all">All</option>
+              <option value="eligible">✅ Eligible</option>
+              <option value="not">❌ Not Eligible</option>
+            </select>
+          </div>
+
+          <!-- Export Buttons -->
+          <button onclick="window.exportFilteredToExcel()" style="background:#10b981; color:white; border:none; padding:8px 15px; border-radius:8px; font-weight:bold; cursor:pointer; font-size:0.82rem;">📊 Export Excel</button>
+          <button onclick="window.exportFilteredToPDF()" style="background:#ef4444; color:white; border:none; padding:8px 15px; border-radius:8px; font-weight:bold; cursor:pointer; font-size:0.82rem;">📄 Export PDF</button>
 
           <button class="btn-sm primary" id="faculty-view-all-btn" onclick="facultyViewAll()"
             style="padding:0.65rem 1.1rem;font-family:var(--sans);font-size:0.82rem;font-weight:600;border-radius:8px;">

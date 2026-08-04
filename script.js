@@ -1367,44 +1367,63 @@ document.addEventListener("DOMContentLoaded", () => {
   }, 500);
 });
 
-// --- MANUAL CLOUD SAVE ENFORCER ---
+// --- BULLETPROOF CLOUD SAVE HIJACKER ---
 document.addEventListener('click', function(e) {
+    // Target the closest button element
     const btn = e.target.closest('button');
+    
+    // Check if this is the Save Curriculum button
     if (btn && btn.textContent.includes('Save Curriculum Updates')) {
-        const originalText = btn.innerHTML;
-        setTimeout(() => {
-            const curriculumJSON = localStorage.getItem('AIIT_CUSTOM_CURRICULUM');
-            if (curriculumJSON && typeof scriptURL !== 'undefined') {
-                btn.innerHTML = "⏳ Saving to Cloud...";
-                btn.style.backgroundColor = "#eab308";
-                
-                const formData = new FormData();
-                formData.append('action', 'saveCurriculum');
-                formData.append('curriculumData', curriculumJSON);
+        e.preventDefault(); // Stop any default page refreshes
+        
+        // 1. Ensure local memory is updated first
+        if (typeof window.CURRICULUM_RULES !== 'undefined') {
+            localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(window.CURRICULUM_RULES));
+        }
+        
+        const curriculumJSON = localStorage.getItem('AIIT_CUSTOM_CURRICULUM');
+        
+        // 2. Force the Cloud Push BEFORE showing the success alert
+        if (curriculumJSON && typeof scriptURL !== 'undefined' && scriptURL !== "YOUR_WEB_APP_URL_HERE") {
+            const originalText = btn.innerHTML;
+            
+            // Show loading state on the button
+            btn.innerHTML = "⏳ Saving to Cloud...";
+            btn.style.backgroundColor = "#eab308"; // Yellow warning color
+            
+            const formData = new FormData();
+            formData.append('action', 'saveCurriculum');
+            formData.append('curriculumData', curriculumJSON);
 
-                fetch(scriptURL, { method: 'POST', body: formData })
-                    .then(res => res.text())
-                    .then(txt => {
-                        console.log("☁️ Manual Cloud Sync:", txt);
-                        btn.innerHTML = "✅ Saved to Cloud!";
-                        btn.style.backgroundColor = "#22c55e";
-                        setTimeout(() => {
-                            btn.innerHTML = originalText;
-                            btn.style.backgroundColor = "";
-                        }, 3000);
-                    })
-                    .catch(err => {
-                        console.error("☁️ Cloud Error:", err);
-                        btn.innerHTML = "❌ Cloud Sync Failed";
-                        btn.style.backgroundColor = "#ef4444";
-                        setTimeout(() => {
-                            btn.innerHTML = originalText;
-                            btn.style.backgroundColor = "";
-                        }, 3000);
-                    });
-            } else {
-                console.warn("Could not find scriptURL or local curriculum data to sync.");
-            }
-        }, 500);
+            fetch(scriptURL, { method: 'POST', body: formData })
+                .then(res => res.text())
+                .then(txt => {
+                    console.log("☁️ Manual Cloud Sync:", txt);
+                    
+                    // Show success state on the button
+                    btn.innerHTML = "✅ Saved to Cloud!";
+                    btn.style.backgroundColor = "#22c55e"; // Green success color
+                    
+                    // Wait half a second, then show the popup alert and reset the button
+                    setTimeout(() => {
+                        btn.innerHTML = originalText;
+                        btn.style.backgroundColor = ""; 
+                        alert("✅ CLOUD SYNC COMPLETE: Curriculum Updated Successfully! The Degree Audit engine is now using these rules globally.");
+                    }, 500);
+                })
+                .catch(err => {
+                    console.error("☁️ Cloud Error:", err);
+                    btn.innerHTML = "❌ Sync Failed";
+                    btn.style.backgroundColor = "#ef4444";
+                    
+                    setTimeout(() => {
+                        btn.innerHTML = originalText;
+                        btn.style.backgroundColor = "";
+                        alert("❌ CLOUD SYNC FAILED: Your internet may have dropped. Changes only saved locally.");
+                    }, 500);
+                });
+        } else {
+            alert("⚠️ Curriculum Updated Locally, but Cloud Sync failed. Ensure your scriptURL is correctly pasted at the top of script.js.");
+        }
     }
 });

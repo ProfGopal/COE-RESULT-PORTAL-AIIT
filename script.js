@@ -82,16 +82,25 @@ const COURSE_DICT = {
 window.CUSTOM_COURSE_DICT = JSON.parse(localStorage.getItem('AIIT_CUSTOM_COURSES')) || {};
 
 window.getCourseInfo = function (code) {
-    if (window.CUSTOM_COURSE_DICT && window.CUSTOM_COURSE_DICT[code]) {
-        let cr = window.CUSTOM_COURSE_DICT[code].credits;
-        return { name: window.CUSTOM_COURSE_DICT[code].name, credits: (!isNaN(cr) && cr > 0) ? parseFloat(cr) : 3 };
+    if (!code) return { name: "Course Title", credits: 3 };
+    let cleanCode = String(code).toUpperCase().trim();
+    
+    if (window.CUSTOM_COURSE_DICT && window.CUSTOM_COURSE_DICT[cleanCode]) {
+        let cr = window.CUSTOM_COURSE_DICT[cleanCode].credits;
+        let n = window.CUSTOM_COURSE_DICT[cleanCode].name;
+        return {
+            name: (n && n !== "Course Title" && n !== "Pending DB Update") ? n : cleanCode,
+            credits: (cr !== undefined && cr !== null && !isNaN(cr)) ? parseFloat(cr) : 3
+        };
     }
-    if (typeof COURSE_DICT !== 'undefined' && COURSE_DICT[code]) {
-        let cr = COURSE_DICT[code].credits;
-        return { name: COURSE_DICT[code].name, credits: (!isNaN(cr) && cr > 0) ? parseFloat(cr) : 3 };
+    if (typeof COURSE_DICT !== 'undefined' && COURSE_DICT[cleanCode]) {
+        let cr = COURSE_DICT[cleanCode].credits;
+        return {
+            name: COURSE_DICT[cleanCode].name,
+            credits: (cr !== undefined && cr !== null && !isNaN(cr)) ? parseFloat(cr) : 3
+        };
     }
-    // Fix: Display visual cue instead of the repeating "Course Title"
-    return { name: "Pending DB Update", credits: 3 }; 
+    return { name: cleanCode, credits: 3 };
 };
 
 const BASE_CURRICULUM = {
@@ -1811,69 +1820,90 @@ window.saveCurriculumToCloud = function () {
 };
 
 window.handleBulkCurriculumUpload = function (event) {
-  try {
-    const file = event.target.files[0];
-    if (!file) return;
+    try {
+        const file = event.target.files[0];
+        if (!file) return;
 
-    const keyDropdown = document.getElementById('curriculum-edit-key');
-    if (!keyDropdown || !keyDropdown.value) {
-      alert("❌ ERROR: Please select Batch & Program from dropdown first!");
-      event.target.value = '';
-      return;
-    }
-    window.currentEditingKey = keyDropdown.value;
+        const keyDropdown = document.getElementById('curriculum-edit-key');
+        if (!keyDropdown || !keyDropdown.value) {
+            alert("❌ ERROR: Please select Batch & Program from dropdown first!");
+            event.target.value = '';
+            return;
+        }
+        window.currentEditingKey = keyDropdown.value;
 
-    const reader = new FileReader();
-    reader.onload = function (e) {
-      try {
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(sheet);
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const rows = XLSX.utils.sheet_to_json(sheet);
 
-        let newRules = [];
-        let mainMap = {};
+                let newRules = [];
+                let mainMap = {};
+                if (!window.CUSTOM_COURSE_DICT) window.CUSTOM_COURSE_DICT = {};
 
-        rows.forEach(row => {
-          const cleanRow = {};
-          for (let key in row) cleanRow[key.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()] = row[key];
+                rows.forEach(row => {
+                    const cleanRow = {};
+                    for (let key in row) cleanRow[key.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()] = row[key];
 
-          const mainCat = cleanRow['maincategory'] || cleanRow['category'];
-          if (!mainCat) return;
+                    const mainCat = cleanRow['maincategory'] || cleanRow['category'];
+                    if (!mainCat) return;
 
-          const safeNum = (val, def) => {
-            if (val === undefined || val === null || String(val).trim() === '') return def;
-            return isNaN(parseFloat(val)) ? def : parseFloat(val);
-          };
+                    const safeNum = (val, def) => {
+                        if (val === undefined || val === null || String(val).trim() === '') return def;
+                        return isNaN(parseFloat(val)) ? def : parseFloat(val);
+                    };
 
-          const mainCreds = safeNum(cleanRow['maincredits'] || cleanRow['mincredits'], 0);
-          const subCat = (cleanRow['subcategory'] && String(cleanRow['subcategory']).trim() !== "") ? String(cleanRow['subcategory']).trim() : "General Courses";
-          let subCreds = safeNum(cleanRow['subcredits'], null);
-          if (subCreds === null) subCreds = (subCat === "General Courses") ? mainCreds : 0;
+                    const mainCreds = safeNum(cleanRow['maincredits'] || cleanRow['mincredits'], 0);
+                    const subCat = (cleanRow['subcategory'] && String(cleanRow['subcategory']).trim() !== "") ? String(cleanRow['subcategory']).trim() : "General Courses";
+                    let subCreds = safeNum(cleanRow['subcredits'], null);
+                    if (subCreds === null) subCreds = (subCat === "General Courses") ? mainCreds : 0;
 
-          const code = String(cleanRow['coursecode'] || cleanRow['code'] || "").trim().toUpperCase();
+                    const code = String(cleanRow['coursecode'] || cleanRow['code'] || "").trim().toUpperCase();
+                    const courseName = String(cleanRow['coursename'] || cleanRow['name'] || "").trim();
+                    const courseCreds = safeNum(cleanRow['credits'] || cleanRow['credit'] || cleanRow['coursecredits'], 3);
 
-          if (!mainMap[mainCat]) {
-            mainMap[mainCat] = { category: mainCat, minCredits: mainCreds, subCategories: {} };
-            newRules.push(mainMap[mainCat]);
-          }
-          if (!mainMap[mainCat].subCategories[subCat]) {
-            mainMap[mainCat].subCategories[subCat] = { name: subCat, minCredits: subCreds, codes: [] };
-          }
-          if (code && code !== "UNDEFINED") mainMap[mainCat].subCategories[subCat].codes.push(code);
-        });
+                    if (code && code !== "UNDEFINED" && code !== "NAN") {
+                        // Register into Master Custom Course Dictionary immediately
+                        window.CUSTOM_COURSE_DICT[code] = {
+                            name: (courseName && courseName !== "Course Title") ? courseName : code,
+                            credits: courseCreds
+                        };
+                    }
 
-        newRules.forEach(rule => { rule.subCategories = Object.values(rule.subCategories); });
+                    if (!mainMap[mainCat]) {
+                        mainMap[mainCat] = { category: mainCat, minCredits: mainCreds, subCategories: {} };
+                        newRules.push(mainMap[mainCat]);
+                    }
+                    if (!mainMap[mainCat].subCategories[subCat]) {
+                        mainMap[mainCat].subCategories[subCat] = { name: subCat, minCredits: subCreds, codes: [] };
+                    }
+                    if (code && code !== "UNDEFINED" && code !== "NAN") {
+                        mainMap[mainCat].subCategories[subCat].codes.push(code);
+                    }
+                });
 
-        if (!window.CURRICULUM_RULES) window.CURRICULUM_RULES = {};
-        window.CURRICULUM_RULES[window.currentEditingKey] = newRules;
+                newRules.forEach(rule => { rule.subCategories = Object.values(rule.subCategories); });
 
-        window.saveCurriculumToCloud();
-        alert(`✅ SUCCESS! Imported ${newRules.length} Main Categories.`);
-      } catch (err) { alert("❌ Excel Parse Error: " + err.message); }
-    };
-    reader.readAsArrayBuffer(file);
-  } catch (err) { alert("❌ CRITICAL ERROR: " + err.message); }
+                if (!window.CURRICULUM_RULES) window.CURRICULUM_RULES = {};
+                window.CURRICULUM_RULES[window.currentEditingKey] = newRules;
+
+                // Save both rules and custom course names to LocalStorage & Cloud
+                localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(window.CURRICULUM_RULES));
+                localStorage.setItem('AIIT_CUSTOM_COURSES', JSON.stringify(window.CUSTOM_COURSE_DICT));
+
+                window.loadCurriculumEditor();
+                if (typeof window.saveCurriculumToCloud === 'function') {
+                    window.saveCurriculumToCloud();
+                }
+                
+                alert(`✅ SUCCESS! Imported ${newRules.length} Main Categories and registered all Course Titles into the Master Dictionary.`);
+            } catch (err) { alert("❌ Excel Parse Error: " + err.message); }
+        };
+        reader.readAsArrayBuffer(file);
+    } catch (err) { alert("❌ CRITICAL ERROR: " + err.message); }
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════

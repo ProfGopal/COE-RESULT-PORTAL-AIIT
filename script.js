@@ -81,11 +81,12 @@ const COURSE_DICT = {
 
 window.CUSTOM_COURSE_DICT = JSON.parse(localStorage.getItem('AIIT_CUSTOM_COURSES')) || {};
 
-window.formatCgpa = function(val) {
-    let num = parseFloat(val);
-    if (isNaN(num) || num === 0) return "N/A";
-    return num.toFixed(2);
+window.fmtCgpa = function(val) {
+    let n = parseFloat(val);
+    if (isNaN(n) || n === 0) return "N/A";
+    return n.toFixed(2);
 };
+window.formatCgpa = window.fmtCgpa;
 
 window.getCourseInfo = function (code) {
     if (!code) return { name: "Course Title", credits: 3 };
@@ -2072,14 +2073,12 @@ window.evaluateDegree = function (student) {
         return `<div style="text-align:center; padding:25px; background:#f8fafc; border-radius:10px; border:2px dashed #cbd5e1; margin-top:20px;">
                     <h3 style="color:#ef4444; margin-top:0;">📭 Curriculum Not Mapped</h3>
                     <p style="color:#475569; font-size:1.1rem;">No curriculum rules found for <b>${mapKeySpace}</b>.</p>
-                    <p style="font-size:0.9rem; color:#64748b;">Admin must go to "Manage Curriculum", select "${mapKeySpace}", and click Load/Save Curriculum.</p>
                 </div>`;
     }
 
     const cleanString = (str) => String(str).toUpperCase().replace(/[^A-Z0-9]/g, '');
     const isPass = (grade) => !['F', 'AB', 'DE', 'I', 'U'].includes(String(grade).toUpperCase().trim());
     
-    // Grab courses and sort them so passing grades are evaluated first
     let earnedCourses = (student.courses || []).map(c => ({
         ...c,
         cleanCode: cleanString(c.code || c.CourseCode),
@@ -2087,6 +2086,20 @@ window.evaluateDegree = function (student) {
     }));
     earnedCourses.sort((a, b) => (isPass(b.grade) ? 1 : 0) - (isPass(a.grade) ? 1 : 0));
 
+    // Track all course codes required across all official baskets
+    let officialRequiredCodes = new Set();
+    rulesToUse.forEach(mainBasket => {
+        let subCats = mainBasket.subCategories || [];
+        if (subCats.length === 0 && mainBasket.codes) {
+            subCats = [{ codes: mainBasket.codes }];
+        }
+        subCats.forEach(sub => {
+            (sub.codes || []).forEach(cCode => officialRequiredCodes.add(cleanString(cCode)));
+        });
+    });
+
+    // Track which official codes have been matched
+    let matchedOfficialCodes = new Set();
     let auditHTML = `<div class="audit-wrapper" style="margin-top: 10px;">`;
 
     rulesToUse.forEach(mainBasket => {
@@ -2094,7 +2107,6 @@ window.evaluateDegree = function (student) {
         let basketEarned = 0;
         let subHTML = "";
 
-        // Upgrade legacy arrays dynamically
         let subCats = mainBasket.subCategories || [];
         if (subCats.length === 0 && mainBasket.codes) {
             subCats = [{ name: "General Courses", minCredits: basketReq, codes: mainBasket.codes }];
@@ -2111,13 +2123,14 @@ window.evaluateDegree = function (student) {
                 const info = window.getCourseInfo(reqCode);
 
                 if (match) {
+                    matchedOfficialCodes.add(cleanReq);
                     let cr = parseFloat(match.credits || info.credits || 0);
                     subEarned += cr;
                     basketEarned += cr;
                     coursesHTML += `
                         <tr style="background:#ecfdf5;">
                             <td style="padding:8px; border-bottom:1px solid #d1fae5; color:#065f46; font-weight:bold;">${esc(reqCode)}</td>
-                            <td style="padding:8px; border-bottom:1px solid #d1fae5; color:#065f46;">${esc(info.name)}</td>
+                            <td style="padding:8px; border-bottom:1px solid #d1fae5; color:#065f46;">${esc(match.name || info.name)}</td>
                             <td style="padding:8px; border-bottom:1px solid #d1fae5; color:#065f46; font-weight:bold;">${cr} Cr</td>
                             <td style="padding:8px; border-bottom:1px solid #d1fae5; color:#065f46; text-align:center;">✅ Passed (${esc(match.grade)})</td>
                         </tr>`;
@@ -2145,33 +2158,55 @@ window.evaluateDegree = function (student) {
             `;
         });
 
-        // Determine Master Basket Color
-        let statusColor = "#f59e0b"; // Orange
+        let statusColor = "#f59e0b";
         let statusIcon = "⏳";
-        if (basketEarned >= basketReq) {
-            statusColor = "#10b981"; // Green
-            statusIcon = "✅";
-        } else if (basketEarned === 0) {
-            statusColor = "#ef4444"; // Red
-            statusIcon = "❌";
-        }
+        if (basketEarned >= basketReq) { statusColor = "#10b981"; statusIcon = "✅"; }
+        else if (basketEarned === 0) { statusColor = "#ef4444"; statusIcon = "❌"; }
 
         auditHTML += `
         <div style="border:1px solid ${statusColor}; border-radius:8px; margin-bottom:12px; background:white; overflow:hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-            <div onclick="const content = this.nextElementSibling; content.style.display = content.style.display === 'none' ? 'block' : 'none';" style="background:${statusColor}10; padding:15px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; transition: background 0.2s;" onmouseover="this.style.backgroundColor='${statusColor}20'" onmouseout="this.style.backgroundColor='${statusColor}10'">
+            <div onclick="const c = this.nextElementSibling; c.style.display = c.style.display === 'none' ? 'block' : 'none';" style="background:${statusColor}10; padding:15px; cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
                 <h4 style="margin:0; color:${statusColor}; display:flex; align-items:center; gap:10px;">
                     <span style="font-size:1.3rem;">${statusIcon}</span> ${esc(mainBasket.category)}
                 </h4>
                 <div style="font-weight:bold; color:${statusColor}; font-size:1.05rem;">
-                    Earned: ${basketEarned} / ${basketReq} Cr
-                    <span style="margin-left:10px; font-size:0.8rem;">▼</span>
+                    Earned: ${basketEarned} / ${basketReq} Cr <span style="margin-left:10px; font-size:0.8rem;">▼</span>
                 </div>
             </div>
-            <div style="display:none; padding:15px; border-top:1px solid ${statusColor}40;">
-                ${subHTML}
-            </div>
+            <div style="display:none; padding:15px; border-top:1px solid ${statusColor}40;">${subHTML}</div>
         </div>`;
     });
+
+    // --- AUTOMATIC EXTRA / UNMAPPED COURSES BASKET ---
+    let extraCourses = earnedCourses.filter(c => isPass(c.grade) && !officialRequiredCodes.has(c.cleanCode));
+    let extraCreditsEarned = extraCourses.reduce((sum, c) => sum + (parseFloat(c.credits) || 3), 0);
+
+    let extraTableRows = extraCourses.length > 0 ? extraCourses.map(c => `
+        <tr style="background:#eff6ff;">
+            <td style="padding:8px; border-bottom:1px solid #bfdbfe; color:#1d4ed8; font-weight:bold;">${esc(c.code)}</td>
+            <td style="padding:8px; border-bottom:1px solid #bfdbfe; color:#1d4ed8;">${esc(c.name)}</td>
+            <td style="padding:8px; border-bottom:1px solid #bfdbfe; color:#1d4ed8; font-weight:bold;">${c.credits || 3} Cr</td>
+            <td style="padding:8px; border-bottom:1px solid #bfdbfe; color:#1d4ed8; text-align:center;">✨ Extra Course Passed (${esc(c.grade)})</td>
+        </tr>
+    `).join('') : `<tr><td colspan="4" style="padding:10px; text-align:center; color:#64748b;">No extra unmapped courses completed.</td></tr>`;
+
+    auditHTML += `
+    <div style="border:1px solid #3b82f6; border-radius:8px; margin-bottom:12px; background:white; overflow:hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+        <div onclick="const c = this.nextElementSibling; c.style.display = c.style.display === 'none' ? 'block' : 'none';" style="background:#3b82f610; padding:15px; cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+            <h4 style="margin:0; color:#3b82f6; display:flex; align-items:center; gap:10px;">
+                <span style="font-size:1.3rem;">✨</span> ⭐ Extra / Unmapped Courses Basket
+            </h4>
+            <div style="font-weight:bold; color:#3b82f6; font-size:1.05rem;">
+                Total Extra Credits: ${extraCreditsEarned} Cr <span style="margin-left:10px; font-size:0.8rem;">▼</span>
+            </div>
+        </div>
+        <div style="display:none; padding:15px; border-top:1px solid #3b82f640;">
+            <p style="margin-top:0; color:#475569; font-size:0.9rem;">These are successfully completed courses that fall outside your primary curriculum baskets.</p>
+            <table style="width:100%; text-align:left; border-collapse:collapse; font-size:0.9rem;">
+                <tbody>${extraTableRows}</tbody>
+            </table>
+        </div>
+    </div>`;
 
     auditHTML += `</div>`;
     return auditHTML;

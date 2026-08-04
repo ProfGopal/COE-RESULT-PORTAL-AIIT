@@ -1015,26 +1015,24 @@ window.applyAdminFilters = async function () {
     if (!tbody) return;
 
     try {
-        // FIX: Changed action=getStudents to action=load to match backend
         var res = await fetch(scriptURL + "?action=load");
         var data = await res.json();
         var students = Array.isArray(data) ? data : (data.students || []);
 
-        // Safely grab current dropdown values (if they exist in UI)
         const searchInput = document.querySelector('input[placeholder*="Search"]');
         const searchTxt = searchInput ? searchInput.value.toLowerCase().trim() : "";
         
         const batchFilter = document.getElementById('filter-batch');
-        const batchSel = batchFilter ? batchFilter.value : "";
+        const batchSel = batchFilter ? batchFilter.value.trim() : "";
         
         const progFilter = document.getElementById('filter-program');
-        const progSel = progFilter ? progFilter.value : "";
+        const progSel = progFilter ? progFilter.value.trim() : "";
 
-        // Apply Active Filters
         const filtered = students.filter(s => {
             const matchSearch = !searchTxt || String(s.sen).toLowerCase().includes(searchTxt) || String(s.name).toLowerCase().includes(searchTxt);
-            const matchBatch = !batchSel || s.batch === batchSel;
-            const matchProg = !progSel || s.program === progSel;
+            // THE FIX: Aggressively strip whitespace from both sides before comparing!
+            const matchBatch = !batchSel || String(s.batch).trim() === batchSel;
+            const matchProg = !progSel || String(s.program).trim() === progSel;
             return matchSearch && matchBatch && matchProg;
         });
 
@@ -1046,12 +1044,7 @@ window.applyAdminFilters = async function () {
         }
 
         tbody.innerHTML = filtered.map((s, i) => {
-            // Determine if password is set
-            let isPwdSet = false;
-            if (s.hasPassword === true || (s.password && String(s.password).trim() !== "undefined" && String(s.password).trim() !== "")) {
-                isPwdSet = true;
-            }
-            
+            let isPwdSet = (s.hasPassword === true || (s.password && String(s.password).trim() !== "undefined" && String(s.password).trim() !== ""));
             return `
             <tr style="border-bottom:1px solid #e2e8f0;">
                 <td style="padding:10px;">${i + 1}</td>
@@ -1066,83 +1059,45 @@ window.applyAdminFilters = async function () {
             `;
         }).join('');
     } catch (err) {
-        tbody.innerHTML = `<tr><td colspan="8" class="empty" style="text-align:center; color:#ef4444; padding:20px;">Failed to load from backend: ${err.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="empty" style="text-align:center; color:#ef4444;">Failed to load data.</td></tr>`;
     }
 };
-
-window.clearAllRecords = async function () {
-    var adminPass = window.currentAdminPassword || sessionStorage.getItem('coe_admin_auth') || '';
-    if (!adminPass) return alert("Session expired. Please log in again.");
-    if (!confirm("⚠️ DANGER: Permanently delete ALL student records from the database? This cannot be undone.")) return;
-
-    try {
-        var res = await fetch(scriptURL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain' },
-            // FIX: Changed action=clearallrecords to action=clearall to match backend
-            body: JSON.stringify({ action: 'clearall', adminPassword: adminPass })
-        });
-        var data = await res.json();
-        alert(`✅ ${data.message || 'All records deleted.'}`);
-        window.applyAdminFilters(); // Refresh the table
-    } catch (err) {
-        alert('❌ Error: ' + err.message);
-    }
-};
-
-// Auto-trigger filters when dropdowns change
-document.addEventListener('change', function(e) {
-    if (e.target.id === 'filter-batch' || e.target.id === 'filter-program') {
-        window.applyAdminFilters();
-    }
-});
-// Auto-trigger on search typing
-document.addEventListener('input', function(e) {
-    if (e.target.placeholder && e.target.placeholder.includes('Search')) {
-        window.applyAdminFilters();
-    }
-});
 
 window.openAdminStudentView = async function (sen) {
     var detailView = document.getElementById('admin-student-detail-view');
     var wrapper = document.getElementById('admin-table-wrapper');
     var injected = document.getElementById('admin-injected-student-data');
 
-    // 1. Swap Views and Show Loading State
     if (wrapper) wrapper.style.display = 'none';
     if (detailView) detailView.style.display = 'block';
     if (injected) injected.innerHTML = `<p style="padding:20px; font-weight:bold; color:#3b82f6;">⏳ Fetching records for ${esc(sen)} from Google Cloud Database...</p>`;
 
     try {
-        // 2. Fetch the absolute latest data from the Cloud
         var res = await fetch(scriptURL + "?action=load");
         var data = await res.json();
         var students = Array.isArray(data) ? data : (data.students || []);
-        
-        // Find the specific student
-        var s = students.find(x => String(x.sen).toUpperCase() === String(sen).toUpperCase());
+        var s = students.find(x => String(x.sen).toUpperCase().trim() === String(sen).toUpperCase().trim());
 
         if (!s) {
-            injected.innerHTML = `<p style="color:#ef4444; padding:20px; font-weight:bold;">❌ Error: Student SEN not found in the master database.</p>`;
+            injected.innerHTML = `<p style="color:#ef4444; padding:20px; font-weight:bold;">❌ Error: Student SEN not found.</p>`;
             return;
         }
 
-        // 3. Render the Student Profile Header & Degree Audit
         injected.innerHTML = `
-          <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; border: 1px solid #e2e8f0;">
-            <h2 style="margin-top:0; color: #0f172a; font-size:1.5rem;">🎓 ${esc(s.name)} <span style="color:#64748b; font-size:1.1rem;">(${esc(s.sen)})</span></h2>
-            <div style="display:flex; flex-wrap:wrap; gap:15px; margin-top:10px;">
-                <span style="background:#f8fafc; padding:6px 12px; border-radius:6px; font-weight:bold; color:#475569; border: 1px solid #e2e8f0;">Program: ${esc(s.program || 'N/A')}</span>
-                <span style="background:#f8fafc; padding:6px 12px; border-radius:6px; font-weight:bold; color:#475569; border: 1px solid #e2e8f0;">Batch: ${esc(s.batch || 'N/A')}</span>
-                <span style="background:#ecfdf5; padding:6px 12px; border-radius:6px; font-weight:bold; color:#10b981; border: 1px solid #a7f3d0;">CGPA: ${s.cgpa || 'N/A'}</span>
-                <span style="background:#eff6ff; padding:6px 12px; border-radius:6px; font-weight:bold; color:#3b82f6; border: 1px solid #bfdbfe;">Total Credits: ${s.totalCredits || '0'}</span>
+          <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #e2e8f0;">
+            <h2 style="margin-top:0; color: #0f172a;">🎓 ${esc(s.name)} <span style="color:#64748b;">(${esc(s.sen)})</span></h2>
+            <div style="display:flex; gap:15px; margin-top:10px;">
+                <span style="background:#f8fafc; padding:6px 12px; border-radius:6px; font-weight:bold;">Program: ${esc(s.program || 'N/A')}</span>
+                <span style="background:#f8fafc; padding:6px 12px; border-radius:6px; font-weight:bold;">Batch: ${esc(s.batch || 'N/A')}</span>
+                <span style="background:#ecfdf5; padding:6px 12px; border-radius:6px; font-weight:bold; color:#10b981;">CGPA: ${s.cgpa || 'N/A'}</span>
+                <span style="background:#eff6ff; padding:6px 12px; border-radius:6px; font-weight:bold; color:#3b82f6;">Total Credits: ${s.totalCredits || '0'}</span>
             </div>
           </div>
           <h3 style="color:#334155; margin-bottom:15px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">📊 Curriculum Degree Audit Engine</h3>
           ${window.evaluateDegree(s)}
         `;
     } catch(e) {
-        injected.innerHTML = `<p style="color:#ef4444; padding:20px; font-weight:bold;">❌ Failed to load Cloud Data: ${e.message}</p>`;
+        injected.innerHTML = `<p style="color:#ef4444; padding:20px;">❌ Failed to load Cloud Data.</p>`;
     }
 };
 
@@ -1235,7 +1190,6 @@ window.removeStagedFile = function(index) {
 window.uploadStagedFiles = function() {
     if (window.stagedFiles.length === 0) return;
 
-    // 1. Pre-flight Check: Ensure all dropdowns are selected
     for (let i = 0; i < window.stagedFiles.length; i++) {
         const b = document.getElementById(`stage-batch-${i}`).value;
         const p = document.getElementById(`stage-prog-${i}`).value;
@@ -1251,7 +1205,6 @@ window.uploadStagedFiles = function() {
     let allParsedStudents = {};
     let filesProcessed = 0;
 
-    // 2. Iterate and Parse Each Staged File
     window.stagedFiles.forEach((file, index) => {
         const uploadBatch = document.getElementById(`stage-batch-${index}`).value;
         const uploadProg = document.getElementById(`stage-prog-${index}`).value;
@@ -1264,74 +1217,73 @@ window.uploadStagedFiles = function() {
                 const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
                 const rows = XLSX.utils.sheet_to_json(firstSheet);
 
-                    // --- AGGRESSIVE FUZZY EXCEL PARSER ---
-                    rows.forEach(row => {
-                        const cleanRow = {};
-                        // Standardize all keys to lowercase, removing spaces and special characters
-                        for (let key in row) {
-                            cleanRow[key.toString().replace(/[^a-zA-Z0-9]/g, '').toLowerCase()] = row[key];
-                        }
+                rows.forEach(row => {
+                    const cleanRow = {};
+                    for (let key in row) cleanRow[key.toString().replace(/[^a-zA-Z0-9]/g, '').toLowerCase()] = row[key];
 
-                        // 1. Extract Student Identifiers
-                        const sen = String(cleanRow['sen'] || cleanRow['rollno'] || '').toUpperCase().trim();
-                        if (!sen) return;
+                    const sen = String(cleanRow['sen'] || cleanRow['rollno'] || '').toUpperCase().trim();
+                    if (!sen || sen === 'NAN' || sen === 'UNDEFINED') return;
 
-                        if (!allParsedStudents[sen]) {
-                            allParsedStudents[sen] = {
-                                sen: sen,
-                                name: cleanRow['studentname'] || cleanRow['name'] || "Unknown",
-                                program: uploadProg,
-                                batch: uploadBatch,
-                                school: cleanRow['school'] || cleanRow['institute'] || "AIIT",
-                                cgpa: parseFloat(cleanRow['cgpa']) || 0,
-                                totalCredits: parseFloat(cleanRow['creditbalance']) || parseFloat(cleanRow['totalcredits']) || 0,
-                                courses: []
-                            };
-                        }
+                    if (!allParsedStudents[sen]) {
+                        allParsedStudents[sen] = {
+                            sen: sen,
+                            name: cleanRow['name'] || cleanRow['studentname'] || "Unknown",
+                            program: uploadProg,
+                            batch: uploadBatch,
+                            school: cleanRow['school'] || cleanRow['institute'] || "AIIT",
+                            cgpa: 0,
+                            totalCredits: 0,
+                            courses: []
+                        };
+                    }
 
-                        // 2. Extract Course Data (Handling numbered headers like "1coursecode")
-                        let courseCode = "";
-                        let courseName = "";
-                        let credits = 3;
-                        let grade = "";
-                        let marks = 0;
-                        let type = "Core";
+                    // --- THE FIX: GRAB DATA FROM GREEN SUMMARY ROWS ---
+                    let cgpaKey = Object.keys(cleanRow).find(k => k.includes('cgpa'));
+                    if (cgpaKey) {
+                        let cgpaVal = parseFloat(cleanRow[cgpaKey]);
+                        if (!isNaN(cgpaVal) && cgpaVal > 0) allParsedStudents[sen].cgpa = cgpaVal;
+                    }
 
-                        // Search the cleanRow for any key containing "coursecode" or "code"
-                        for (let key in cleanRow) {
-                            if (key.includes('coursecode') || key === 'code') {
-                                courseCode = String(cleanRow[key]).trim().toUpperCase();
-                            } else if (key.includes('coursetitle') || key.includes('coursename')) {
-                                courseName = String(cleanRow[key]).trim();
-                            } else if (key.includes('creditregistered') || key.includes('coursecredits') || key === 'credits') {
-                                credits = parseFloat(cleanRow[key]);
-                            } else if (key.includes('finalgrade') || key === 'grade') {
-                                grade = String(cleanRow[key]).toUpperCase().trim();
-                            } else if (key.includes('totalmarks') || key === 'marks') {
-                                marks = parseFloat(cleanRow[key]);
-                            } else if (key.includes('coursetype') || key === 'type') {
-                                type = String(cleanRow[key]).trim();
-                            }
-                        }
+                    let credKey = Object.keys(cleanRow).find(k => k.includes('creditearned') || k.includes('totalcredit'));
+                    if (credKey) {
+                        let credVal = parseFloat(cleanRow[credKey]);
+                        if (!isNaN(credVal) && credVal > 0) allParsedStudents[sen].totalCredits = credVal;
+                    }
 
-                        if (courseCode && courseCode !== "NAN" && courseCode !== "UNDEFINED") {
-                            allParsedStudents[sen].courses.push({
-                                code: courseCode,
-                                name: courseName,
-                                credits: isNaN(credits) ? 3 : credits,
-                                grade: grade,
-                                type: type,
-                                marks: isNaN(marks) ? 0 : marks
-                            });
-                        }
-                    });
+                    // --- EXTRACT COURSES ---
+                    let courseCode = "";
+                    let courseName = "";
+                    let credits = 0;
+                    let grade = "";
+                    let marks = 0;
+                    let type = "Core";
+
+                    for (let key in cleanRow) {
+                        if (key.includes('coursecode') || key === 'code') courseCode = String(cleanRow[key]).trim().toUpperCase();
+                        else if (key.includes('coursetitle') || key.includes('coursename')) courseName = String(cleanRow[key]).trim();
+                        else if (key === '1creditregistered' || key.includes('coursecredits') || key === 'credits') credits = parseFloat(cleanRow[key]);
+                        else if (key.includes('finalgrade') || key === 'grade') grade = String(cleanRow[key]).toUpperCase().trim();
+                        else if (key.includes('totalmarks') || key === 'marks') marks = parseFloat(cleanRow[key]);
+                        else if (key.includes('coursetype') || key === 'type') type = String(cleanRow[key]).trim();
+                    }
+
+                    if (courseCode && courseCode !== "NAN" && courseCode !== "UNDEFINED" && courseCode !== "") {
+                        allParsedStudents[sen].courses.push({
+                            code: courseCode,
+                            name: courseName,
+                            credits: isNaN(credits) ? 3 : credits,
+                            grade: grade,
+                            type: type,
+                            marks: isNaN(marks) ? 0 : marks
+                        });
+                    }
+                });
             } catch (err) {
                 console.error(`Error parsing ${file.name}:`, err);
             }
 
             filesProcessed++;
 
-            // 3. Fire the Payload to Google Sheets when all files finish parsing
             if (filesProcessed === window.stagedFiles.length) {
                 const payloadStudents = Object.values(allParsedStudents);
 
@@ -1353,7 +1305,7 @@ window.uploadStagedFiles = function() {
                 .then(result => {
                     if (result.status === 'success') {
                         alert(`✅ SUCCESS! ${window.stagedFiles.length} file(s) parsed and ${payloadStudents.length} student records synchronized.`);
-                        window.stagedFiles = []; // Clear staging
+                        window.stagedFiles = []; 
                         window.renderStagedFiles();
                         if (typeof window.applyAdminFilters === 'function') window.applyAdminFilters();
                     } else {

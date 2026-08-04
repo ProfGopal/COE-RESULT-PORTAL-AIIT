@@ -1429,17 +1429,12 @@ document.addEventListener('click', function (e) {
 });
 
 // ============================================================================
-// 8. ADMIN LOGIN SECURE OVERRIDE (Ver 2.4)
+// 8. ADMIN LOGIN SECURE OVERRIDE (Ver 2.6 Universal Reveal)
 // ============================================================================
 
-// 1. Stop native HTML forms from accidentally bypassing our JavaScript
-document.addEventListener('submit', function(e) {
-    e.preventDefault();
-});
+document.addEventListener('submit', function(e) { e.preventDefault(); });
 
-// 2. The Bulletproof Admin Login Function
 window.adminLogin = function() {
-    // Safely grab inputs
     const emailInput = document.querySelector('input[type="email"]') || document.querySelectorAll('input')[0];
     const passInput = document.querySelector('input[type="password"]') || document.querySelectorAll('input')[1];
     
@@ -1449,29 +1444,21 @@ window.adminLogin = function() {
     const btn = document.querySelector('button');
     const originalBtnText = btn ? btn.innerHTML : "Login &rarr;";
     
-    // Find the pink error box to display messages
-    const errorBoxes = document.querySelectorAll('.text-red-500, .bg-red-50, [style*="color: red"], .error-message, .alert');
-    let errorBox = null;
-    if (errorBoxes.length > 0) errorBox = errorBoxes[0];
-    
     if (!scriptURL || scriptURL.includes("YOUR_WEB_APP_URL_HERE")) {
-        if (errorBox) { errorBox.style.display = 'block'; errorBox.innerHTML = "⚠ ERROR: scriptURL is missing in script.js"; }
+        alert("⚠ ERROR: scriptURL is missing in script.js");
         return;
     }
 
-    // Show loading state
     if (btn) {
         btn.innerHTML = "⏳ Authenticating...";
-        btn.style.opacity = "0.7";
         btn.style.pointerEvents = "none";
     }
 
-    // 3. Fire the EXACT payload the V10 backend expects
     fetch(scriptURL, {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain' }, // Avoids CORS blocking
+        headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
-            action: 'verifyadmin', // MUST exactly match backend.gs
+            action: 'verifyadmin',
             email: email,
             password: password
         })
@@ -1481,78 +1468,60 @@ window.adminLogin = function() {
         if (data.status === 'success') {
             if (btn) btn.innerHTML = "✅ Access Granted";
             
-            // 1. Secure the session memory
+            // Secure the session memory
             localStorage.setItem('isLoggedIn', 'true');
             localStorage.setItem('userRole', 'admin');
-            sessionStorage.setItem('ADMIN_SESSION', 'active');
             
-            // 2. Aggressive DOM Nuke to destroy the Login Box
-            const loginContainers = document.querySelectorAll('#login-section, .login-wrapper, .login-container');
-            loginContainers.forEach(el => el.style.display = 'none');
+            // --- UNIVERSAL PHASE-SHIFT DOM TRANSITION ---
             
-            // Failsafe: Hide the parent container of the button just in case HTML IDs differ
-            const formParent = btn.closest('.bg-white') || btn.closest('form');
-            if (formParent && formParent.parentElement) {
-                formParent.parentElement.style.display = 'none';
-            }
+            // 1. Physically hide the HTML Form and the text container
+            const loginForm = document.querySelector('form');
+            if (loginForm) loginForm.style.display = 'none';
+            
+            document.querySelectorAll('h1, h2, h3, p').forEach(textNode => {
+                if (textNode.textContent.includes('Admin Login') || textNode.textContent.includes('administrator access')) {
+                    textNode.style.display = 'none';
+                }
+            });
 
-            // 3. Find and Show the Admin Panel (Scanning all possible naming conventions)
-            const adminDash = document.getElementById('admin-panel') || 
-                              document.getElementById('admin-dashboard') || 
-                              document.getElementById('admin-container') || 
-                              document.getElementById('dashboard-section') || 
-                              document.querySelector('.admin-wrapper');
-            
-            if (adminDash) {
-                // Trigger the Ver 1.2 Zero-Gap Layout Overlay
-                document.body.classList.add('overlay-active');
-                adminDash.classList.add('dashboard-fullscreen-overlay');
-                adminDash.style.display = 'block';
-                window.scrollTo({ top: 0, behavior: 'instant' });
-            } else {
-                // ULTIMATE FALLBACK: If HTML IDs still don't match, forcibly reload the page 
-                // so the browser's native session checker builds the dashboard for us.
-                window.location.reload();
-            }
+            // 2. Scan the page for the hidden dashboard and forcefully unhide it
+            document.querySelectorAll('div, section, main').forEach(el => {
+                // Check if it's a major hidden container
+                const compStyle = window.getComputedStyle(el);
+                if (compStyle.display === 'none' && el.id !== 'login-section' && el.children.length > 0) {
+                    el.style.display = 'block';
+                    el.classList.add('dashboard-fullscreen-overlay');
+                }
+            });
 
-            // 4. Force the dashboard to fetch the Google Sheet data immediately
+            document.body.classList.add('overlay-active');
+            window.scrollTo({ top: 0, behavior: 'instant' });
+            
+            // 3. Trigger your original load functions to populate the tables
             if (typeof loadData === 'function') loadData();
             if (typeof fetchStudents === 'function') fetchStudents();
-            if (typeof renderAdminDashboard === 'function') renderAdminDashboard();
             
         } else {
-            // Display the Google Cloud error message
-            if (errorBox) {
-                errorBox.style.display = 'block';
-                errorBox.innerHTML = `⚠ ${data.message}`;
-            } else {
-                alert(`⚠ ${data.message}`);
-            }
+            alert(`⚠ ${data.message}`);
             if (btn) {
                 btn.innerHTML = originalBtnText;
-                btn.style.opacity = "1";
                 btn.style.pointerEvents = "auto";
             }
         }
     })
     .catch(err => {
-        if (errorBox) {
-            errorBox.style.display = 'block';
-            errorBox.innerHTML = `⚠ Network Error: Check your internet connection.`;
-        }
+        alert(`⚠ Network Error: Check your internet connection.`);
         if (btn) {
             btn.innerHTML = originalBtnText;
-            btn.style.opacity = "1";
             btn.style.pointerEvents = "auto";
         }
     });
 };
 
-// 4. Aggressively hijack the physical Login button 
+// Aggressively hijack physical Login button on Admin page
 document.addEventListener('click', function(e) {
     const btn = e.target.closest('button');
     if (btn && (btn.textContent.includes('Login') || btn.textContent.includes('Sign In'))) {
-        // Check if we are physically on the Admin page to avoid hijacking Student login
         if (document.body.textContent.includes('COE administrator access') || document.title.includes('Admin')) {
             e.preventDefault();
             window.adminLogin();

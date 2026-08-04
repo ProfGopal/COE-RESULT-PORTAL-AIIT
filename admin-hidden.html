@@ -637,7 +637,7 @@
   <!-- VERSION TAG -->
   <div
     style="position:fixed;top:0;left:0;z-index:300;padding:0.35rem 1rem;font-size:0.68rem;color:var(--muted);pointer-events:none;font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-right-radius:6px;">
-    Version <strong style="color:var(--accent)">Ver 3.0</strong>
+    Version <strong style="color:var(--accent)">Ver 3.1</strong>
   </div>
 
   <!-- DEVELOPER CREDIT -->
@@ -711,21 +711,35 @@
         <div id="active-system-programs" style="display: flex; gap: 10px; flex-wrap: wrap;"></div>
       </div>
 
-      <!-- Upload Section -->
-      <div style="margin-bottom:2rem">
-        <div class="section-label">Upload Result Excel</div>
-        <div class="upload-zone" id="upload-zone" onclick="document.getElementById('excel-upload').click()"
-          ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')"
-          ondrop="handleFileDrop(event)">
-          <div class="upload-icon">📊</div>
-          <div class="upload-text">Click or drag &amp; drop Excel file</div>
-          <div class="upload-hint">.xlsx format · Required columns: SEN, Name, Semester, Course Code, Course Title,
-            Type, Credits, Marks, Grade, Grade Points</div>
-        </div>
-        <input type="file" id="excel-upload" accept=".xlsx, .xls" style="display: none;" onchange="triggerTaggedUpload()">
-        <div id="file-tagging-container" style="margin: 15px 0; display: flex; flex-direction: column; gap: 10px;"></div>
-        <button id="btn-upload-process" class="btn-primary" onclick="triggerTaggedUpload()" style="margin-top: 10px; display: none; width: 100%;">🚀 Process & Upload to Backend</button>
-        <div class="alert" id="upload-alert"></div>
+      <!-- UPLOAD RESULT EXCEL SECTION -->
+      <div style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 20px;">
+          <h4 style="color: #64748b; font-size: 0.85rem; letter-spacing: 1px; margin-bottom: 15px; text-transform: uppercase;">UPLOAD RESULT EXCEL</h4>
+          
+          <!-- BATCH & PROGRAM MATCHING DROPDOWNS -->
+          <div style="display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap;">
+              <div style="flex: 1; min-width: 200px;">
+                  <label style="display: block; font-size: 0.8rem; font-weight: bold; color: #475569; margin-bottom: 5px;">1. Select Batch Year:</label>
+                  <select class="file-year-select" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; background: white; font-weight: bold; color: #1e293b;">
+                      <option value="">-- Select Batch --</option>
+                  </select>
+              </div>
+              <div style="flex: 1; min-width: 200px;">
+                  <label style="display: block; font-size: 0.8rem; font-weight: bold; color: #475569; margin-bottom: 5px;">2. Select Program:</label>
+                  <select class="file-program-select" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; background: white; font-weight: bold; color: #1e293b;">
+                      <option value="">-- Select Program --</option>
+                  </select>
+              </div>
+          </div>
+
+          <!-- MULTI-FILE DRAG & DROP BOX -->
+          <div id="drop-zone" onclick="document.getElementById('excel-upload').click()" ondragover="event.preventDefault()" ondrop="handleFileDrop(event)" style="border: 2px dashed #94a3b8; border-radius: 10px; padding: 30px; text-align: center; background: #f8fafc; cursor: pointer; transition: all 0.2s;">
+              <div style="font-size: 2rem; margin-bottom: 10px;">📊</div>
+              <p id="upload-status-text" style="font-weight: bold; color: #1e293b; margin: 0 0 5px 0;">Click or drag & drop Excel file(s) here</p>
+              <p style="font-size: 0.8rem; color: #64748b; margin: 0;">You can select multiple files (.xlsx, .xls) at once. Required columns: SEN, Name, Course Code, Credits, Grade</p>
+              
+              <!-- MULTIPLE FILE INPUT -->
+              <input type="file" id="excel-upload" accept=".xlsx, .xls" multiple style="display: none;" onchange="triggerTaggedUpload()">
+          </div>
       </div>
       </div><!-- /tab-results -->
 

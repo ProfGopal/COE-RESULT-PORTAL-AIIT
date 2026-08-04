@@ -1034,142 +1034,143 @@ window.closeAdminStudentView = function () {
   if (wrapper) wrapper.style.display = 'block';
 };
 
+// ============================================================================
+// MULTI-FILE EXCEL PARSER & BATCH MATCHING ENGINE (Ver 3.1)
+// ============================================================================
+
 window.handleFileDrop = function (e) {
-  e.preventDefault();
-  const files = e.dataTransfer.files;
-  if (files.length > 0) {
-    const input = document.getElementById('excel-upload');
-    if (input) {
-      input.files = files;
-      window.triggerTaggedUpload();
+    e.preventDefault();
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+        const input = document.getElementById('excel-upload');
+        if (input) {
+            input.files = files;
+            window.triggerTaggedUpload();
+        }
     }
-  }
 };
 
 window.triggerTaggedUpload = function () {
     const input = document.getElementById('excel-upload');
-    if (!input || !input.files || input.files.length === 0) {
-        return; // Stop if no file is selected
-    }
+    if (!input || !input.files || input.files.length === 0) return;
 
-    const file = input.files[0];
+    const files = Array.from(input.files);
 
-    // 1. Check for active Batch/Program Dropdowns 
-    // (Ensures students are tagged to the correct curriculum bucket)
+    // 1. Read Batch & Program Dropdowns
     const batchSelect = document.querySelector('.file-year-select');
     const progSelect = document.querySelector('.file-program-select');
-    
-    const uploadBatch = batchSelect ? batchSelect.value : "";
-    const uploadProg = progSelect ? progSelect.value : "";
 
-    if ((batchSelect && !uploadBatch) || (progSelect && !uploadProg)) {
-        alert("⚠️ Please select a Batch and Program from the dropdowns before uploading.");
-        input.value = ""; // Clear the selection
+    const uploadBatch = batchSelect ? batchSelect.value.trim() : "";
+    const uploadProg = progSelect ? progSelect.value.trim() : "";
+
+    if (!uploadBatch || !uploadProg) {
+        alert("⚠️ Please select both a Batch and a Program from the dropdowns above before uploading files.");
+        input.value = ""; 
         return;
     }
 
-    // 2. Show loading UI
-    const btnText = document.querySelector('.upload-text') || document.querySelector('p');
-    const originalText = btnText ? btnText.innerHTML : "Processing...";
-    if (btnText) btnText.innerHTML = `⏳ Parsing ${file.name}... Please wait.`;
+    const statusText = document.getElementById('upload-status-text');
+    if (statusText) statusText.innerHTML = `⏳ Processing ${files.length} file(s) for ${uploadBatch} ${uploadProg}...`;
 
-    // 3. The Excel Reading Engine
-    const reader = new FileReader();
-    reader.onload = function (e) {
-        try {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-            const rows = XLSX.utils.sheet_to_json(firstSheet);
+    let allParsedStudents = {};
+    let filesProcessed = 0;
 
-            let studentsMap = {};
+    // 2. Loop through every selected Excel file
+    files.forEach((file, fileIdx) => {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const rows = XLSX.utils.sheet_to_json(firstSheet);
 
-            // 4. Iterate through rows and group courses under the correct student
-            rows.forEach(row => {
-                // Standardize Excel column names (removes spaces, symbols, makes lowercase)
-                const cleanRow = {};
-                for (let key in row) {
-                    cleanRow[key.toString().replace(/[^a-zA-Z0-9]/g, '').toLowerCase()] = row[key];
-                }
+                rows.forEach(row => {
+                    const cleanRow = {};
+                    for (let key in row) {
+                        cleanRow[key.toString().replace(/[^a-zA-Z0-9]/g, '').toLowerCase()] = row[key];
+                    }
 
-                const sen = String(cleanRow['sen'] || cleanRow['rollno'] || '').toUpperCase().trim();
-                if (!sen) return; // Skip empty rows
+                    const sen = String(cleanRow['sen'] || cleanRow['rollno'] || '').toUpperCase().trim();
+                    if (!sen) return;
 
-                // If student doesn't exist in map yet, create their base profile
-                if (!studentsMap[sen]) {
-                    studentsMap[sen] = {
-                        sen: sen,
-                        name: cleanRow['name'] || cleanRow['studentname'] || "Unknown",
-                        program: uploadProg || cleanRow['program'] || "",
-                        batch: uploadBatch || cleanRow['batch'] || "",
-                        school: cleanRow['school'] || cleanRow['institute'] || "AIIT",
-                        cgpa: cleanRow['cgpa'] || 0,
-                        totalCredits: cleanRow['totalcredits'] || cleanRow['creditsearned'] || 0,
-                        courses: []
-                    };
-                }
+                    if (!allParsedStudents[sen]) {
+                        allParsedStudents[sen] = {
+                            sen: sen,
+                            name: cleanRow['name'] || cleanRow['studentname'] || "Unknown",
+                            program: uploadProg,
+                            batch: uploadBatch,
+                            school: cleanRow['school'] || cleanRow['institute'] || "AIIT",
+                            cgpa: cleanRow['cgpa'] || 0,
+                            totalCredits: cleanRow['totalcredits'] || cleanRow['creditsearned'] || 0,
+                            courses: []
+                        };
+                    }
 
-                // Extract the specific course grade on this row
-                const courseCode = String(cleanRow['coursecode'] || cleanRow['code'] || '').trim().toUpperCase();
-                if (courseCode) {
-                    studentsMap[sen].courses.push({
-                        code: courseCode,
-                        name: cleanRow['coursetitle'] || cleanRow['coursename'] || "",
-                        credits: parseFloat(cleanRow['credits']) || parseFloat(cleanRow['coursecredits']) || 3,
-                        grade: String(cleanRow['grade'] || '').toUpperCase().trim(),
-                        type: cleanRow['type'] || cleanRow['coursetype'] || 'Core',
-                        marks: cleanRow['marks'] || 0,
-                        gradePoints: cleanRow['gradepoints'] || 0
-                    });
-                }
-            });
+                    const courseCode = String(cleanRow['coursecode'] || cleanRow['code'] || '').trim().toUpperCase();
+                    if (courseCode) {
+                        allParsedStudents[sen].courses.push({
+                            code: courseCode,
+                            name: cleanRow['coursetitle'] || cleanRow['coursename'] || "",
+                            credits: parseFloat(cleanRow['credits']) || parseFloat(cleanRow['coursecredits']) || 3,
+                            grade: String(cleanRow['grade'] || '').toUpperCase().trim(),
+                            type: cleanRow['type'] || cleanRow['coursetype'] || 'Core',
+                            marks: cleanRow['marks'] || 0,
+                            gradePoints: cleanRow['gradepoints'] || 0
+                        });
+                    }
+                });
 
-            const payloadStudents = Object.values(studentsMap);
-
-            if (payloadStudents.length === 0) {
-                alert("❌ No valid student data found. Please ensure your Excel file has a 'SEN' column.");
-                if (btnText) btnText.innerHTML = originalText;
-                return;
+            } catch (err) {
+                console.error(`Error parsing file ${file.name}:`, err);
             }
 
-            if (btnText) btnText.innerHTML = `⏳ Syncing ${payloadStudents.length} students to Cloud DB...`;
+            filesProcessed++;
 
-            // 5. Securely Post to Google Cloud
-            const adminPass = window.currentAdminPassword || sessionStorage.getItem('coe_admin_auth') || '';
+            // 3. When all files are done reading, send the compiled payload to Google Sheets
+            if (filesProcessed === files.length) {
+                const payloadStudents = Object.values(allParsedStudents);
 
-            fetch(scriptURL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify({
-                    action: 'upsert',
-                    adminPassword: adminPass,
-                    students: payloadStudents
-                })
-            })
-            .then(res => res.json())
-            .then(result => {
-                if (result.status === 'success') {
-                    alert(`✅ SUCCESS! ${payloadStudents.length} student records seamlessly synchronized to the database.`);
-                    // Refresh the admin table to show new data
-                    if (typeof window.applyAdminFilters === 'function') window.applyAdminFilters();
-                } else {
-                    alert(`❌ Cloud Upload Failed: ${result.message}`);
+                if (payloadStudents.length === 0) {
+                    alert("❌ No valid student records found in the uploaded file(s). Ensure Excel sheets contain a 'SEN' column.");
+                    if (statusText) statusText.innerHTML = "Click or drag & drop Excel file(s) here";
+                    input.value = "";
+                    return;
                 }
-            })
-            .catch(err => {
-                alert(`❌ Network Error: ${err.message}`);
-            })
-            .finally(() => {
-                if (btnText) btnText.innerHTML = originalText;
-                input.value = ""; // Clear file input so you can upload another
-            });
 
-        } catch (err) {
-            alert("❌ Excel Parsing Error: Ensure your file is a valid .xlsx format. " + err.message);
-            if (btnText) btnText.innerHTML = originalText;
-        }
-    };
-    reader.readAsArrayBuffer(file);
+                if (statusText) statusText.innerHTML = `☁️ Syncing ${payloadStudents.length} student profiles to Google Sheets...`;
+
+                const adminPass = window.currentAdminPassword || sessionStorage.getItem('coe_admin_auth') || '';
+
+                fetch(scriptURL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({
+                        action: 'upsert',
+                        adminPassword: adminPass,
+                        students: payloadStudents
+                    })
+                })
+                .then(res => res.json())
+                .then(result => {
+                    if (result.status === 'success') {
+                        alert(`✅ SUCCESS! ${files.length} file(s) parsed and ${payloadStudents.length} student records synchronized under Batch ${uploadBatch} - ${uploadProg}.`);
+                        if (typeof window.applyAdminFilters === 'function') window.applyAdminFilters();
+                    } else {
+                        alert(`❌ Cloud Upload Failed: ${result.message}`);
+                    }
+                })
+                .catch(err => {
+                    alert(`❌ Network Error during upload: ${err.message}`);
+                })
+                .finally(() => {
+                    if (statusText) statusText.innerHTML = "Click or drag & drop Excel file(s) here";
+                    input.value = ""; 
+                });
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    });
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════

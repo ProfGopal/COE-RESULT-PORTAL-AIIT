@@ -82,21 +82,16 @@ const COURSE_DICT = {
 window.CUSTOM_COURSE_DICT = JSON.parse(localStorage.getItem('AIIT_CUSTOM_COURSES')) || {};
 
 window.getCourseInfo = function (code) {
-  if (window.CUSTOM_COURSE_DICT && window.CUSTOM_COURSE_DICT[code]) {
-    let cr = window.CUSTOM_COURSE_DICT[code].credits;
-    return {
-      name: window.CUSTOM_COURSE_DICT[code].name,
-      credits: (cr !== undefined && cr !== null && !isNaN(cr)) ? parseFloat(cr) : 3
-    };
-  }
-  if (typeof COURSE_DICT !== 'undefined' && COURSE_DICT[code]) {
-    let cr = COURSE_DICT[code].credits;
-    return {
-      name: COURSE_DICT[code].name,
-      credits: (cr !== undefined && cr !== null && !isNaN(cr)) ? parseFloat(cr) : 3
-    };
-  }
-  return { name: "Course Title", credits: 3 };
+    if (window.CUSTOM_COURSE_DICT && window.CUSTOM_COURSE_DICT[code]) {
+        let cr = window.CUSTOM_COURSE_DICT[code].credits;
+        return { name: window.CUSTOM_COURSE_DICT[code].name, credits: (!isNaN(cr) && cr > 0) ? parseFloat(cr) : 3 };
+    }
+    if (typeof COURSE_DICT !== 'undefined' && COURSE_DICT[code]) {
+        let cr = COURSE_DICT[code].credits;
+        return { name: COURSE_DICT[code].name, credits: (!isNaN(cr) && cr > 0) ? parseFloat(cr) : 3 };
+    }
+    // Fix: Display visual cue instead of the repeating "Course Title"
+    return { name: "Pending DB Update", credits: 3 }; 
 };
 
 const BASE_CURRICULUM = {
@@ -1703,44 +1698,73 @@ window.clearEntireCurriculum = function () {
 };
 
 window.syncCloudCurriculum = function () {
-  if (!scriptURL || scriptURL === "YOUR_WEB_APP_URL_HERE") {
-    console.warn("scriptURL is missing. Cannot sync from cloud.");
-    return;
-  }
+    if (!scriptURL || scriptURL === "YOUR_WEB_APP_URL_HERE") return;
 
-  fetch(scriptURL + "?action=getCurriculum")
-    .then(res => res.text())
-    .then(data => {
-      if (data && data.trim().startsWith("{")) {
-        localStorage.setItem('AIIT_CUSTOM_CURRICULUM', data);
-        window.CURRICULUM_RULES = JSON.parse(data);
-        console.log("✅ Curriculum successfully downloaded from Cloud Database.");
-      }
-    })
-    .catch(err => console.error("❌ Failed to download Curriculum from Cloud:", err));
+    fetch(scriptURL + "?action=getCurriculum")
+        .then(res => res.text())
+        .then(data => {
+            if (data && data.trim().startsWith("{")) {
+                try {
+                    const parsed = JSON.parse(data);
+                    
+                    // Check if it's the Universal Payload (V1.5) or Legacy data
+                    if (parsed.rules) {
+                        window.CURRICULUM_RULES = parsed.rules;
+                        window.CUSTOM_COURSE_DICT = parsed.courses || {};
+                        if (parsed.programs && parsed.programs.length > 0) {
+                            localStorage.setItem('AIIT_SYSTEM_PROGRAMS', JSON.stringify(parsed.programs));
+                        }
+                    } else {
+                        window.CURRICULUM_RULES = parsed; // Legacy Fallback
+                    }
+                    
+                    // Push to fresh computer's local memory
+                    localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(window.CURRICULUM_RULES));
+                    localStorage.setItem('AIIT_CUSTOM_COURSES', JSON.stringify(window.CUSTOM_COURSE_DICT));
+                    
+                    // Automatically build the Admin UI so the user doesn't see a blank screen
+                    if (typeof window.renderSystemPrograms === 'function') window.renderSystemPrograms();
+                    if (typeof window.loadCurriculumEditor === 'function') window.loadCurriculumEditor();
+                    if (typeof window.applyAdminFilters === 'function') window.applyAdminFilters();
+                    
+                    console.log("✅ Universal Sync Complete: System is mirrored on this device.");
+                } catch (e) { console.error("Universal Sync Parse error:", e); }
+            }
+        })
+        .catch(err => console.error("❌ Sync Error:", err));
 };
 
 window.saveCurriculumToCloud = function () {
-  localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(window.CURRICULUM_RULES));
+    let sysProgs = [];
+    try { sysProgs = JSON.parse(localStorage.getItem('AIIT_SYSTEM_PROGRAMS')) || []; } catch(e){}
 
-  if (typeof scriptURL !== 'undefined') {
-    const formData = new FormData();
-    formData.append('action', 'saveCurriculum');
-    formData.append('curriculumData', JSON.stringify(window.CURRICULUM_RULES));
+    const masterPayload = {
+        rules: window.CURRICULUM_RULES || {},
+        programs: sysProgs,
+        courses: window.CUSTOM_COURSE_DICT || {}
+    };
 
-    fetch(scriptURL, { method: 'POST', body: formData })
-      .then(res => res.text())
-      .then(txt => {
-        console.log("☁️ Manual Cloud Sync:", txt);
-        alert("✅ CLOUD SYNC COMPLETE: Curriculum Updated Successfully!");
-      })
-      .catch(err => {
-        console.error("☁️ Cloud Error:", err);
-        alert("❌ CLOUD SYNC FAILED: Saved only locally.");
-      });
-  } else {
-    alert("⚠️ Curriculum Updated Locally, scriptURL is missing.");
-  }
+    localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(masterPayload.rules));
+    localStorage.setItem('AIIT_CUSTOM_COURSES', JSON.stringify(masterPayload.courses));
+
+    if (typeof scriptURL !== 'undefined' && scriptURL !== "YOUR_WEB_APP_URL_HERE") {
+        const formData = new FormData();
+        formData.append('action', 'saveCurriculum');
+        formData.append('curriculumData', JSON.stringify(masterPayload));
+
+        fetch(scriptURL, { method: 'POST', body: formData })
+            .then(res => res.text())
+            .then(txt => {
+                console.log("☁️ Manual Cloud Sync:", txt);
+                alert("✅ CLOUD SYNC COMPLETE: Curriculum Updated Successfully!");
+            })
+            .catch(err => {
+                console.error("☁️ Cloud Error:", err);
+                alert("❌ CLOUD SYNC FAILED: Saved only locally.");
+            });
+    } else {
+        alert("⚠️ Curriculum Updated Locally, scriptURL is missing.");
+    }
 };
 
 window.handleBulkCurriculumUpload = function (event) {
@@ -1918,13 +1942,17 @@ window.filterBacklogs = function () {
         return courses.map(c => {
             const gradeStr = String(c.grade).toUpperCase().trim();
             const isFail = ['F', 'AB', 'DE', 'I', 'U'].includes(gradeStr);
-            const earnedCr = isFail ? 0 : (parseFloat(c.credits) || 0);
+            
+            // THE FIX: If Excel gives 0 credits (due to F grade), forcefully extract the base credit from the DB.
+            const baseCr = (parseFloat(c.credits) > 0) ? parseFloat(c.credits) : (window.getCourseInfo(c.code).credits || 0);
+            const earnedCr = isFail ? 0 : baseCr;
+            
             return `
             <tr style="border-bottom:1px solid #e2e8f0; transition: background 0.2s;" onmouseover="this.style.backgroundColor='#f8fafc'" onmouseout="this.style.backgroundColor='transparent'">
                 <td style="padding:12px 10px;"><strong>${esc(c.code)}</strong></td>
-                <td style="padding:12px 10px;">${esc(c.name)}</td>
-                <td style="padding:12px 10px;">${esc(c.type)}</td>
-                <td style="padding:12px 10px;">${c.credits || 0}</td>
+                <td style="padding:12px 10px;">${esc(c.name && c.name !== 'Course Title' ? c.name : window.getCourseInfo(c.code).name)}</td>
+                <td style="padding:12px 10px;">${esc(c.type || 'Core')}</td>
+                <td style="padding:12px 10px; font-weight:bold;">${baseCr}</td>
                 <td style="padding:12px 10px;">${c.marks || '—'}</td>
                 <td style="padding:12px 10px;"><span style="padding:4px 8px; border-radius:4px; font-weight:bold; font-size:0.85rem; background:${isFail ? '#fee2e2' : '#dcfce3'}; color:${isFail ? '#dc2626' : '#16a34a'};">${esc(c.grade)}</span></td>
                 <td style="padding:12px 10px;">${c.gradePoints || '—'}</td>
@@ -2341,5 +2369,52 @@ document.addEventListener('click', async function(e) {
             }
         } catch (err) { alert('❌ Error: ' + err.message); } 
         finally { btn.innerHTML = originalText; btn.disabled = false; }
+    }
+
+    // --- UNIVERSAL CLOUD SAVE HIJACKER ---
+    else if (btn.textContent.includes('Save Curriculum Updates')) {
+        e.preventDefault(); 
+
+        // 1. Bundle EVERYTHING into the Universal Payload
+        let sysProgs = [];
+        try { sysProgs = JSON.parse(localStorage.getItem('AIIT_SYSTEM_PROGRAMS')) || []; } catch(e){}
+
+        const masterPayload = {
+            rules: window.CURRICULUM_RULES || {},
+            programs: sysProgs,
+            courses: window.CUSTOM_COURSE_DICT || {}
+        };
+
+        // 2. Save locally
+        localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(masterPayload.rules));
+        localStorage.setItem('AIIT_CUSTOM_COURSES', JSON.stringify(masterPayload.courses));
+
+        // 3. Blast to Cloud
+        if (typeof scriptURL !== 'undefined' && scriptURL !== "YOUR_WEB_APP_URL_HERE") {
+            const originalText = btn.innerHTML;
+            btn.innerHTML = "⏳ Syncing Master Database...";
+            btn.style.backgroundColor = "#eab308"; 
+
+            const formData = new FormData();
+            formData.append('action', 'saveCurriculum');
+            formData.append('curriculumData', JSON.stringify(masterPayload));
+
+            fetch(scriptURL, { method: 'POST', body: formData })
+                .then(res => res.text())
+                .then(txt => {
+                    btn.innerHTML = "✅ Universal Sync Live!";
+                    btn.style.backgroundColor = "#22c55e"; 
+                    setTimeout(() => {
+                        btn.innerHTML = originalText;
+                        btn.style.backgroundColor = "";
+                        alert("✅ UNIVERSAL SYNC COMPLETE: Your Programs, Course Names, and Curriculum Rules are now synchronized to ALL computers globally.");
+                    }, 500);
+                })
+                .catch(err => {
+                    btn.innerHTML = "❌ Sync Failed";
+                    btn.style.backgroundColor = "#ef4444";
+                    setTimeout(() => { btn.innerHTML = originalText; btn.style.backgroundColor = ""; }, 1000);
+                });
+        }
     }
 });

@@ -637,7 +637,7 @@
   <!-- VERSION TAG -->
   <div
     style="position:fixed;top:0;left:0;z-index:300;padding:0.35rem 1rem;font-size:0.68rem;color:var(--muted);pointer-events:none;font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-right-radius:6px;">
-    Version <strong style="color:var(--accent)">Ver 2.9</strong>
+    Version <strong style="color:var(--accent)">Ver 3.0</strong>
   </div>
 
   <!-- DEVELOPER CREDIT -->
@@ -722,7 +722,7 @@
           <div class="upload-hint">.xlsx format · Required columns: SEN, Name, Semester, Course Code, Course Title,
             Type, Credits, Marks, Grade, Grade Points</div>
         </div>
-        <input type="file" id="excel-upload" accept=".xlsx,.xls" style="display:none" multiple>
+        <input type="file" id="excel-upload" accept=".xlsx, .xls" style="display: none;" onchange="triggerTaggedUpload()">
         <div id="file-tagging-container" style="margin: 15px 0; display: flex; flex-direction: column; gap: 10px;"></div>
         <button id="btn-upload-process" class="btn-primary" onclick="triggerTaggedUpload()" style="margin-top: 10px; display: none; width: 100%;">🚀 Process & Upload to Backend</button>
         <div class="alert" id="upload-alert"></div>

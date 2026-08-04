@@ -975,60 +975,99 @@ window.clearPassword = async function () {
   }
 };
 
-window.clearAllRecords = async function () {
-  var adminPass = window.currentAdminPassword || sessionStorage.getItem(ADMIN_SESSION) || '';
-  if (!adminPass) return alert("Session expired. Please log in again.");
-  if (!confirm("DANGER: Permanently delete ALL student records from backend?")) return;
-
-  var statusEl = document.getElementById('clear-all-status');
-  if (statusEl) statusEl.textContent = '⏳ Wiping backend...';
-
-  try {
-    var res = await fetch(scriptURL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'clearallrecords', adminPassword: adminPass })
-    });
-    var data = await res.json();
-    if (statusEl) statusEl.textContent = data.message || 'All records deleted.';
-  } catch (err) {
-    if (statusEl) statusEl.textContent = '❌ Error: ' + err.message;
-  }
-};
-
 window.applyAdminFilters = async function () {
-  var tbody = document.getElementById('admin-tbody');
-  var totalStu = document.getElementById('total-stu');
-  if (!tbody) return;
+    var tbody = document.getElementById('admin-tbody');
+    var totalStu = document.getElementById('total-stu');
+    if (!tbody) return;
 
-  try {
-    var res = await fetch(scriptURL + "?action=getStudents");
-    var data = await res.json();
-    var students = Array.isArray(data) ? data : (data.students || []);
+    try {
+        // FIX: Changed action=getStudents to action=load to match backend
+        var res = await fetch(scriptURL + "?action=load");
+        var data = await res.json();
+        var students = Array.isArray(data) ? data : (data.students || []);
 
-    if (totalStu) totalStu.textContent = students.length;
+        // Safely grab current dropdown values (if they exist in UI)
+        const searchInput = document.querySelector('input[placeholder*="Search"]');
+        const searchTxt = searchInput ? searchInput.value.toLowerCase().trim() : "";
+        
+        const batchFilter = document.getElementById('filter-batch');
+        const batchSel = batchFilter ? batchFilter.value : "";
+        
+        const progFilter = document.getElementById('filter-program');
+        const progSel = progFilter ? progFilter.value : "";
 
-    if (students.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="8" class="empty">No student records found.</td></tr>`;
-      return;
+        // Apply Active Filters
+        const filtered = students.filter(s => {
+            const matchSearch = !searchTxt || String(s.sen).toLowerCase().includes(searchTxt) || String(s.name).toLowerCase().includes(searchTxt);
+            const matchBatch = !batchSel || s.batch === batchSel;
+            const matchProg = !progSel || s.program === progSel;
+            return matchSearch && matchBatch && matchProg;
+        });
+
+        if (totalStu) totalStu.textContent = filtered.length;
+
+        if (filtered.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="8" class="empty" style="text-align:center; padding:20px; color:#64748b;">No student records found matching these filters.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = filtered.map((s, i) => {
+            // Determine if password is set
+            let isPwdSet = false;
+            if (s.hasPassword === true || (s.password && String(s.password).trim() !== "undefined" && String(s.password).trim() !== "")) {
+                isPwdSet = true;
+            }
+            
+            return `
+            <tr style="border-bottom:1px solid #e2e8f0;">
+                <td style="padding:10px;">${i + 1}</td>
+                <td style="font-weight:bold; color:#0f172a;">${esc(s.sen)}</td>
+                <td>${esc(s.name)}</td>
+                <td>${s.courses ? s.courses.length : 0}</td>
+                <td style="font-weight:bold; color:#3b82f6;">${s.cgpa || 'N/A'}</td>
+                <td>${s.totalCredits || 'N/A'}</td>
+                <td>${isPwdSet ? '✅ Set' : '❌ Default'}</td>
+                <td><button class="btn-sm" style="background:#0ea5e9; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-weight:bold;" onclick="openAdminStudentView('${esc(s.sen)}')">Details</button></td>
+            </tr>
+            `;
+        }).join('');
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="8" class="empty" style="text-align:center; color:#ef4444; padding:20px;">Failed to load from backend: ${err.message}</td></tr>`;
     }
-
-    tbody.innerHTML = students.map((s, i) => `
-      <tr>
-        <td>${i + 1}</td>
-        <td>${esc(s.sen)}</td>
-        <td>${esc(s.name)}</td>
-        <td>${s.courses ? s.courses.length : 0}</td>
-        <td>${s.cgpa || 'N/A'}</td>
-        <td>${s.totalCredits || 'N/A'}</td>
-        <td>${s.hasPassword ? '✅ Set' : '❌ Default'}</td>
-        <td><button class="btn-sm" onclick="openAdminStudentView('${esc(s.sen)}')">Details</button></td>
-      </tr>
-    `).join('');
-  } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="8" class="empty">Failed to load from backend.</td></tr>`;
-  }
 };
+
+window.clearAllRecords = async function () {
+    var adminPass = window.currentAdminPassword || sessionStorage.getItem('coe_admin_auth') || '';
+    if (!adminPass) return alert("Session expired. Please log in again.");
+    if (!confirm("⚠️ DANGER: Permanently delete ALL student records from the database? This cannot be undone.")) return;
+
+    try {
+        var res = await fetch(scriptURL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            // FIX: Changed action=clearallrecords to action=clearall to match backend
+            body: JSON.stringify({ action: 'clearall', adminPassword: adminPass })
+        });
+        var data = await res.json();
+        alert(`✅ ${data.message || 'All records deleted.'}`);
+        window.applyAdminFilters(); // Refresh the table
+    } catch (err) {
+        alert('❌ Error: ' + err.message);
+    }
+};
+
+// Auto-trigger filters when dropdowns change
+document.addEventListener('change', function(e) {
+    if (e.target.id === 'filter-batch' || e.target.id === 'filter-program') {
+        window.applyAdminFilters();
+    }
+});
+// Auto-trigger on search typing
+document.addEventListener('input', function(e) {
+    if (e.target.placeholder && e.target.placeholder.includes('Search')) {
+        window.applyAdminFilters();
+    }
+});
 
 window.openAdminStudentView = function (sen) {
   var detailView = document.getElementById('admin-student-detail-view');
@@ -1421,17 +1460,43 @@ window.editSubCredits = function(mIndex, sIndex) {
 
 window.addCourseToSub = function(mIndex, sIndex) {
     const sub = window.CURRICULUM_RULES[window.currentEditingKey][mIndex].subCategories[sIndex];
-    const code = prompt("Enter exact Course Code (e.g., 'MGT1001'):");
-    if(code) {
-        sub.codes.push(code.toUpperCase().trim());
+    const code = prompt("1/3: Enter exact Course Code (e.g., 'MGT1001'):");
+    
+    if (code) {
+        const cleanCode = code.toUpperCase().trim();
+        const name = prompt(`2/3: Enter Course Name for ${cleanCode}:`, "New Course");
+        const creds = prompt(`3/3: Enter Credits for ${cleanCode}:`, "3");
+        
+        sub.codes.push(cleanCode);
+        
+        // Save to Custom Dictionary so it renders correctly everywhere
+        if (!window.CUSTOM_COURSE_DICT) window.CUSTOM_COURSE_DICT = {};
+        window.CUSTOM_COURSE_DICT[cleanCode] = { name: name || "Unknown", credits: parseFloat(creds) || 3 };
+        localStorage.setItem('AIIT_CUSTOM_COURSES', JSON.stringify(window.CUSTOM_COURSE_DICT));
+        
         window.loadCurriculumEditor();
     }
 };
 
 window.editCourseCode = function(mIndex, sIndex, cIndex) {
     const sub = window.CURRICULUM_RULES[window.currentEditingKey][mIndex].subCategories[sIndex];
-    const newCode = prompt("Edit Course Code:", sub.codes[cIndex]);
-    if(newCode) { sub.codes[cIndex] = newCode.toUpperCase().trim(); window.loadCurriculumEditor(); }
+    const oldCode = sub.codes[cIndex];
+    const existingInfo = window.getCourseInfo(oldCode);
+    
+    const newCode = prompt("1/3: Edit Course Code:", oldCode);
+    if (newCode) { 
+        const cleanCode = newCode.toUpperCase().trim();
+        sub.codes[cIndex] = cleanCode; 
+        
+        const newName = prompt(`2/3: Edit Course Name for ${cleanCode}:`, existingInfo.name);
+        const newCreds = prompt(`3/3: Edit Credits for ${cleanCode}:`, existingInfo.credits);
+        
+        if (!window.CUSTOM_COURSE_DICT) window.CUSTOM_COURSE_DICT = {};
+        window.CUSTOM_COURSE_DICT[cleanCode] = { name: newName || "Unknown", credits: parseFloat(newCreds) || 3 };
+        localStorage.setItem('AIIT_CUSTOM_COURSES', JSON.stringify(window.CUSTOM_COURSE_DICT));
+        
+        window.loadCurriculumEditor(); 
+    }
 };
 
 window.removeCourseCode = function(mIndex, sIndex, cIndex) {

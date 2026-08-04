@@ -753,13 +753,64 @@ window.openFacultyStudentView = function (sen) {
   if (detailView) detailView.style.display = 'block';
 
   if (injected) {
-    injected.innerHTML = `
-      <div class="profile-card" style="margin-bottom:1.5rem">
-        <h2>${esc(s.name)} (${esc(s.sen)})</h2>
-        <p>Program: ${esc(s.program || '')} | Batch: ${esc(s.batch || '')} | CGPA: ${s.cgpa || 'N/A'}</p>
-      </div>
-      ${window.evaluateDegree(s)}
-    `;
+            // Calculate Active Backlogs
+            let activeBacklogs = window.getActiveBacklogs(s.courses);
+            
+            // Global Tab Switcher for Admin/Faculty
+            window.switchAdminTabUI = function(tabName) {
+                document.getElementById('tab-admin-all').style.display = (tabName === 'admin-all') ? 'block' : 'none';
+                document.getElementById('tab-admin-backlogs').style.display = (tabName === 'admin-backlogs') ? 'block' : 'none';
+                document.getElementById('tab-admin-audit').style.display = (tabName === 'admin-audit') ? 'block' : 'none';
+
+                document.getElementById('btn-admin-all').style.background = (tabName === 'admin-all') ? '#3b82f6' : '#f1f5f9';
+                document.getElementById('btn-admin-all').style.color = (tabName === 'admin-all') ? 'white' : '#475569';
+                
+                document.getElementById('btn-admin-backlogs').style.background = (tabName === 'admin-backlogs') ? '#ef4444' : '#f1f5f9';
+                document.getElementById('btn-admin-backlogs').style.color = (tabName === 'admin-backlogs') ? 'white' : '#475569';
+
+                document.getElementById('btn-admin-audit').style.background = (tabName === 'admin-audit') ? '#10b981' : '#f1f5f9';
+                document.getElementById('btn-admin-audit').style.color = (tabName === 'admin-audit') ? 'white' : '#475569';
+            };
+
+            injected.innerHTML = `
+                <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                    <h2 style="margin-top:0; color: #0f172a;">🎓 ${esc(s.name)} <span style="color:#64748b; font-size:1.1rem;">(${esc(s.sen)})</span></h2>
+                    <div style="display:flex; flex-wrap:wrap; gap:15px; margin-top:10px;">
+                        <span style="background:#f8fafc; padding:6px 12px; border-radius:6px; font-weight:bold; border:1px solid #cbd5e1;">Program: ${esc(s.program || 'N/A')}</span>
+                        <span style="background:#f8fafc; padding:6px 12px; border-radius:6px; font-weight:bold; border:1px solid #cbd5e1;">Batch: ${esc(s.batch || 'N/A')}</span>
+                        <span style="background:#ecfdf5; padding:6px 12px; border-radius:6px; font-weight:bold; color:#10b981; border:1px solid #a7f3d0;">CGPA: ${s.cgpa || 'N/A'}</span>
+                        <span style="background:#eff6ff; padding:6px 12px; border-radius:6px; font-weight:bold; color:#3b82f6; border:1px solid #bfdbfe;">Total Credits: ${s.totalCredits || '0'}</span>
+                    </div>
+                </div>
+
+                <div style="display:flex; gap:10px; margin-bottom:15px; border-bottom:2px solid #e2e8f0; padding-bottom:10px; overflow-x:auto;">
+                    <button onclick="window.switchAdminTabUI('admin-all')" id="btn-admin-all" style="padding:10px 20px; border:none; background:#3b82f6; color:white; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1rem;">📚 All Courses</button>
+                    <button onclick="window.switchAdminTabUI('admin-backlogs')" id="btn-admin-backlogs" style="padding:10px 20px; border:none; background:#f1f5f9; color:#475569; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1rem;">⚠️ Active Backlogs (${activeBacklogs.length})</button>
+                    <button onclick="window.switchAdminTabUI('admin-audit')" id="btn-admin-audit" style="padding:10px 20px; border:none; background:#f1f5f9; color:#475569; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1rem;">🎓 Degree Audit Check</button>
+                </div>
+
+                <div id="tab-admin-all" style="display:block; overflow-x:auto;">
+                    <table style="width:100%; text-align:left; border-collapse:collapse; background:white; border:1px solid #e2e8f0; border-radius:8px; overflow:hidden;">
+                        <thead style="background:#f8fafc; border-bottom:2px solid #e2e8f0;">
+                            <tr><th style="padding:12px 10px;">Code</th><th style="padding:12px 10px;">Course Title</th><th style="padding:12px 10px;">Type</th><th style="padding:12px 10px;">Cr.</th><th style="padding:12px 10px;">Marks</th><th style="padding:12px 10px;">Grade</th><th style="padding:12px 10px;">Gr. Pts</th><th style="padding:12px 10px;">Cr. Earned</th></tr>
+                        </thead>
+                        <tbody>${window.generateCourseTableHTML(s.courses, "No course data available.")}</tbody>
+                    </table>
+                </div>
+
+                <div id="tab-admin-backlogs" style="display:none; overflow-x:auto;">
+                    <table style="width:100%; text-align:left; border-collapse:collapse; background:white; border:1px solid #e2e8f0; border-radius:8px; overflow:hidden;">
+                        <thead style="background:#f8fafc; border-bottom:2px solid #e2e8f0;">
+                            <tr><th style="padding:12px 10px;">Code</th><th style="padding:12px 10px;">Course Title</th><th style="padding:12px 10px;">Type</th><th style="padding:12px 10px;">Cr.</th><th style="padding:12px 10px;">Marks</th><th style="padding:12px 10px;">Grade</th><th style="padding:12px 10px;">Gr. Pts</th><th style="padding:12px 10px;">Cr. Earned</th></tr>
+                        </thead>
+                        <tbody>${window.generateCourseTableHTML(activeBacklogs, "🎉 Excellent! The student has no active backlogs.")}</tbody>
+                    </table>
+                </div>
+
+                <div id="tab-admin-audit" style="display:none;">
+                    ${window.evaluateDegree(s)}
+                </div>
+            `;
   }
 };
 
@@ -822,48 +873,62 @@ function renderStudentDash(student) {
     const ncEl = document.getElementById('dash-nc');
     if (ncEl) ncEl.textContent = validCourses.length;
 
-    // Render the Courses Table
-    const tbody = document.getElementById('courses-tbody');
-    if (tbody) {
-        if (validCourses.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:20px;">No course data available.</td></tr>`;
-        } else {
-            tbody.innerHTML = validCourses.map(c => {
-                const gradeStr = String(c.grade).toUpperCase().trim();
-                const isFail = ['F', 'AB', 'DE', 'I', 'U'].includes(gradeStr);
-                const earnedCr = isFail ? 0 : (c.credits || 0);
+        // Calculate Active Backlogs
+        let activeBacklogs = window.getActiveBacklogs(validCourses);
 
-                return `
-                <tr>
-                    <td><strong>${esc(c.code)}</strong></td>
-                    <td>${esc(c.name)}</td>
-                    <td>${esc(c.type)}</td>
-                    <td>${c.credits || 0}</td>
-                    <td>${c.marks || '—'}</td>
-                    <td><span class="badge ${isFail ? 'fail' : 'pass'}">${esc(c.grade)}</span></td>
-                    <td>${c.gradePoints || '—'}</td>
-                    <td>${earnedCr}</td>
-                </tr>
-                `;
-            }).join('');
-        }
-    }
+        // Inject Tab UI Structure
+        let tableContainer = document.getElementById('courses-tbody');
+        if (tableContainer) tableContainer = tableContainer.closest('table').parentElement;
+        
+        if (tableContainer && !document.getElementById('dash-tab-nav')) {
+            let tabNav = document.createElement('div');
+            tabNav.id = 'dash-tab-nav';
+            tabNav.style.cssText = 'display:flex; gap:10px; margin-bottom:15px; border-bottom:2px solid #e2e8f0; padding-bottom:10px; overflow-x:auto;';
+            tableContainer.parentNode.insertBefore(tabNav, tableContainer);
 
-    // FAILSAFE: Render Degree Audit dynamically if HTML container is missing
-    let auditTab = document.getElementById('sdash-audit-tab');
-    if (!auditTab) {
-        const tableContainer = document.querySelector('.table-container') || document.querySelector('table');
-        if (tableContainer) {
-            auditTab = document.createElement('div');
-            auditTab.id = 'sdash-audit-tab';
-            auditTab.style.marginTop = '30px';
-            tableContainer.parentElement.appendChild(auditTab);
+            let backlogsDiv = document.createElement('div');
+            backlogsDiv.id = 'tab-content-backlogs';
+            backlogsDiv.style.display = 'none';
+            backlogsDiv.innerHTML = `<table style="width:100%; text-align:left; border-collapse:collapse; background:white; border:1px solid #e2e8f0;"><thead style="background:#f8fafc; border-bottom:2px solid #e2e8f0;"><tr><th style="padding:12px 10px;">Code</th><th style="padding:12px 10px;">Course Title</th><th style="padding:12px 10px;">Type</th><th style="padding:12px 10px;">Cr.</th><th style="padding:12px 10px;">Marks</th><th style="padding:12px 10px;">Grade</th><th style="padding:12px 10px;">Gr. Pts</th><th style="padding:12px 10px;">Cr. Earned</th></tr></thead><tbody id="backlogs-tbody"></tbody></table>`;
+            tableContainer.parentNode.insertBefore(backlogsDiv, tableContainer.nextSibling);
+
+            let auditDiv = document.createElement('div');
+            auditDiv.id = 'tab-content-audit';
+            auditDiv.style.display = 'none';
+            tableContainer.parentNode.insertBefore(auditDiv, backlogsDiv.nextSibling);
+
+            tableContainer.id = 'tab-content-all'; // Assign ID to original table wrapper
         }
+
+        // Global Tab Switcher Logic
+        window.switchDashTab = function(tabName) {
+            document.getElementById('tab-content-all').style.display = (tabName === 'all') ? 'block' : 'none';
+            document.getElementById('tab-content-backlogs').style.display = (tabName === 'backlogs') ? 'block' : 'none';
+            document.getElementById('tab-content-audit').style.display = (tabName === 'audit') ? 'block' : 'none';
+
+            document.getElementById('btn-tab-all').style.background = (tabName === 'all') ? '#3b82f6' : '#f1f5f9';
+            document.getElementById('btn-tab-all').style.color = (tabName === 'all') ? 'white' : '#475569';
+            
+            document.getElementById('btn-tab-backlogs').style.background = (tabName === 'backlogs') ? '#ef4444' : '#f1f5f9';
+            document.getElementById('btn-tab-backlogs').style.color = (tabName === 'backlogs') ? 'white' : '#475569';
+
+            document.getElementById('btn-tab-audit').style.background = (tabName === 'audit') ? '#10b981' : '#f1f5f9';
+            document.getElementById('btn-tab-audit').style.color = (tabName === 'audit') ? 'white' : '#475569';
+        };
+
+        // Render Buttons and Tables
+        document.getElementById('dash-tab-nav').innerHTML = `
+            <button onclick="window.switchDashTab('all')" id="btn-tab-all" style="padding:10px 20px; border:none; background:#3b82f6; color:white; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1rem;">📚 All Courses</button>
+            <button onclick="window.switchDashTab('backlogs')" id="btn-tab-backlogs" style="padding:10px 20px; border:none; background:#f1f5f9; color:#475569; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1rem;">⚠️ Active Backlogs (${activeBacklogs.length})</button>
+            <button onclick="window.switchDashTab('audit')" id="btn-tab-audit" style="padding:10px 20px; border:none; background:#f1f5f9; color:#475569; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1rem;">🎓 Degree Audit Check</button>
+        `;
+
+        document.getElementById('courses-tbody').innerHTML = window.generateCourseTableHTML(validCourses);
+        document.getElementById('backlogs-tbody').innerHTML = window.generateCourseTableHTML(activeBacklogs, "🎉 Excellent! You have no active backlogs.");
+        document.getElementById('tab-content-audit').innerHTML = window.evaluateDegree(student);
+
+        window.switchDashTab('all'); // Default selection
     }
-    if (auditTab) {
-        auditTab.innerHTML = window.evaluateDegree(student);
-    }
-}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  6. ADMIN DASHBOARD & SYSTEM SETUP
@@ -1100,18 +1165,63 @@ window.openAdminStudentView = async function (sen) {
             return;
         }
 
+        // Calculate Active Backlogs
+        let activeBacklogs = window.getActiveBacklogs(s.courses);
+        
+        // Global Tab Switcher for Admin/Faculty
+        window.switchAdminTabUI = function(tabName) {
+            document.getElementById('tab-admin-all').style.display = (tabName === 'admin-all') ? 'block' : 'none';
+            document.getElementById('tab-admin-backlogs').style.display = (tabName === 'admin-backlogs') ? 'block' : 'none';
+            document.getElementById('tab-admin-audit').style.display = (tabName === 'admin-audit') ? 'block' : 'none';
+
+            document.getElementById('btn-admin-all').style.background = (tabName === 'admin-all') ? '#3b82f6' : '#f1f5f9';
+            document.getElementById('btn-admin-all').style.color = (tabName === 'admin-all') ? 'white' : '#475569';
+            
+            document.getElementById('btn-admin-backlogs').style.background = (tabName === 'admin-backlogs') ? '#ef4444' : '#f1f5f9';
+            document.getElementById('btn-admin-backlogs').style.color = (tabName === 'admin-backlogs') ? 'white' : '#475569';
+
+            document.getElementById('btn-admin-audit').style.background = (tabName === 'admin-audit') ? '#10b981' : '#f1f5f9';
+            document.getElementById('btn-admin-audit').style.color = (tabName === 'admin-audit') ? 'white' : '#475569';
+        };
+
         injected.innerHTML = `
-          <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #e2e8f0;">
-            <h2 style="margin-top:0; color: #0f172a;">🎓 ${esc(s.name)} <span style="color:#64748b;">(${esc(s.sen)})</span></h2>
-            <div style="display:flex; gap:15px; margin-top:10px;">
-                <span style="background:#f8fafc; padding:6px 12px; border-radius:6px; font-weight:bold;">Program: ${esc(s.program || 'N/A')}</span>
-                <span style="background:#f8fafc; padding:6px 12px; border-radius:6px; font-weight:bold;">Batch: ${esc(s.batch || 'N/A')}</span>
-                <span style="background:#ecfdf5; padding:6px 12px; border-radius:6px; font-weight:bold; color:#10b981;">CGPA: ${s.cgpa || 'N/A'}</span>
-                <span style="background:#eff6ff; padding:6px 12px; border-radius:6px; font-weight:bold; color:#3b82f6;">Total Credits: ${s.totalCredits || '0'}</span>
+            <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <h2 style="margin-top:0; color: #0f172a;">🎓 ${esc(s.name)} <span style="color:#64748b; font-size:1.1rem;">(${esc(s.sen)})</span></h2>
+                <div style="display:flex; flex-wrap:wrap; gap:15px; margin-top:10px;">
+                    <span style="background:#f8fafc; padding:6px 12px; border-radius:6px; font-weight:bold; border:1px solid #cbd5e1;">Program: ${esc(s.program || 'N/A')}</span>
+                    <span style="background:#f8fafc; padding:6px 12px; border-radius:6px; font-weight:bold; border:1px solid #cbd5e1;">Batch: ${esc(s.batch || 'N/A')}</span>
+                    <span style="background:#ecfdf5; padding:6px 12px; border-radius:6px; font-weight:bold; color:#10b981; border:1px solid #a7f3d0;">CGPA: ${s.cgpa || 'N/A'}</span>
+                    <span style="background:#eff6ff; padding:6px 12px; border-radius:6px; font-weight:bold; color:#3b82f6; border:1px solid #bfdbfe;">Total Credits: ${s.totalCredits || '0'}</span>
+                </div>
             </div>
-          </div>
-          <h3 style="color:#334155; margin-bottom:15px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">📊 Curriculum Degree Audit Engine</h3>
-          ${window.evaluateDegree(s)}
+
+            <div style="display:flex; gap:10px; margin-bottom:15px; border-bottom:2px solid #e2e8f0; padding-bottom:10px; overflow-x:auto;">
+                <button onclick="window.switchAdminTabUI('admin-all')" id="btn-admin-all" style="padding:10px 20px; border:none; background:#3b82f6; color:white; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1rem;">📚 All Courses</button>
+                <button onclick="window.switchAdminTabUI('admin-backlogs')" id="btn-admin-backlogs" style="padding:10px 20px; border:none; background:#f1f5f9; color:#475569; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1rem;">⚠️ Active Backlogs (${activeBacklogs.length})</button>
+                <button onclick="window.switchAdminTabUI('admin-audit')" id="btn-admin-audit" style="padding:10px 20px; border:none; background:#f1f5f9; color:#475569; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1rem;">🎓 Degree Audit Check</button>
+            </div>
+
+            <div id="tab-admin-all" style="display:block; overflow-x:auto;">
+                <table style="width:100%; text-align:left; border-collapse:collapse; background:white; border:1px solid #e2e8f0; border-radius:8px; overflow:hidden;">
+                    <thead style="background:#f8fafc; border-bottom:2px solid #e2e8f0;">
+                        <tr><th style="padding:12px 10px;">Code</th><th style="padding:12px 10px;">Course Title</th><th style="padding:12px 10px;">Type</th><th style="padding:12px 10px;">Cr.</th><th style="padding:12px 10px;">Marks</th><th style="padding:12px 10px;">Grade</th><th style="padding:12px 10px;">Gr. Pts</th><th style="padding:12px 10px;">Cr. Earned</th></tr>
+                    </thead>
+                    <tbody>${window.generateCourseTableHTML(s.courses, "No course data available.")}</tbody>
+                </table>
+            </div>
+
+            <div id="tab-admin-backlogs" style="display:none; overflow-x:auto;">
+                <table style="width:100%; text-align:left; border-collapse:collapse; background:white; border:1px solid #e2e8f0; border-radius:8px; overflow:hidden;">
+                    <thead style="background:#f8fafc; border-bottom:2px solid #e2e8f0;">
+                        <tr><th style="padding:12px 10px;">Code</th><th style="padding:12px 10px;">Course Title</th><th style="padding:12px 10px;">Type</th><th style="padding:12px 10px;">Cr.</th><th style="padding:12px 10px;">Marks</th><th style="padding:12px 10px;">Grade</th><th style="padding:12px 10px;">Gr. Pts</th><th style="padding:12px 10px;">Cr. Earned</th></tr>
+                    </thead>
+                    <tbody>${window.generateCourseTableHTML(activeBacklogs, "🎉 Excellent! The student has no active backlogs.")}</tbody>
+                </table>
+            </div>
+
+            <div id="tab-admin-audit" style="display:none;">
+                ${window.evaluateDegree(s)}
+            </div>
         `;
     } catch(e) {
         injected.innerHTML = `<p style="color:#ef4444; padding:20px;">❌ Failed to load Cloud Data.</p>`;
@@ -1781,6 +1891,48 @@ window.filterBacklogs = function () {
   renderStudentTable(filteredStudents);
 };
 
+    // --- SMART BACKLOG ENGINE ---
+    window.getActiveBacklogs = function(courses) {
+        let courseHistory = {};
+        (courses || []).forEach(c => {
+            if(!c.code || c.code === 'NAN') return;
+            let code = String(c.code).toUpperCase().trim();
+            // Track the course. If it's passed at ANY point, it clears the backlog.
+            if (!courseHistory[code]) courseHistory[code] = { passed: false, latest: c };
+            let isFail = ['F', 'AB', 'DE', 'I', 'U'].includes(String(c.grade).toUpperCase().trim());
+            if (!isFail) courseHistory[code].passed = true; 
+            else if (!courseHistory[code].passed) courseHistory[code].latest = c; // keep the fail record if not passed yet
+        });
+        let activeBacklogs = [];
+        for (let code in courseHistory) {
+            if (!courseHistory[code].passed) activeBacklogs.push(courseHistory[code].latest);
+        }
+        return activeBacklogs;
+    };
+
+    // --- UNIVERSAL TABLE GENERATOR ---
+    window.generateCourseTableHTML = function(courses, emptyMsg = "No course data available.") {
+        if (!courses || courses.length === 0) {
+            return `<tr><td colspan="8" style="text-align:center; padding:25px; color:#64748b; font-size:1.1rem;">${emptyMsg}</td></tr>`;
+        }
+        return courses.map(c => {
+            const gradeStr = String(c.grade).toUpperCase().trim();
+            const isFail = ['F', 'AB', 'DE', 'I', 'U'].includes(gradeStr);
+            const earnedCr = isFail ? 0 : (parseFloat(c.credits) || 0);
+            return `
+            <tr style="border-bottom:1px solid #e2e8f0; transition: background 0.2s;" onmouseover="this.style.backgroundColor='#f8fafc'" onmouseout="this.style.backgroundColor='transparent'">
+                <td style="padding:12px 10px;"><strong>${esc(c.code)}</strong></td>
+                <td style="padding:12px 10px;">${esc(c.name)}</td>
+                <td style="padding:12px 10px;">${esc(c.type)}</td>
+                <td style="padding:12px 10px;">${c.credits || 0}</td>
+                <td style="padding:12px 10px;">${c.marks || '—'}</td>
+                <td style="padding:12px 10px;"><span style="padding:4px 8px; border-radius:4px; font-weight:bold; font-size:0.85rem; background:${isFail ? '#fee2e2' : '#dcfce3'}; color:${isFail ? '#dc2626' : '#16a34a'};">${esc(c.grade)}</span></td>
+                <td style="padding:12px 10px;">${c.gradePoints || '—'}</td>
+                <td style="padding:12px 10px; font-weight:bold; color:#0f172a;">${earnedCr}</td>
+            </tr>`;
+        }).join('');
+    };
+
 window.evaluateDegree = function (student) {
     let latestCurriculum = {};
     try {
@@ -1793,8 +1945,6 @@ window.evaluateDegree = function (student) {
 
     const studentBatch = String(student.batch || "").trim();
     const studentProg = String(student.program || "").trim();
-    
-    // Try multiple key formats to guarantee a match
     const mapKeySpace = `${studentBatch} ${studentProg}`;
     const mapKeyUnderscore = `${studentBatch}_${studentProg}`;
 
@@ -1809,39 +1959,100 @@ window.evaluateDegree = function (student) {
     }
 
     const cleanString = (str) => String(str).toUpperCase().replace(/[^A-Z0-9]/g, '');
-    const earnedCourses = (student.courses || []).map(c => ({
+    const isPass = (grade) => !['F', 'AB', 'DE', 'I', 'U'].includes(String(grade).toUpperCase().trim());
+    
+    // Grab courses and sort them so passing grades are evaluated first
+    let earnedCourses = (student.courses || []).map(c => ({
         ...c,
         cleanCode: cleanString(c.code || c.CourseCode),
         grade: String(c.grade || c.Grade || "").toUpperCase().trim()
     }));
+    earnedCourses.sort((a, b) => (isPass(b.grade) ? 1 : 0) - (isPass(a.grade) ? 1 : 0));
 
-    let auditHTML = `<div class="audit-wrapper" style="padding:20px; background:#f8fafc; border-radius:10px; border: 1px solid #e2e8f0; margin-top: 20px;">`;
-    auditHTML += `<h3 style="margin-top:0; color:#0f172a; border-bottom:2px solid #cbd5e1; padding-bottom:10px;">🎓 Degree Audit Report (${mapKeySpace})</h3>`;
+    let auditHTML = `<div class="audit-wrapper" style="margin-top: 10px;">`;
 
     rulesToUse.forEach(mainBasket => {
+        let basketReq = mainBasket.minCredits || 0;
         let basketEarned = 0;
-        let courseListHTML = "";
+        let subHTML = "";
 
-        (mainBasket.codes || []).forEach(reqCode => {
-            const cleanReq = cleanString(reqCode);
-            const match = earnedCourses.find(c => c.cleanCode === cleanReq && !['F', 'AB', 'DE', 'I', 'U'].includes(c.grade));
-            if (match) {
+        // Upgrade legacy arrays dynamically
+        let subCats = mainBasket.subCategories || [];
+        if (subCats.length === 0 && mainBasket.codes) {
+            subCats = [{ name: "General Courses", minCredits: basketReq, codes: mainBasket.codes }];
+        }
+
+        subCats.forEach(sub => {
+            let subReq = sub.minCredits || 0;
+            let subEarned = 0;
+            let coursesHTML = "";
+
+            (sub.codes || []).forEach(reqCode => {
+                const cleanReq = cleanString(reqCode);
+                const match = earnedCourses.find(c => c.cleanCode === cleanReq && isPass(c.grade));
                 const info = window.getCourseInfo(reqCode);
-                basketEarned += parseFloat(match.credits || info.credits || 0);
-                courseListHTML += `<li style="color:#10b981; font-weight:bold; margin-bottom:5px;">✅ ${reqCode} - ${info.name} (${match.credits || info.credits} Cr) [Grade: ${match.grade}]</li>`;
-            } else {
-                const info = window.getCourseInfo(reqCode);
-                courseListHTML += `<li style="color:#ef4444; margin-bottom:5px;">❌ ${reqCode} - ${info.name} (${info.credits} Cr)</li>`;
-            }
+
+                if (match) {
+                    let cr = parseFloat(match.credits || info.credits || 0);
+                    subEarned += cr;
+                    basketEarned += cr;
+                    coursesHTML += `
+                        <tr style="background:#ecfdf5;">
+                            <td style="padding:8px; border-bottom:1px solid #d1fae5; color:#065f46; font-weight:bold;">${esc(reqCode)}</td>
+                            <td style="padding:8px; border-bottom:1px solid #d1fae5; color:#065f46;">${esc(info.name)}</td>
+                            <td style="padding:8px; border-bottom:1px solid #d1fae5; color:#065f46; font-weight:bold;">${cr} Cr</td>
+                            <td style="padding:8px; border-bottom:1px solid #d1fae5; color:#065f46; text-align:center;">✅ Passed (${esc(match.grade)})</td>
+                        </tr>`;
+                } else {
+                    coursesHTML += `
+                        <tr>
+                            <td style="padding:8px; border-bottom:1px solid #f1f5f9; color:#64748b; font-weight:bold;">${esc(reqCode)}</td>
+                            <td style="padding:8px; border-bottom:1px solid #f1f5f9; color:#64748b;">${esc(info.name)}</td>
+                            <td style="padding:8px; border-bottom:1px solid #f1f5f9; color:#64748b; font-weight:bold;">${info.credits} Cr</td>
+                            <td style="padding:8px; border-bottom:1px solid #f1f5f9; color:#f59e0b; text-align:center;">⏳ Pending</td>
+                        </tr>`;
+                }
+            });
+
+            subHTML += `
+                <div style="margin-top:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:10px;">
+                    <h5 style="margin:0 0 10px 0; color:#334155; display:flex; justify-content:space-between; font-size:1.05rem;">
+                        <span>📄 ${esc(sub.name)}</span>
+                        <span>Earned: <span style="color:#3b82f6;">${subEarned}</span> / ${subReq}</span>
+                    </h5>
+                    <table style="width:100%; text-align:left; border-collapse:collapse; font-size:0.9rem;">
+                        <tbody>${coursesHTML}</tbody>
+                    </table>
+                </div>
+            `;
         });
 
-        const isComplete = basketEarned >= mainBasket.minCredits;
+        // Determine Master Basket Color
+        let statusColor = "#f59e0b"; // Orange
+        let statusIcon = "⏳";
+        if (basketEarned >= basketReq) {
+            statusColor = "#10b981"; // Green
+            statusIcon = "✅";
+        } else if (basketEarned === 0) {
+            statusColor = "#ef4444"; // Red
+            statusIcon = "❌";
+        }
+
         auditHTML += `
-          <div style="margin-top:15px; padding:15px; background:white; border-radius:8px; border-left: 5px solid ${isComplete ? '#10b981' : '#ef4444'}; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            <h4 style="margin:0; color:#1e293b; font-size:1.1rem;">${esc(mainBasket.category)} (Earned: ${basketEarned} / Required: ${mainBasket.minCredits})</h4>
-            <ul style="list-style:none; padding-left:0; margin-top:10px;">${courseListHTML}</ul>
-          </div>
-        `;
+        <div style="border:1px solid ${statusColor}; border-radius:8px; margin-bottom:12px; background:white; overflow:hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+            <div onclick="const content = this.nextElementSibling; content.style.display = content.style.display === 'none' ? 'block' : 'none';" style="background:${statusColor}10; padding:15px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; transition: background 0.2s;" onmouseover="this.style.backgroundColor='${statusColor}20'" onmouseout="this.style.backgroundColor='${statusColor}10'">
+                <h4 style="margin:0; color:${statusColor}; display:flex; align-items:center; gap:10px;">
+                    <span style="font-size:1.3rem;">${statusIcon}</span> ${esc(mainBasket.category)}
+                </h4>
+                <div style="font-weight:bold; color:${statusColor}; font-size:1.05rem;">
+                    Earned: ${basketEarned} / ${basketReq} Cr
+                    <span style="margin-left:10px; font-size:0.8rem;">▼</span>
+                </div>
+            </div>
+            <div style="display:none; padding:15px; border-top:1px solid ${statusColor}40;">
+                ${subHTML}
+            </div>
+        </div>`;
     });
 
     auditHTML += `</div>`;

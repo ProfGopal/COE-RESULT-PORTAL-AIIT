@@ -486,125 +486,127 @@ window.cancelOtpResetUI = function () {
 };
 
 window.studentLoginStep = async function () {
-  var rawSen = document.getElementById('s-sen').value;
-  var sen = sanitize(rawSen).toUpperCase();
-  hideAlerts('student');
+    var rawSen = document.getElementById('s-sen').value;
+    var sen = sanitize(rawSen).toUpperCase();
+    hideAlerts('student');
 
-  if (!sen) { showErr('student-err', 'Please enter your SEN number.', ['s-sen']); return; }
+    if (!sen) { showErr('student-err', 'Please enter your SEN number.', ['s-sen']); return; }
 
-  var limitMsg = checkRateLimit('stu_' + sen);
-  if (limitMsg) { showErr('student-err', limitMsg, ['s-sen', 's-pass']); return; }
+    var btn = document.getElementById('s-login-btn');
+    if (btn) btn.disabled = true;
 
-  var btn = document.getElementById('s-login-btn');
-  if (btn) btn.disabled = true;
-
-  try {
-    if (isNewUser) {
-      var newpass = sanitize((document.getElementById('s-newpass') || {}).value || '');
-      var confpass = sanitize((document.getElementById('s-confirmpass') || {}).value || '');
-
-      if (!newpass) {
-        showErr('student-err', 'Please enter a new password.', ['s-newpass']);
-        return;
-      }
-      if (newpass.length < 6) {
-        showErr('student-err', 'Password must be at least 6 characters.', ['s-newpass', 's-confirmpass']);
-        return;
-      }
-      if (newpass !== confpass) {
-        showErr('student-err', 'Passwords do not match. Please re-enter.', ['s-newpass', 's-confirmpass']);
-        return;
-      }
-
-      if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
-
-      try {
-        await fetch(scriptURL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain' },
-          body: JSON.stringify({ action: 'setpassword', sen: sen, newPassword: newpass })
+    // --- PHASE-SHIFT REVEAL FUNCTION ---
+    const executePhaseShift = (studentObj) => {
+        if (btn) btn.innerHTML = "✅ Access Granted";
+        
+        // 1. Digital Shredder: Destroy the Login UI entirely
+        const loginBox = btn ? (btn.closest('.bg-white') || btn.closest('.shadow-lg')) : null;
+        if (loginBox) loginBox.remove();
+        
+        const loginContainer = document.getElementById('student-login-container') || document.querySelector('.login-container');
+        if (loginContainer) loginContainer.style.display = 'none';
+        
+        document.querySelectorAll('h1, h2, h3, p').forEach(textNode => {
+            if (textNode.textContent.includes('Student Login') || textNode.textContent.includes('Enter your SEN')) {
+                textNode.style.display = 'none';
+            }
         });
-      } catch (spErr) {
-        console.warn('setpassword response unreadable (may still have succeeded):', spErr.message);
-      }
 
-      clearAttempts('stu_' + sen);
-
-      try {
-        var alResp = await fetch(scriptURL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain' },
-          body: JSON.stringify({ action: 'login', sen: sen, password: newpass })
-        });
-        var alResult = await alResp.json();
-
-        if (alResult && alResult.status === 'success' && alResult.student) {
-          currentStudent = alResult.student;
-          renderStudentDash(currentStudent);
-          showPage('student-dash');
-          document.body.classList.add('overlay-active');
-        } else {
-          showOk('student-ok', '✓ Password created! Please sign in with your new password.');
-          resetStudentLoginUI();
-          var senEl = document.getElementById('s-sen');
-          if (senEl) senEl.value = sen;
+        // 2. Unhide Dashboard
+        const studentDash = document.getElementById('student-dash') || document.getElementById('student-dashboard') || document.getElementById('dashboard-section');
+        if (studentDash) {
+            studentDash.style.display = 'block';
+            studentDash.classList.add('dashboard-fullscreen-overlay');
         }
-      } catch (alErr) {
-        showOk('student-ok', '✓ Password created! Please sign in with your new password.');
-        resetStudentLoginUI();
-        var senEl2 = document.getElementById('s-sen');
-        if (senEl2) senEl2.value = sen;
-      }
-      return;
-    }
 
-    var passInput = (document.getElementById('s-pass') || {}).value || '';
-    if (btn) { btn.disabled = true; btn.textContent = '⏳ Signing in…'; }
+        // 3. Render Data & Lock Background
+        document.body.classList.add('overlay-active');
+        window.scrollTo({ top: 0, behavior: 'instant' });
+        
+        if (typeof renderStudentDash === 'function') {
+            renderStudentDash(studentObj);
+        }
+    };
 
-    var response = await fetch(scriptURL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({
-        action: 'login',
-        sen: (document.getElementById('s-sen').value || '').trim().toUpperCase(),
-        password: passInput.trim()
-      })
-    });
-    var result = await response.json();
+    try {
+        // NEW USER: SET PASSWORD FLOW
+        if (isNewUser) {
+            var newpass = sanitize((document.getElementById('s-newpass') || {}).value || '');
+            var confpass = sanitize((document.getElementById('s-confirmpass') || {}).value || '');
 
-    if (result && result.status === 'success' && result.student) {
-      clearAttempts('stu_' + sen);
-      currentStudent = result.student;
-      renderStudentDash(currentStudent);
-      showPage('student-dash');
-      document.body.classList.add('overlay-active');
-    } else if (
-      result && result.status === 'error' &&
-      (result.code === 'FIRST_TIME' || (result.message && result.message.toLowerCase().includes('first')))
-    ) {
-      isNewUser = true;
-      var pf = document.getElementById('s-pass-field');
-      var nf = document.getElementById('s-newpass-fields');
-      if (pf) pf.style.display = 'none';
-      if (nf) nf.style.display = 'block';
-      if (btn) btn.textContent = 'Create Password & Login →';
-      showOk('student-ok', result.message || 'First-time login detected. Please create your password below.');
-    } else if (result && result.status === 'error') {
-      var errMsg = result.message || 'Login failed. Please try again.';
-      showErr('student-err', '⚠ ' + errMsg, ['s-pass']);
-    } else {
-      showErr('student-err', '⚠ Unexpected response from server. Please try again.');
+            if (!newpass) { showErr('student-err', 'Please enter a new password.', ['s-newpass']); return; }
+            if (newpass.length < 6) { showErr('student-err', 'Password must be at least 6 characters.', ['s-newpass', 's-confirmpass']); return; }
+            if (newpass !== confpass) { showErr('student-err', 'Passwords do not match.', ['s-newpass', 's-confirmpass']); return; }
+
+            if (btn) { btn.disabled = true; btn.textContent = '⏳ Saving & Logging In...'; }
+
+            // 1. Save Password
+            await fetch(scriptURL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({ action: 'setpassword', sen: sen, newPassword: newpass })
+            });
+
+            // 2. Force Login & Phase Shift
+            var alResp = await fetch(scriptURL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({ action: 'login', sen: sen, password: newpass })
+            });
+            var alResult = await alResp.json();
+
+            if (alResult && alResult.status === 'success' && alResult.student) {
+                currentStudent = alResult.student;
+                executePhaseShift(currentStudent);
+            } else {
+                showOk('student-ok', '✓ Password created! Please sign in with your new password.');
+                resetStudentLoginUI();
+                var senEl = document.getElementById('s-sen');
+                if (senEl) senEl.value = sen;
+            }
+            return;
+        }
+
+        // NORMAL USER: LOGIN FLOW
+        var passInput = (document.getElementById('s-pass') || {}).value || '';
+        if (btn) { btn.disabled = true; btn.textContent = '⏳ Signing in…'; }
+
+        var response = await fetch(scriptURL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({
+                action: 'login',
+                sen: sen,
+                password: passInput.trim()
+            })
+        });
+        var result = await response.json();
+
+        if (result && result.status === 'success' && result.student) {
+            currentStudent = result.student;
+            executePhaseShift(currentStudent);
+        } else if (result && result.status === 'error' && (result.code === 'FIRST_TIME' || (result.message && result.message.toLowerCase().includes('first')))) {
+            isNewUser = true;
+            var pf = document.getElementById('s-pass-field');
+            var nf = document.getElementById('s-newpass-fields');
+            if (pf) pf.style.display = 'none';
+            if (nf) nf.style.display = 'block';
+            if (btn) btn.textContent = 'Create Password & Login →';
+            showOk('student-ok', result.message || 'First-time login detected. Please create your password below.');
+        } else if (result && result.status === 'error') {
+            showErr('student-err', '⚠ ' + (result.message || 'Login failed.'), ['s-pass']);
+        } else {
+            showErr('student-err', '⚠ Unexpected response from server.');
+        }
+    } catch (err) {
+        console.error('Login error:', err);
+        showErr('student-err', '✗ Could not reach the server. Check your connection.');
+    } finally {
+        if (btn && btn.innerHTML !== "✅ Access Granted") {
+            btn.disabled = false;
+            btn.textContent = isNewUser ? 'Create Password & Login →' : '🎓 Sign In →';
+        }
     }
-  } catch (err) {
-    console.error('Login error:', err);
-    showErr('student-err', '✗ Could not reach the portal server. Check your connection and try again.');
-  } finally {
-    var b = document.getElementById('s-login-btn');
-    if (b) {
-      b.disabled = false;
-      b.textContent = isNewUser ? 'Create Password & Login →' : '🎓 Sign In →';
-    }
-  }
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1069,21 +1071,57 @@ document.addEventListener('input', function(e) {
     }
 });
 
-window.openAdminStudentView = function (sen) {
-  var detailView = document.getElementById('admin-student-detail-view');
-  var wrapper = document.getElementById('admin-table-wrapper');
-  var injected = document.getElementById('admin-injected-student-data');
+window.openAdminStudentView = async function (sen) {
+    var detailView = document.getElementById('admin-student-detail-view');
+    var wrapper = document.getElementById('admin-table-wrapper');
+    var injected = document.getElementById('admin-injected-student-data');
 
-  if (wrapper) wrapper.style.display = 'none';
-  if (detailView) detailView.style.display = 'block';
-  if (injected) injected.innerHTML = `<p>Loading student ${esc(sen)}...</p>`;
+    // 1. Swap Views and Show Loading State
+    if (wrapper) wrapper.style.display = 'none';
+    if (detailView) detailView.style.display = 'block';
+    if (injected) injected.innerHTML = `<p style="padding:20px; font-weight:bold; color:#3b82f6;">⏳ Fetching records for ${esc(sen)} from Google Cloud Database...</p>`;
+
+    try {
+        // 2. Fetch the absolute latest data from the Cloud
+        var res = await fetch(scriptURL + "?action=load");
+        var data = await res.json();
+        var students = Array.isArray(data) ? data : (data.students || []);
+        
+        // Find the specific student
+        var s = students.find(x => String(x.sen).toUpperCase() === String(sen).toUpperCase());
+
+        if (!s) {
+            injected.innerHTML = `<p style="color:#ef4444; padding:20px; font-weight:bold;">❌ Error: Student SEN not found in the master database.</p>`;
+            return;
+        }
+
+        // 3. Render the Student Profile Header & Degree Audit
+        injected.innerHTML = `
+          <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; border: 1px solid #e2e8f0;">
+            <h2 style="margin-top:0; color: #0f172a; font-size:1.5rem;">🎓 ${esc(s.name)} <span style="color:#64748b; font-size:1.1rem;">(${esc(s.sen)})</span></h2>
+            <div style="display:flex; flex-wrap:wrap; gap:15px; margin-top:10px;">
+                <span style="background:#f8fafc; padding:6px 12px; border-radius:6px; font-weight:bold; color:#475569; border: 1px solid #e2e8f0;">Program: ${esc(s.program || 'N/A')}</span>
+                <span style="background:#f8fafc; padding:6px 12px; border-radius:6px; font-weight:bold; color:#475569; border: 1px solid #e2e8f0;">Batch: ${esc(s.batch || 'N/A')}</span>
+                <span style="background:#ecfdf5; padding:6px 12px; border-radius:6px; font-weight:bold; color:#10b981; border: 1px solid #a7f3d0;">CGPA: ${s.cgpa || 'N/A'}</span>
+                <span style="background:#eff6ff; padding:6px 12px; border-radius:6px; font-weight:bold; color:#3b82f6; border: 1px solid #bfdbfe;">Total Credits: ${s.totalCredits || '0'}</span>
+            </div>
+          </div>
+          <h3 style="color:#334155; margin-bottom:15px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">📊 Curriculum Degree Audit Engine</h3>
+          ${window.evaluateDegree(s)}
+        `;
+    } catch(e) {
+        injected.innerHTML = `<p style="color:#ef4444; padding:20px; font-weight:bold;">❌ Failed to load Cloud Data: ${e.message}</p>`;
+    }
 };
 
 window.closeAdminStudentView = function () {
-  var detailView = document.getElementById('admin-student-detail-view');
-  var wrapper = document.getElementById('admin-table-wrapper');
-  if (detailView) detailView.style.display = 'none';
-  if (wrapper) wrapper.style.display = 'block';
+    var detailView = document.getElementById('admin-student-detail-view');
+    var wrapper = document.getElementById('admin-table-wrapper');
+    var injected = document.getElementById('admin-injected-student-data');
+    
+    if (detailView) detailView.style.display = 'none';
+    if (wrapper) wrapper.style.display = 'block';
+    if (injected) injected.innerHTML = ''; // Clear memory
 };
 
 // ============================================================================

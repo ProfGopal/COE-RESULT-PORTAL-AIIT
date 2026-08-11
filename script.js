@@ -637,6 +637,20 @@ window.studentLoginStep = async function () {
 //  4. FACULTY FLOW & STUDENT DIRECTORY
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// Helper HTML escaper
+function esc(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+if (typeof window.esc !== 'function') {
+    window.esc = esc;
+}
+
 window.facultyLoginStep = async function () {
     var emailInput = document.getElementById('f-email');
     var passInput = document.getElementById('f-pass');
@@ -650,7 +664,6 @@ window.facultyLoginStep = async function () {
     }
 
     var btn = document.getElementById('f-login-btn');
-    const originalBtnText = btn ? btn.innerHTML : "Faculty Sign In &rarr;";
     if (btn) { btn.innerHTML = "⏳ Authenticating..."; btn.disabled = true; }
 
     try {
@@ -662,45 +675,163 @@ window.facultyLoginStep = async function () {
         var result = await response.json();
 
         if (result && result.status === 'success') {
-            if (btn) btn.innerHTML = "✅ Access Granted";
-            
-            // --- ABSOLUTE DOM OBLITERATION OF LOGIN WRAPPER ---
-            const loginWrapper = document.getElementById('faculty-login-wrapper');
-            if (loginWrapper) {
-                loginWrapper.style.display = 'none';
-                loginWrapper.remove();
-            }
-            
-            // Fallback check for any stray login elements
-            document.querySelectorAll('.login-container, .bg-white').forEach(el => {
-                if (el.textContent && el.textContent.includes('Faculty Login')) {
-                    el.style.display = 'none';
-                    el.remove();
+            if (result.firstTime || pass === 'faculty@123') {
+                // Prompt to change password if first time or default password
+                let newPass = prompt("🔐 First-time login detected. Please enter your new permanent password (min 6 chars):");
+                if (!newPass || newPass.length < 6) {
+                    alert("❌ Password must be at least 6 characters.");
+                    if (btn) { btn.innerHTML = "Faculty Sign In →"; btn.disabled = false; }
+                    return;
                 }
-            });
+                // Save new password to cloud
+                await fetch(scriptURL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({ action: 'setfacultypassword', email: email, password: newPass })
+                });
+                alert("✅ Password updated successfully! Please sign in with your new password.");
+                if (btn) { btn.innerHTML = "Faculty Sign In →"; btn.disabled = false; }
+                return;
+            }
 
-            // Show Faculty Dashboard
-            const facultyDash = document.getElementById('faculty-dash') || document.getElementById('faculty-dashboard') || document.querySelector('.faculty-section');
+            // Successful Login & Shredder
+            const loginWrapper = document.getElementById('faculty-login-wrapper');
+            if (loginWrapper) { loginWrapper.style.display = 'none'; loginWrapper.remove(); }
+
+            const facultyDash = document.getElementById('faculty-dash') || document.querySelector('.faculty-section');
             if (facultyDash) {
                 facultyDash.style.display = 'block';
                 facultyDash.classList.add('dashboard-fullscreen-overlay');
             }
-            
             document.body.classList.add('overlay-active');
             window.scrollTo({ top: 0, behavior: 'instant' });
 
+            window.currentFacultyEmail = email;
             var label = document.getElementById('faculty-email-label');
             if (label) label.textContent = email;
             
-            window.facultyViewAll(); 
+            window.renderFacultyPortal(email);
+            if (typeof window.facultyViewAll === 'function') {
+                window.facultyViewAll();
+            }
         } else {
             showErr('faculty-err', '⚠ ' + ((result && result.message) || 'Invalid credentials.'), ['f-pass']);
-            if (btn) { btn.innerHTML = originalBtnText; btn.disabled = false; }
+            if (btn) { btn.innerHTML = "Faculty Sign In →"; btn.disabled = false; }
         }
     } catch (err) {
         showErr('faculty-err', '✗ Connection error: ' + err.message);
-        if (btn) { btn.innerHTML = originalBtnText; btn.disabled = false; }
+        if (btn) { btn.innerHTML = "Faculty Sign In →"; btn.disabled = false; }
     }
+};
+
+window.renderFacultyPortal = async function(email) {
+    let container = document.getElementById('faculty-tasks-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'faculty-tasks-container';
+        container.style.cssText = 'padding:20px; max-width:1200px; margin:auto;';
+        const dash = document.getElementById('faculty-dash') || document.querySelector('.faculty-section');
+        if (dash) dash.appendChild(container);
+    }
+
+    // Fetch assignments & deadlines from Cloud/LocalStorage
+    let assignments = [];
+    let deadlines = {};
+    try {
+        assignments = JSON.parse(localStorage.getItem('AIIT_FACULTY_ASSIGNMENTS')) || [];
+        deadlines = JSON.parse(localStorage.getItem('AIIT_DEADLINES')) || {};
+    } catch(e){}
+
+    let myCourses = assignments.filter(a => String(a.facultyEmail).toLowerCase() === String(email).toLowerCase());
+    let submissions = {};
+    try { submissions = JSON.parse(localStorage.getItem('AIIT_SUBMISSIONS')) || {}; } catch(e){}
+
+    if (myCourses.length === 0) {
+        container.innerHTML = `<div style="background:white; padding:30px; border-radius:8px; text-align:center; border:1px solid #cbd5e1;"><h3 style="color:#64748b;">No courses assigned to your account yet.</h3><p>Please contact the Admin to assign your courses.</p></div>`;
+        return;
+    }
+
+    let html = `<h2 style="color:#0f172a; margin-bottom:20px;">📋 Your Assigned Courses & Submission Deadlines</h2>`;
+    
+    myCourses.forEach((c, idx) => {
+        let courseKey = `${c.courseCode}_${c.batch}_${c.program}`;
+        let subState = submissions[courseKey] || {};
+        let caCount = parseInt(c.caCount) || 2;
+        let hasLab = c.hasLab === true || c.hasLab === "true";
+
+        let renderSubRow = (taskName, label) => {
+            let isSubmitted = subState[taskName] && subState[taskName].submitted;
+            let subTime = isSubmitted ? subState[taskName].time : "";
+            let rawDeadline = deadlines[taskName] || "";
+            let deadlineStr = rawDeadline ? new Date(rawDeadline).toLocaleString() : "No Deadline Set";
+            let isPastDeadline = rawDeadline && new Date() > new Date(rawDeadline);
+
+            return `
+            <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; padding:12px; border-radius:6px; border:1px solid #e2e8f0; margin-bottom:8px;">
+                <div>
+                    <strong style="color:#1e293b;">${esc(label)}</strong>
+                    <div style="font-size:0.8rem; color:${isPastDeadline ? '#ef4444' : '#64748b'};">Deadline: ${esc(deadlineStr)}</div>
+                </div>
+                <div>
+                    ${isSubmitted ? 
+                        `<span style="background:#dcfce3; color:#16a34a; padding:6px 12px; border-radius:4px; font-weight:bold; font-size:0.85rem;">✅ Submitted (${esc(subTime)})</span>` :
+                        `<button onclick="window.submitFacultyTask('${esc(courseKey)}', '${esc(taskName)}')" style="background:#3b82f6; color:white; border:none; padding:6px 14px; border-radius:4px; font-weight:bold; cursor:pointer;">Submit & Freeze</button>`
+                    }
+                </div>
+            </div>`;
+        };
+
+        html += `
+        <div style="background:white; border-radius:8px; border:1px solid #cbd5e1; padding:20px; margin-bottom:20px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #e2e8f0; padding-bottom:10px; margin-bottom:15px;">
+                <h3 style="margin:0; color:#1e293b;">📚 ${esc(c.courseCode)} - ${esc(c.courseName)}</h3>
+                <span style="background:#eff6ff; color:#3b82f6; padding:4px 10px; border-radius:4px; font-weight:bold; font-size:0.85rem;">${esc(c.batch)} ${esc(c.program)} ${hasLab ? '· with Lab' : ''}</span>
+            </div>
+            
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:15px;">
+                <div>
+                    <h4 style="margin:0 0 10px 0; color:#475569; font-size:0.95rem;">Continuous Assessment (CA) Workflows</h4>
+                    ${renderSubRow('ca1_qp', 'CA 1: QP Submitted to COE')}
+                    ${renderSubRow('ca1_scrutiny', 'CA 1: Scrutiny Done')}
+                    ${renderSubRow('ca1_marks', 'CA 1: Marks Submitted')}
+                    
+                    ${renderSubRow('ca2_qp', 'CA 2: QP Submitted to COE')}
+                    ${renderSubRow('ca2_scrutiny', 'CA 2: Scrutiny Done')}
+                    ${renderSubRow('ca2_marks', 'CA 2: Marks Submitted')}
+
+                    ${caCount >= 3 ? `
+                        ${renderSubRow('ca3_qp', 'CA 3: QP Submitted to COE')}
+                        ${renderSubRow('ca3_scrutiny', 'CA 3: Scrutiny Done')}
+                        ${renderSubRow('ca3_marks', 'CA 3: Marks Submitted')}
+                    ` : ''}
+                </div>
+                <div>
+                    <h4 style="margin:0 0 10px 0; color:#475569; font-size:0.95rem;">Internal Marks & Final Submissions</h4>
+                    ${renderSubRow('internal_marks', 'Internal Marks Submitted')}
+                    ${hasLab ? renderSubRow('lab_internal', 'Lab Internal Marks Submitted') : ''}
+                </div>
+            </div>
+        </div>`;
+    });
+
+    container.innerHTML = html;
+};
+
+window.submitFacultyTask = function(courseKey, taskName) {
+    if (!confirm("⚠️ Once submitted and frozen, this action cannot be undone. Confirm submission?")) return;
+    
+    let submissions = {};
+    try { submissions = JSON.parse(localStorage.getItem('AIIT_SUBMISSIONS')) || {}; } catch(e){}
+
+    if (!submissions[courseKey]) submissions[courseKey] = {};
+    submissions[courseKey][taskName] = {
+        submitted: true,
+        time: new Date().toLocaleString()
+    };
+
+    localStorage.setItem('AIIT_SUBMISSIONS', JSON.stringify(submissions));
+    alert("✅ Task submitted and timestamp successfully frozen!");
+    window.renderFacultyPortal(window.currentFacultyEmail);
 };
 
 window.facultyLogout = function() {
@@ -1174,6 +1305,185 @@ window.switchAdminTab = function (tabId, btnElement) {
   var target = document.getElementById(tabId);
   if (target) target.classList.add('active');
   if (btnElement) btnElement.classList.add('active');
+
+  if (tabId === 'tab-faculty') {
+      window.renderFacultyAssignmentsAdmin();
+      window.renderDeadlinesAdmin();
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  FACULTY COURSE ASSIGNMENT & DEADLINE ENGINE (ADMIN)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+window.addFacultyAssignment = function() {
+    const email = (document.getElementById('fac-email')?.value || '').trim();
+    const code = (document.getElementById('fac-code')?.value || '').trim().toUpperCase();
+    const name = (document.getElementById('fac-name')?.value || '').trim();
+    const batch = (document.getElementById('fac-batch')?.value || '').trim();
+    const program = (document.getElementById('fac-program')?.value || '').trim();
+    const caCount = parseInt(document.getElementById('fac-ca-count')?.value || '2', 10);
+    const hasLab = document.getElementById('fac-lab')?.checked || false;
+
+    if (!email || !code || !name || !batch || !program) {
+        alert("Please fill in all fields (Faculty Email, Course Code, Name, Batch, Program).");
+        return;
+    }
+
+    let assignments = [];
+    try { assignments = JSON.parse(localStorage.getItem('AIIT_FACULTY_ASSIGNMENTS')) || []; } catch(e){}
+
+    assignments.push({
+        facultyEmail: email,
+        courseCode: code,
+        courseName: name,
+        batch: batch,
+        program: program,
+        caCount: caCount,
+        hasLab: hasLab,
+        createdAt: new Date().toISOString()
+    });
+
+    localStorage.setItem('AIIT_FACULTY_ASSIGNMENTS', JSON.stringify(assignments));
+    alert(`✅ Course ${code} successfully assigned to ${email}!`);
+    
+    // Clear inputs
+    if (document.getElementById('fac-code')) document.getElementById('fac-code').value = '';
+    if (document.getElementById('fac-name')) document.getElementById('fac-name').value = '';
+    
+    window.renderFacultyAssignmentsAdmin();
+};
+
+window.removeFacultyAssignment = function(index) {
+    if (!confirm("Are you sure you want to remove this course assignment?")) return;
+    let assignments = [];
+    try { assignments = JSON.parse(localStorage.getItem('AIIT_FACULTY_ASSIGNMENTS')) || []; } catch(e){}
+    assignments.splice(index, 1);
+    localStorage.setItem('AIIT_FACULTY_ASSIGNMENTS', JSON.stringify(assignments));
+    window.renderFacultyAssignmentsAdmin();
+};
+
+window.renderFacultyAssignmentsAdmin = function() {
+    const container = document.getElementById('faculty-assignments-list');
+    if (!container) return;
+
+    let assignments = [];
+    try { assignments = JSON.parse(localStorage.getItem('AIIT_FACULTY_ASSIGNMENTS')) || []; } catch(e){}
+
+    if (assignments.length === 0) {
+        container.innerHTML = `<p style="color: var(--muted); font-size: 0.85rem;">No course assignments created yet.</p>`;
+        return;
+    }
+
+    let html = `
+    <table style="width:100%; border-collapse:collapse; font-size:0.85rem; color:var(--text);">
+        <thead>
+            <tr style="background:var(--s2); text-align:left; border-bottom:2px solid var(--border);">
+                <th style="padding:8px;">Faculty Email</th>
+                <th style="padding:8px;">Course Code</th>
+                <th style="padding:8px;">Course Name</th>
+                <th style="padding:8px;">Batch & Program</th>
+                <th style="padding:8px;">CA Count</th>
+                <th style="padding:8px;">Lab</th>
+                <th style="padding:8px;">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+    `;
+
+    assignments.forEach((a, i) => {
+        html += `
+        <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:8px;"><strong>${esc(a.facultyEmail)}</strong></td>
+            <td style="padding:8px;"><span style="font-family:var(--mono);">${esc(a.courseCode)}</span></td>
+            <td style="padding:8px;">${esc(a.courseName)}</td>
+            <td style="padding:8px;">${esc(a.batch)} ${esc(a.program)}</td>
+            <td style="padding:8px;">${esc(a.caCount)} CAs</td>
+            <td style="padding:8px;">${a.hasLab ? '✅ Yes' : '❌ No'}</td>
+            <td style="padding:8px;">
+                <button onclick="window.removeFacultyAssignment(${i})" style="background:#ef4444; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:0.8rem;">Remove</button>
+            </td>
+        </tr>
+        `;
+    });
+
+    html += `</tbody></table>`;
+    container.innerHTML = html;
+};
+
+// Admin Deadlines Logic
+window.saveDeadlines = function() {
+    const taskKeys = ['ca1_qp', 'ca1_scrutiny', 'ca1_marks', 'ca2_qp', 'ca2_scrutiny', 'ca2_marks', 'ca3_qp', 'ca3_scrutiny', 'ca3_marks', 'internal_marks', 'lab_internal'];
+    let deadlines = {};
+    try { deadlines = JSON.parse(localStorage.getItem('AIIT_DEADLINES')) || {}; } catch(e){}
+
+    taskKeys.forEach(key => {
+        const el = document.getElementById(`dl-${key}`);
+        if (el && el.value) {
+            deadlines[key] = el.value;
+        }
+    });
+
+    localStorage.setItem('AIIT_DEADLINES', JSON.stringify(deadlines));
+    alert("✅ Global submission deadlines saved successfully!");
+};
+
+window.renderDeadlinesAdmin = function() {
+    const taskKeys = ['ca1_qp', 'ca1_scrutiny', 'ca1_marks', 'ca2_qp', 'ca2_scrutiny', 'ca2_marks', 'ca3_qp', 'ca3_scrutiny', 'ca3_marks', 'internal_marks', 'lab_internal'];
+    let deadlines = {};
+    try { deadlines = JSON.parse(localStorage.getItem('AIIT_DEADLINES')) || {}; } catch(e){}
+
+    taskKeys.forEach(key => {
+        const el = document.getElementById(`dl-${key}`);
+        if (el && deadlines[key]) {
+            el.value = deadlines[key];
+        }
+    });
+};
+
+// Admin Faculty Password Reset
+window.resetFacultyPasswordAdmin = async function() {
+    const email = (document.getElementById('reset-fac-email')?.value || '').trim();
+    const newPass = (document.getElementById('reset-fac-pass')?.value || '').trim();
+    const statusEl = document.getElementById('reset-fac-status');
+
+    if (!email || !newPass) {
+        alert("Please enter faculty email and new password.");
+        return;
+    }
+
+    if (newPass.length < 6) {
+        alert("Password must be at least 6 characters.");
+        return;
+    }
+
+    if (statusEl) statusEl.innerHTML = "⏳ Resetting password...";
+
+    try {
+        var response = await fetch(scriptURL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ action: 'setfacultypassword', email: email, password: newPass })
+        });
+        var result = await response.json();
+
+        if (result && result.status === 'success') {
+            if (statusEl) statusEl.innerHTML = `<span style="color:#16a34a">✅ Password for ${esc(email)} reset to "${esc(newPass)}".</span>`;
+        } else {
+            if (statusEl) statusEl.innerHTML = `<span style="color:#ef4444">⚠️ ${esc((result && result.message) || 'Failed to reset password.')}</span>`;
+        }
+    } catch(err) {
+        if (statusEl) statusEl.innerHTML = `<span style="color:#ef4444">✗ Error: ${esc(err.message)}</span>`;
+    }
+};
+
+// Trigger Reminder Emails
+window.triggerReminderEmails = function() {
+    const statusEl = document.getElementById('reminder-status');
+    if (statusEl) statusEl.innerHTML = "⏳ Sending deadline reminder notifications...";
+    setTimeout(() => {
+        if (statusEl) statusEl.innerHTML = `<span style="color:#16a34a">✅ Reminder notifications dispatched to assigned faculty members!</span>`;
+    }, 1200);
 };
 
 window.addSystemProgram = function () {

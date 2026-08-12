@@ -640,7 +640,7 @@
   <!-- VERSION TAG -->
   <div
     style="position:fixed;top:0;left:0;z-index:300;padding:0.35rem 1rem;font-size:0.68rem;color:var(--muted);pointer-events:none;font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-right-radius:6px;">
-    Version <strong style="color:var(--accent)">Ver 2.6</strong>
+    Version <strong style="color:var(--accent)">Ver 2.7</strong>
   </div>
 
   <!-- DEVELOPER CREDIT -->
@@ -895,9 +895,9 @@
               </div>
               <div>
                 <label style="font-size: 0.8rem; color: var(--sub); display: block; margin-bottom: 4px;">CA Count</label>
-                <select id="fac-ca-count" style="width:100%; padding: 8px; background: var(--s2); border: 1px solid var(--border); border-radius: 4px; color: var(--text);">
-                  <option value="2">2 CAs</option>
-                  <option value="3">3 CAs</option>
+                <select id="admin-ca-count-select" style="width:100%; padding: 8px; background: var(--s2); border: 1px solid var(--border); border-radius: 4px; color: var(--text);">
+                  <option value="2">UG - 2 CA</option>
+                  <option value="3">PG - 3 CA</option>
                 </select>
               </div>
               <div style="display: flex; align-items: center; gap: 8px; margin-top: 20px;">
@@ -917,55 +917,8 @@
           </div>
 
           <!-- SUBMISSION DEADLINES MANAGER -->
-          <div style="background: var(--s1); padding: 15px; border-radius: 6px; border: 1px solid var(--border); margin-bottom: 25px;">
-            <h3 style="color: var(--text); font-size: 1.05rem; margin-bottom: 12px;">⏰ Global Submission Deadline Manager</h3>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 15px;">
-              <div>
-                <label style="font-size: 0.8rem; color: var(--sub); display: block; margin-bottom: 4px;">CA 1 QP Submission</label>
-                <input type="datetime-local" id="dl-ca1_qp" style="width:100%; padding: 8px; background: var(--s2); border: 1px solid var(--border); border-radius: 4px; color: var(--text);">
-              </div>
-              <div>
-                <label style="font-size: 0.8rem; color: var(--sub); display: block; margin-bottom: 4px;">CA 1 Scrutiny</label>
-                <input type="datetime-local" id="dl-ca1_scrutiny" style="width:100%; padding: 8px; background: var(--s2); border: 1px solid var(--border); border-radius: 4px; color: var(--text);">
-              </div>
-              <div>
-                <label style="font-size: 0.8rem; color: var(--sub); display: block; margin-bottom: 4px;">CA 1 Marks Submission</label>
-                <input type="datetime-local" id="dl-ca1_marks" style="width:100%; padding: 8px; background: var(--s2); border: 1px solid var(--border); border-radius: 4px; color: var(--text);">
-              </div>
-              <div>
-                <label style="font-size: 0.8rem; color: var(--sub); display: block; margin-bottom: 4px;">CA 2 QP Submission</label>
-                <input type="datetime-local" id="dl-ca2_qp" style="width:100%; padding: 8px; background: var(--s2); border: 1px solid var(--border); border-radius: 4px; color: var(--text);">
-              </div>
-              <div>
-                <label style="font-size: 0.8rem; color: var(--sub); display: block; margin-bottom: 4px;">CA 2 Scrutiny</label>
-                <input type="datetime-local" id="dl-ca2_scrutiny" style="width:100%; padding: 8px; background: var(--s2); border: 1px solid var(--border); border-radius: 4px; color: var(--text);">
-              </div>
-              <div>
-                <label style="font-size: 0.8rem; color: var(--sub); display: block; margin-bottom: 4px;">CA 2 Marks Submission</label>
-                <input type="datetime-local" id="dl-ca2_marks" style="width:100%; padding: 8px; background: var(--s2); border: 1px solid var(--border); border-radius: 4px; color: var(--text);">
-              </div>
-              <div>
-                <label style="font-size: 0.8rem; color: var(--sub); display: block; margin-bottom: 4px;">CA 3 QP Submission</label>
-                <input type="datetime-local" id="dl-ca3_qp" style="width:100%; padding: 8px; background: var(--s2); border: 1px solid var(--border); border-radius: 4px; color: var(--text);">
-              </div>
-              <div>
-                <label style="font-size: 0.8rem; color: var(--sub); display: block; margin-bottom: 4px;">CA 3 Scrutiny</label>
-                <input type="datetime-local" id="dl-ca3_scrutiny" style="width:100%; padding: 8px; background: var(--s2); border: 1px solid var(--border); border-radius: 4px; color: var(--text);">
-              </div>
-              <div>
-                <label style="font-size: 0.8rem; color: var(--sub); display: block; margin-bottom: 4px;">CA 3 Marks Submission</label>
-                <input type="datetime-local" id="dl-ca3_marks" style="width:100%; padding: 8px; background: var(--s2); border: 1px solid var(--border); border-radius: 4px; color: var(--text);">
-              </div>
-              <div>
-                <label style="font-size: 0.8rem; color: var(--sub); display: block; margin-bottom: 4px;">Internal Marks Submitted</label>
-                <input type="datetime-local" id="dl-internal_marks" style="width:100%; padding: 8px; background: var(--s2); border: 1px solid var(--border); border-radius: 4px; color: var(--text);">
-              </div>
-              <div>
-                <label style="font-size: 0.8rem; color: var(--sub); display: block; margin-bottom: 4px;">Lab Internal Marks</label>
-                <input type="datetime-local" id="dl-lab_internal" style="width:100%; padding: 8px; background: var(--s2); border: 1px solid var(--border); border-radius: 4px; color: var(--text);">
-              </div>
-            </div>
-            <button onclick="saveDeadlines()" style="background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer;">💾 Save Submission Deadlines</button>
+          <div id="admin-deadlines-container" style="background: var(--s1); padding: 15px; border-radius: 6px; border: 1px solid var(--border); margin-bottom: 25px;">
+            <!-- Rendered dynamically by renderAdminDeadlinesPanel() -->
           </div>
 
           <!-- FACULTY PASSWORD RESET & NOTIFICATIONS -->

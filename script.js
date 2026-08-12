@@ -756,16 +756,69 @@ window.facultyLoginStep = async function () {
 };
 
 window.renderFacultyPortal = async function(email) {
-    let container = document.getElementById('faculty-tasks-container');
-    if (!container) {
-        container = document.createElement('div');
-        container.id = 'faculty-tasks-container';
-        container.style.cssText = 'padding:20px; max-width:1200px; margin:auto;';
-        const dash = document.getElementById('faculty-dash') || document.querySelector('.faculty-section');
-        if (dash) dash.appendChild(container);
+    let facultyDash = document.getElementById('faculty-dash') || document.querySelector('.faculty-section');
+    if (!facultyDash) return;
+
+    // Ensure navigation menu header exists
+    let navHeader = document.getElementById('faculty-nav-menu');
+    if (!navHeader) {
+        navHeader = document.createElement('div');
+        navHeader.id = 'faculty-nav-menu';
+        navHeader.style.cssText = 'display:flex; gap:15px; padding:15px 20px; background:white; border-bottom:1px solid #cbd5e1; align-items:center; margin-bottom:20px; box-shadow:0 1px 2px rgba(0,0,0,0.05);';
+        navHeader.innerHTML = `
+            <h3 style="margin:0; color:#0f172a; font-size:1.1rem; margin-right:auto;">🎓 Faculty Portal</h3>
+            <button onclick="window.switchFacultyTab('analytics')" id="btn-tab-analytics" style="padding:8px 16px; background:#3b82f6; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">📊 Student Results & Analytics</button>
+            <button onclick="window.switchFacultyTab('courseworks')" id="btn-tab-courseworks" style="padding:8px 16px; background:#e2e8f0; color:#334155; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">📚 Course-COE-Works & Submissions</button>
+        `;
+        facultyDash.prepend(navHeader);
     }
 
-    // Fetch assignments & deadlines from Cloud/LocalStorage
+    // Create containers for both views if not present
+    let analyticsView = document.getElementById('faculty-analytics-view');
+    let courseworkView = document.getElementById('faculty-coursework-view');
+
+    if (!analyticsView) {
+        analyticsView = document.createElement('div');
+        analyticsView.id = 'faculty-analytics-view';
+        // Move existing directory table/filters inside analytics view
+        const existingContent = Array.from(facultyDash.children).filter(el => el.id !== 'faculty-nav-menu' && el.id !== 'faculty-coursework-view' && el.id !== 'faculty-tasks-container');
+        facultyDash.appendChild(analyticsView);
+        existingContent.forEach(el => analyticsView.appendChild(el));
+    }
+
+    if (!courseworkView) {
+        courseworkView = document.createElement('div');
+        courseworkView.id = 'faculty-coursework-view';
+        courseworkView.style.display = 'none';
+        facultyDash.appendChild(courseworkView);
+    }
+
+    window.switchFacultyTab('analytics');
+    window.renderFacultyCourseworkPanel(email, courseworkView);
+};
+
+window.switchFacultyTab = function(tab) {
+    const analyticsView = document.getElementById('faculty-analytics-view');
+    const courseworkView = document.getElementById('faculty-coursework-view');
+    const btnAnalytics = document.getElementById('btn-tab-analytics');
+    const btnCourseworks = document.getElementById('btn-tab-courseworks');
+
+    if (tab === 'analytics') {
+        if (analyticsView) analyticsView.style.display = 'block';
+        if (courseworkView) courseworkView.style.display = 'none';
+        if (btnAnalytics) { btnAnalytics.style.background = '#3b82f6'; btnAnalytics.style.color = 'white'; }
+        if (btnCourseworks) { btnCourseworks.style.background = '#e2e8f0'; btnCourseworks.style.color = '#334155'; }
+    } else {
+        if (analyticsView) analyticsView.style.display = 'none';
+        if (courseworkView) courseworkView.style.display = 'block';
+        if (btnAnalytics) { btnAnalytics.style.background = '#e2e8f0'; btnAnalytics.style.color = '#334155'; }
+        if (btnCourseworks) { btnCourseworks.style.background = '#3b82f6'; btnCourseworks.style.color = 'white'; }
+    }
+};
+
+window.renderFacultyCourseworkPanel = function(email, container) {
+    if (!container) return;
+
     let assignments = [];
     let deadlines = {};
     try {
@@ -778,22 +831,25 @@ window.renderFacultyPortal = async function(email) {
     try { submissions = JSON.parse(localStorage.getItem('AIIT_SUBMISSIONS')) || {}; } catch(e){}
 
     if (myCourses.length === 0) {
-        container.innerHTML = `<div style="background:white; padding:30px; border-radius:8px; text-align:center; border:1px solid #cbd5e1;"><h3 style="color:#64748b;">No courses assigned to your account yet.</h3><p>Please contact the Admin to assign your courses.</p></div>`;
+        container.innerHTML = `<div style="background:white; padding:30px; border-radius:8px; text-align:center; border:1px solid #cbd5e1; margin:20px;"><h3 style="color:#64748b;">No courses assigned to your account yet.</h3><p>Please contact the Admin to assign your courses.</p></div>`;
         return;
     }
 
-    let html = `<h2 style="color:#0f172a; margin-bottom:20px;">📋 Your Assigned Courses & Submission Deadlines</h2>`;
+    let html = `<div style="padding:20px; max-width:1200px; margin:auto;"><h2 style="color:#0f172a; margin-bottom:20px;">📋 Your Assigned Courses & Submission Deadlines</h2>`;
     
     myCourses.forEach((c, idx) => {
         let courseKey = `${c.courseCode}_${c.batch}_${c.program}`;
         let subState = submissions[courseKey] || {};
         let caCount = parseInt(c.caCount) || 2;
         let hasLab = c.hasLab === true || c.hasLab === "true";
+        
+        let progUpper = String(c.program || '').toUpperCase();
+        let prefix = (progUpper.includes('PG') || progUpper.includes('MCA') || progUpper.includes('M.TECH') || progUpper.includes('MSC') || caCount >= 3) ? 'pg' : 'ug';
 
         let renderSubRow = (taskName, label) => {
             let isSubmitted = subState[taskName] && subState[taskName].submitted;
             let subTime = isSubmitted ? subState[taskName].time : "";
-            let rawDeadline = deadlines[taskName] || "";
+            let rawDeadline = deadlines[`${prefix}_${taskName}`] || deadlines[taskName] || "";
             let deadlineStr = rawDeadline ? new Date(rawDeadline).toLocaleString() : "No Deadline Set";
             let isPastDeadline = rawDeadline && new Date() > new Date(rawDeadline);
 
@@ -816,7 +872,7 @@ window.renderFacultyPortal = async function(email) {
         <div style="background:white; border-radius:8px; border:1px solid #cbd5e1; padding:20px; margin-bottom:20px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
             <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #e2e8f0; padding-bottom:10px; margin-bottom:15px;">
                 <h3 style="margin:0; color:#1e293b;">📚 ${esc(c.courseCode)} - ${esc(c.courseName)}</h3>
-                <span style="background:#eff6ff; color:#3b82f6; padding:4px 10px; border-radius:4px; font-weight:bold; font-size:0.85rem;">${esc(c.batch)} ${esc(c.program)} ${hasLab ? '· with Lab' : ''}</span>
+                <span style="background:#eff6ff; color:#3b82f6; padding:4px 10px; border-radius:4px; font-weight:bold; font-size:0.85rem;">${esc(c.batch)} ${esc(c.program)} (${prefix.toUpperCase()}) ${hasLab ? '· with Lab' : ''}</span>
             </div>
             
             <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:15px;">
@@ -845,6 +901,7 @@ window.renderFacultyPortal = async function(email) {
         </div>`;
     });
 
+    html += `</div>`;
     container.innerHTML = html;
 };
 
@@ -1340,7 +1397,11 @@ window.switchAdminTab = function (tabId, btnElement) {
 
   if (tabId === 'tab-faculty') {
       window.renderFacultyAssignmentsAdmin();
-      window.renderDeadlinesAdmin();
+      if (typeof window.renderAdminDeadlinesPanel === 'function') {
+          window.renderAdminDeadlinesPanel();
+      } else {
+          window.renderDeadlinesAdmin();
+      }
   }
 };
 
@@ -1354,7 +1415,7 @@ window.addFacultyAssignment = function() {
     const name = (document.getElementById('fac-name')?.value || '').trim();
     const batch = (document.getElementById('fac-batch')?.value || '').trim();
     const program = (document.getElementById('fac-program')?.value || '').trim();
-    const caCount = parseInt(document.getElementById('fac-ca-count')?.value || '2', 10);
+    const caCount = parseInt(document.getElementById('admin-ca-count-select')?.value || document.getElementById('fac-ca-count')?.value || '2', 10);
     const hasLab = document.getElementById('fac-lab')?.checked || false;
 
     if (!email || !code || !name || !batch || !program) {
@@ -1443,34 +1504,68 @@ window.renderFacultyAssignmentsAdmin = function() {
     container.innerHTML = html;
 };
 
-// Admin Deadlines Logic
-window.saveDeadlines = function() {
-    const taskKeys = ['ca1_qp', 'ca1_scrutiny', 'ca1_marks', 'ca2_qp', 'ca2_scrutiny', 'ca2_marks', 'ca3_qp', 'ca3_scrutiny', 'ca3_marks', 'internal_marks', 'lab_internal'];
+// Admin Dual Submission Deadlines Manager (UG & PG)
+window.renderAdminDeadlinesPanel = function() {
     let deadlines = {};
     try { deadlines = JSON.parse(localStorage.getItem('AIIT_DEADLINES')) || {}; } catch(e){}
 
-    taskKeys.forEach(key => {
-        const el = document.getElementById(`dl-${key}`);
-        if (el && el.value) {
-            deadlines[key] = el.value;
-        }
-    });
+    const container = document.getElementById('admin-deadlines-container');
+    if (!container) return;
 
+    let renderSection = (title, prefix, count) => {
+        let html = `<div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:15px; margin-bottom:15px;">
+            <h4 style="margin:0 0 10px 0; color:#1e293b;">📌 ${title} Deadlines</h4>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:10px;">`;
+        
+        for(let i=1; i<=count; i++) {
+            html += `
+            <div>
+                <label style="font-size:0.85rem; font-weight:bold;">CA ${i} QP to COE:</label>
+                <input type="datetime-local" value="${deadlines[`${prefix}_ca${i}_qp`] || ''}" onchange="window.saveDeadline('${prefix}_ca${i}_qp', this.value)" style="width:100%; padding:6px; border:1px solid #cbd5e1; border-radius:4px;">
+            </div>
+            <div>
+                <label style="font-size:0.85rem; font-weight:bold;">CA ${i} Scrutiny Done:</label>
+                <input type="datetime-local" value="${deadlines[`${prefix}_ca${i}_scrutiny`] || ''}" onchange="window.saveDeadline('${prefix}_ca${i}_scrutiny', this.value)" style="width:100%; padding:6px; border:1px solid #cbd5e1; border-radius:4px;">
+            </div>
+            <div>
+                <label style="font-size:0.85rem; font-weight:bold;">CA ${i} Marks Submitted:</label>
+                <input type="datetime-local" value="${deadlines[`${prefix}_ca${i}_marks`] || ''}" onchange="window.saveDeadline('${prefix}_ca${i}_marks', this.value)" style="width:100%; padding:6px; border:1px solid #cbd5e1; border-radius:4px;">
+            </div>`;
+        }
+
+        html += `
+            <div>
+                <label style="font-size:0.85rem; font-weight:bold;">Internal Marks:</label>
+                <input type="datetime-local" value="${deadlines[`${prefix}_internal_marks`] || ''}" onchange="window.saveDeadline('${prefix}_internal_marks', this.value)" style="width:100%; padding:6px; border:1px solid #cbd5e1; border-radius:4px;">
+            </div>
+            <div>
+                <label style="font-size:0.85rem; font-weight:bold;">Lab Internal Marks:</label>
+                <input type="datetime-local" value="${deadlines[`${prefix}_lab_internal`] || ''}" onchange="window.saveDeadline('${prefix}_lab_internal', this.value)" style="width:100%; padding:6px; border:1px solid #cbd5e1; border-radius:4px;">
+            </div>
+        </div></div>`;
+        return html;
+    };
+
+    container.innerHTML = `
+        <h3 style="color:#0f172a; margin-bottom:15px;">⏰ Global Submission Deadline Manager</h3>
+        ${renderSection('UG Programs (2 CAs)', 'ug', 2)}
+        ${renderSection('PG Programs (3 CAs)', 'pg', 3)}
+    `;
+};
+
+window.saveDeadline = function(key, val) {
+    let deadlines = {};
+    try { deadlines = JSON.parse(localStorage.getItem('AIIT_DEADLINES')) || {}; } catch(e){}
+    deadlines[key] = val;
     localStorage.setItem('AIIT_DEADLINES', JSON.stringify(deadlines));
-    alert("✅ Global submission deadlines saved successfully!");
 };
 
 window.renderDeadlinesAdmin = function() {
-    const taskKeys = ['ca1_qp', 'ca1_scrutiny', 'ca1_marks', 'ca2_qp', 'ca2_scrutiny', 'ca2_marks', 'ca3_qp', 'ca3_scrutiny', 'ca3_marks', 'internal_marks', 'lab_internal'];
-    let deadlines = {};
-    try { deadlines = JSON.parse(localStorage.getItem('AIIT_DEADLINES')) || {}; } catch(e){}
+    window.renderAdminDeadlinesPanel();
+};
 
-    taskKeys.forEach(key => {
-        const el = document.getElementById(`dl-${key}`);
-        if (el && deadlines[key]) {
-            el.value = deadlines[key];
-        }
-    });
+window.saveDeadlines = function() {
+    window.renderAdminDeadlinesPanel();
 };
 
 // Admin Faculty Password Reset

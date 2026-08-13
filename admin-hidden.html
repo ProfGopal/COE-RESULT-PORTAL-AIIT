@@ -640,7 +640,7 @@
   <!-- VERSION TAG -->
   <div
     style="position:fixed;top:0;left:0;z-index:300;padding:0.35rem 1rem;font-size:0.68rem;color:var(--muted);pointer-events:none;font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-right-radius:6px;">
-    Version <strong style="color:var(--accent)">Ver 3.0</strong>
+    Version <strong style="color:var(--accent)">Ver 3.1</strong>
   </div>
 
   <!-- DEVELOPER CREDIT -->
@@ -864,6 +864,9 @@
       </div><!-- /tab-students -->
 
       <div id="tab-faculty" class="admin-tab-content">
+        <!-- Semester Creator Container -->
+        <div id="admin-semester-manager-container"></div>
+
         <!-- Faculty Assignments Section -->
         <div class="admin-panel-section" style="margin-top: 30px; padding: 20px; background: var(--s2); border-radius: 8px; border: 1px solid var(--border); margin-bottom: 2rem;">
           <h2 style="color: #00d2ff; margin-top: 0; font-size: 1.4rem;">📋 4. Faculty Course Assignments &amp; Submission Deadlines</h2>
@@ -892,6 +895,10 @@
               <div>
                 <label style="font-size: 0.8rem; color: var(--sub); display: block; margin-bottom: 4px;">Program</label>
                 <input type="text" id="fac-program" placeholder="e.g. BCA" style="width:100%; padding: 8px; background: var(--s2); border: 1px solid var(--border); border-radius: 4px; color: var(--text);">
+              </div>
+              <div>
+                <label style="font-size: 0.8rem; color: var(--sub); display: block; margin-bottom: 4px;">Semester</label>
+                <select id="fac-semester" style="width:100%; padding: 8px; background: var(--s2); border: 1px solid var(--border); border-radius: 4px; color: var(--text);"></select>
               </div>
               <div>
                 <label style="font-size: 0.8rem; color: var(--sub); display: block; margin-bottom: 4px;">CA Count</label>
@@ -940,7 +947,7 @@
             <div style="background: var(--s1); padding: 15px; border-radius: 6px; border: 1px solid var(--border);">
               <h3 style="color: var(--text); font-size: 1.05rem; margin-bottom: 12px;">📧 Trigger Deadline Reminders</h3>
               <p style="font-size: 0.85rem; color: var(--sub); margin-bottom: 15px;">Send automated notification alerts to faculty members with upcoming or overdue submission deadlines.</p>
-              <button onclick="triggerReminderEmails()" style="background: #8b5cf6; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer;">🔔 Trigger Email Reminders Now</button>
+              <button onclick="triggerAutomatedRemindersNow()" style="background: #8b5cf6; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer;">🔔 Trigger Email Reminders Now</button>
               <div id="reminder-status" style="margin-top: 8px; font-size: 0.85rem;"></div>
             </div>
           <!-- FACULTY SUBMISSION AUDIT & STATUS FILTER PANEL -->

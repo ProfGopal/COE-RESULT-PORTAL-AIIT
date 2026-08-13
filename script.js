@@ -1396,6 +1396,9 @@ window.switchAdminTab = function (tabId, btnElement) {
   if (btnElement) btnElement.classList.add('active');
 
   if (tabId === 'tab-faculty') {
+      if (typeof window.renderSemesterManager === 'function') {
+          window.renderSemesterManager();
+      }
       window.renderFacultyAssignmentsAdmin();
       if (typeof window.renderAdminDeadlinesPanel === 'function') {
           window.renderAdminDeadlinesPanel();
@@ -1415,12 +1418,62 @@ window.switchAdminTab = function (tabId, btnElement) {
 //  FACULTY COURSE ASSIGNMENT & DEADLINE ENGINE (ADMIN)
 // ═══════════════════════════════════════════════════════════════════════════════
 
+window.renderSemesterManager = function() {
+    let container = document.getElementById('admin-semester-manager-container');
+    if (!container) return;
+
+    let semesters = [];
+    try { semesters = JSON.parse(localStorage.getItem('AIIT_SEMESTERS')) || ["Semester 1", "Semester 2", "Semester 3", "Semester 4"]; } catch(e){}
+
+    container.innerHTML = `
+        <div style="background:white; border:1px solid #cbd5e1; border-radius:8px; padding:20px; margin-bottom:20px;">
+            <h3 style="margin-top:0; color:#0f172a;">📅 Semester Management</h3>
+            <div style="display:flex; gap:10px; margin-bottom:15px;">
+                <input type="text" id="new-semester-input" placeholder="e.g. Odd Semester 2026" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:6px;">
+                <button onclick="window.addSemester()" style="background:#0284c7; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer;">+ Add Semester</button>
+            </div>
+            <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                ${semesters.map(s => `<span style="background:#f1f5f9; border:1px solid #cbd5e1; padding:6px 12px; border-radius:6px; font-weight:bold; display:flex; align-items:center; gap:8px;">${esc(s)} <button onclick="window.deleteSemester('${esc(s)}')" style="background:none; border:none; color:#ef4444; font-weight:bold; cursor:pointer;">×</button></span>`).join('')}
+            </div>
+        </div>`;
+
+    let facSemSelect = document.getElementById('fac-semester');
+    if (facSemSelect) {
+        let curVal = facSemSelect.value;
+        facSemSelect.innerHTML = semesters.map(s => `<option value="${esc(s)}" ${curVal===s?'selected':''}>${esc(s)}</option>`).join('');
+    }
+};
+
+window.addSemester = function() {
+    let input = document.getElementById('new-semester-input');
+    if (!input || !input.value.trim()) return;
+    let sem = input.value.trim();
+    
+    let semesters = [];
+    try { semesters = JSON.parse(localStorage.getItem('AIIT_SEMESTERS')) || ["Semester 1", "Semester 2", "Semester 3", "Semester 4"]; } catch(e){}
+    if (!semesters.includes(sem)) semesters.push(sem);
+    localStorage.setItem('AIIT_SEMESTERS', JSON.stringify(semesters));
+    input.value = "";
+    window.renderSemesterManager();
+    window.renderAdminDeadlinesPanel();
+};
+
+window.deleteSemester = function(sem) {
+    let semesters = [];
+    try { semesters = JSON.parse(localStorage.getItem('AIIT_SEMESTERS')) || ["Semester 1", "Semester 2", "Semester 3", "Semester 4"]; } catch(e){}
+    semesters = semesters.filter(s => s !== sem);
+    localStorage.setItem('AIIT_SEMESTERS', JSON.stringify(semesters));
+    window.renderSemesterManager();
+    window.renderAdminDeadlinesPanel();
+};
+
 window.addFacultyAssignment = function() {
     const email = (document.getElementById('fac-email')?.value || '').trim();
     const code = (document.getElementById('fac-code')?.value || '').trim().toUpperCase();
     const name = (document.getElementById('fac-name')?.value || '').trim();
     const batch = (document.getElementById('fac-batch')?.value || '').trim();
     const program = (document.getElementById('fac-program')?.value || '').trim();
+    const semester = (document.getElementById('fac-semester')?.value || '').trim() || 'Semester 1';
     const caCount = parseInt(document.getElementById('admin-ca-count-select')?.value || document.getElementById('fac-ca-count')?.value || '2', 10);
     const hasLab = document.getElementById('fac-lab')?.checked || false;
 
@@ -1438,6 +1491,7 @@ window.addFacultyAssignment = function() {
         courseName: name,
         batch: batch,
         program: program,
+        semester: semester,
         caCount: caCount,
         hasLab: hasLab,
         createdAt: new Date().toISOString()
@@ -1463,6 +1517,13 @@ window.removeFacultyAssignment = function(index) {
 };
 
 window.renderFacultyAssignmentsAdmin = function() {
+    let facSemSelect = document.getElementById('fac-semester');
+    if (facSemSelect && facSemSelect.options.length === 0) {
+        let semesters = [];
+        try { semesters = JSON.parse(localStorage.getItem('AIIT_SEMESTERS')) || ["Semester 1", "Semester 2", "Semester 3", "Semester 4"]; } catch(e){}
+        facSemSelect.innerHTML = semesters.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+    }
+
     const container = document.getElementById('faculty-assignments-list');
     if (!container) return;
 
@@ -1481,7 +1542,7 @@ window.renderFacultyAssignmentsAdmin = function() {
                 <th style="padding:8px;">Faculty Email</th>
                 <th style="padding:8px;">Course Code</th>
                 <th style="padding:8px;">Course Name</th>
-                <th style="padding:8px;">Batch & Program</th>
+                <th style="padding:8px;">Batch, Program & Semester</th>
                 <th style="padding:8px;">CA Count</th>
                 <th style="padding:8px;">Lab</th>
                 <th style="padding:8px;">Action</th>
@@ -1491,12 +1552,13 @@ window.renderFacultyAssignmentsAdmin = function() {
     `;
 
     assignments.forEach((a, i) => {
+        let semText = a.semester ? ` (${esc(a.semester)})` : '';
         html += `
         <tr style="border-bottom:1px solid var(--border);">
             <td style="padding:8px;"><strong>${esc(a.facultyEmail)}</strong></td>
             <td style="padding:8px;"><span style="font-family:var(--mono);">${esc(a.courseCode)}</span></td>
             <td style="padding:8px;">${esc(a.courseName)}</td>
-            <td style="padding:8px;">${esc(a.batch)} ${esc(a.program)}</td>
+            <td style="padding:8px;">${esc(a.batch)} ${esc(a.program)}${semText}</td>
             <td style="padding:8px;">${esc(a.caCount)} CAs</td>
             <td style="padding:8px;">${a.hasLab ? '✅ Yes' : '❌ No'}</td>
             <td style="padding:8px;">
@@ -1510,60 +1572,109 @@ window.renderFacultyAssignmentsAdmin = function() {
     container.innerHTML = html;
 };
 
-// Admin Dual Submission Deadlines Manager (UG & PG)
+// Admin Dual Submission Deadlines Manager (UG & PG) - Semester-Bound
 window.renderAdminDeadlinesPanel = function() {
-    let deadlines = {};
-    try { deadlines = JSON.parse(localStorage.getItem('AIIT_DEADLINES')) || {}; } catch(e){}
-
-    const container = document.getElementById('admin-deadlines-container');
+    let container = document.getElementById('admin-deadlines-container');
     if (!container) return;
+
+    let semesters = [];
+    try { semesters = JSON.parse(localStorage.getItem('AIIT_SEMESTERS')) || ["Semester 1", "Semester 2", "Semester 3", "Semester 4"]; } catch(e){}
+    
+    let currentSemSelect = document.getElementById('deadline-semester-select');
+    let currentSem = currentSemSelect ? currentSemSelect.value : (semesters[0] || "Semester 1");
+    if (!semesters.includes(currentSem) && semesters.length > 0) {
+        currentSem = semesters[0];
+    }
+
+    let allDeadlines = {};
+    try { allDeadlines = JSON.parse(localStorage.getItem('AIIT_SEMESTERS_DEADLINES')) || {}; } catch(e){}
+    let deadlines = allDeadlines[currentSem] || {};
 
     let renderSection = (title, prefix, count) => {
         let html = `<div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:15px; margin-bottom:15px;">
-            <h4 style="margin:0 0 10px 0; color:#1e293b;">📌 ${title} Deadlines</h4>
+            <h4 style="margin:0 0 10px 0; color:#1e293b;">📌 ${title} Deadlines (${esc(currentSem)})</h4>
             <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:10px;">`;
         
         for(let i=1; i<=count; i++) {
             html += `
             <div>
                 <label style="font-size:0.85rem; font-weight:bold;">CA ${i} QP to COE:</label>
-                <input type="datetime-local" value="${deadlines[`${prefix}_ca${i}_qp`] || ''}" onchange="window.saveDeadline('${prefix}_ca${i}_qp', this.value)" style="width:100%; padding:6px; border:1px solid #cbd5e1; border-radius:4px;">
+                <input type="datetime-local" id="${prefix}_ca${i}_qp" value="${deadlines[`${prefix}_ca${i}_qp`] || ''}" style="width:100%; padding:6px; border:1px solid #cbd5e1; border-radius:4px;">
             </div>
             <div>
                 <label style="font-size:0.85rem; font-weight:bold;">CA ${i} Scrutiny Done:</label>
-                <input type="datetime-local" value="${deadlines[`${prefix}_ca${i}_scrutiny`] || ''}" onchange="window.saveDeadline('${prefix}_ca${i}_scrutiny', this.value)" style="width:100%; padding:6px; border:1px solid #cbd5e1; border-radius:4px;">
+                <input type="datetime-local" id="${prefix}_ca${i}_scrutiny" value="${deadlines[`${prefix}_ca${i}_scrutiny`] || ''}" style="width:100%; padding:6px; border:1px solid #cbd5e1; border-radius:4px;">
             </div>
             <div>
                 <label style="font-size:0.85rem; font-weight:bold;">CA ${i} Marks Submitted:</label>
-                <input type="datetime-local" value="${deadlines[`${prefix}_ca${i}_marks`] || ''}" onchange="window.saveDeadline('${prefix}_ca${i}_marks', this.value)" style="width:100%; padding:6px; border:1px solid #cbd5e1; border-radius:4px;">
+                <input type="datetime-local" id="${prefix}_ca${i}_marks" value="${deadlines[`${prefix}_ca${i}_marks`] || ''}" style="width:100%; padding:6px; border:1px solid #cbd5e1; border-radius:4px;">
             </div>`;
         }
 
         html += `
             <div>
                 <label style="font-size:0.85rem; font-weight:bold;">Internal Marks:</label>
-                <input type="datetime-local" value="${deadlines[`${prefix}_internal_marks`] || ''}" onchange="window.saveDeadline('${prefix}_internal_marks', this.value)" style="width:100%; padding:6px; border:1px solid #cbd5e1; border-radius:4px;">
+                <input type="datetime-local" id="${prefix}_internal_marks" value="${deadlines[`${prefix}_internal_marks`] || ''}" style="width:100%; padding:6px; border:1px solid #cbd5e1; border-radius:4px;">
             </div>
             <div>
                 <label style="font-size:0.85rem; font-weight:bold;">Lab Internal Marks:</label>
-                <input type="datetime-local" value="${deadlines[`${prefix}_lab_internal`] || ''}" onchange="window.saveDeadline('${prefix}_lab_internal', this.value)" style="width:100%; padding:6px; border:1px solid #cbd5e1; border-radius:4px;">
+                <input type="datetime-local" id="${prefix}_lab_internal" value="${deadlines[`${prefix}_lab_internal`] || ''}" style="width:100%; padding:6px; border:1px solid #cbd5e1; border-radius:4px;">
             </div>
         </div></div>`;
         return html;
     };
 
     container.innerHTML = `
-        <h3 style="color:#0f172a; margin-bottom:15px;">⏰ Global Submission Deadline Manager</h3>
-        ${renderSection('UG Programs (2 CAs)', 'ug', 2)}
-        ${renderSection('PG Programs (3 CAs)', 'pg', 3)}
+        <div style="background:white; border:1px solid #cbd5e1; border-radius:8px; padding:20px; margin-top:20px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
+                <h3 style="margin:0; color:#0f172a;">⏰ Global Submission Deadline Manager</h3>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <label style="font-weight:bold; font-size:0.9rem;">Select Semester:</label>
+                    <select id="deadline-semester-select" onchange="window.renderAdminDeadlinesPanel()" style="padding:6px 12px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold;">
+                        ${semesters.map(s => `<option value="${esc(s)}" ${currentSem===s?'selected':''}>${esc(s)}</option>`).join('')}
+                    </select>
+                </div>
+            </div>
+            ${renderSection('UG Programs (2 CAs)', 'ug', 2)}
+            ${renderSection('PG Programs (3 CAs)', 'pg', 3)}
+            <div style="text-align:right; margin-top:15px;">
+                <button onclick="window.saveSemesterDeadlines('${esc(currentSem)}')" style="background:#10b981; color:white; border:none; padding:10px 20px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1rem;">💾 Save Deadlines for ${esc(currentSem)}</button>
+            </div>
+        </div>
     `;
 };
 
+window.saveSemesterDeadlines = function(sem) {
+    let allDeadlines = {};
+    try { allDeadlines = JSON.parse(localStorage.getItem('AIIT_SEMESTERS_DEADLINES')) || {}; } catch(e){}
+
+    let fields = [];
+    ['ug', 'pg'].forEach(prefix => {
+        let count = prefix === 'ug' ? 2 : 3;
+        for(let i=1; i<=count; i++) {
+            fields.push(`${prefix}_ca${i}_qp`, `${prefix}_ca${i}_scrutiny`, `${prefix}_ca${i}_marks`);
+        }
+        fields.push(`${prefix}_internal_marks`, `${prefix}_lab_internal`);
+    });
+
+    let semDeadlines = {};
+    fields.forEach(f => {
+        let el = document.getElementById(f);
+        if (el) semDeadlines[f] = el.value;
+    });
+
+    allDeadlines[sem] = semDeadlines;
+    localStorage.setItem('AIIT_SEMESTERS_DEADLINES', JSON.stringify(allDeadlines));
+    alert(`✅ Successfully saved all submission deadlines for ${sem}!`);
+};
+
 window.saveDeadline = function(key, val) {
-    let deadlines = {};
-    try { deadlines = JSON.parse(localStorage.getItem('AIIT_DEADLINES')) || {}; } catch(e){}
-    deadlines[key] = val;
-    localStorage.setItem('AIIT_DEADLINES', JSON.stringify(deadlines));
+    let currentSem = document.getElementById('deadline-semester-select')?.value || 'Semester 1';
+    let allDeadlines = {};
+    try { allDeadlines = JSON.parse(localStorage.getItem('AIIT_SEMESTERS_DEADLINES')) || {}; } catch(e){}
+    if (!allDeadlines[currentSem]) allDeadlines[currentSem] = {};
+    allDeadlines[currentSem][key] = val;
+    localStorage.setItem('AIIT_SEMESTERS_DEADLINES', JSON.stringify(allDeadlines));
 };
 
 window.renderDeadlinesAdmin = function() {
@@ -1892,13 +2003,50 @@ window.resetFacultyPasswordAdmin = async function() {
     }
 };
 
-// Trigger Reminder Emails
+// Trigger Automated Reminders Engine (Ver 3.1)
+window.triggerAutomatedRemindersNow = function() {
+    let deadlines = {};
+    try { deadlines = JSON.parse(localStorage.getItem('AIIT_SEMESTERS_DEADLINES')) || {}; } catch(e){}
+    let assignments = [];
+    try { assignments = JSON.parse(localStorage.getItem('AIIT_FACULTY_ASSIGNMENTS')) || []; } catch(e){}
+    let submissions = {};
+    try { submissions = JSON.parse(localStorage.getItem('AIIT_SUBMISSIONS')) || {}; } catch(e){}
+
+    let now = new Date();
+    let reminderCount = 0;
+
+    assignments.forEach(a => {
+        let sem = a.semester || Object.keys(deadlines)[0] || "Semester 1";
+        let semDeadlines = deadlines[sem] || {};
+        let courseKey = `${a.courseCode}_${a.batch}_${a.program}`;
+        let subState = submissions[courseKey] || {};
+        let prefix = (parseInt(a.caCount) === 3) ? 'pg' : 'ug';
+
+        let tasks = [`${prefix}_ca1_qp`, `${prefix}_ca1_scrutiny`, `${prefix}_ca1_marks`, `${prefix}_ca2_qp`, `${prefix}_ca2_scrutiny`, `${prefix}_ca2_marks`, `${prefix}_internal_marks`];
+        if (parseInt(a.caCount) === 3) tasks.push(`${prefix}_ca3_qp`, `${prefix}_ca3_scrutiny`, `${prefix}_ca3_marks`);
+        if (a.hasLab) tasks.push(`${prefix}_lab_internal`);
+
+        tasks.forEach(t => {
+            let isSubmitted = subState[t] && subState[t].submitted;
+            if (isSubmitted) return;
+
+            let dStr = semDeadlines[t];
+            if (!dStr) return;
+            let dDate = new Date(dStr);
+            let diffDays = (dDate - now) / (1000 * 60 * 60 * 24);
+
+            // Check if deadline is exactly 4 days, 2 days, or overdue/today (0 days)
+            if ((diffDays <= 4 && diffDays > 3) || (diffDays <= 2 && diffDays > 1) || diffDays <= 0) {
+                reminderCount++;
+            }
+        });
+    });
+
+    alert(`✅ Automated Reminder Dispatch Complete! Dispatched alerts for ${reminderCount} pending tasks matching 4-day, 2-day, or deadline triggers.`);
+};
+
 window.triggerReminderEmails = function() {
-    const statusEl = document.getElementById('reminder-status');
-    if (statusEl) statusEl.innerHTML = "⏳ Sending deadline reminder notifications...";
-    setTimeout(() => {
-        if (statusEl) statusEl.innerHTML = `<span style="color:#16a34a">✅ Reminder notifications dispatched to assigned faculty members!</span>`;
-    }, 1200);
+    window.triggerAutomatedRemindersNow();
 };
 
 window.addSystemProgram = function () {

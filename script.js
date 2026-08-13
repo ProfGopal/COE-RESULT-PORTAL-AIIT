@@ -1405,6 +1405,9 @@ window.switchAdminTab = function (tabId, btnElement) {
       if (typeof window.renderAdminSubmissionAudit === 'function') {
           window.renderAdminSubmissionAudit();
       }
+      if (typeof window.renderFacultyPerformanceMatrix === 'function') {
+          window.renderFacultyPerformanceMatrix();
+      }
   }
 };
 
@@ -1691,25 +1694,31 @@ window.openDraftEmail = function(facultyEmail, taskName, courseCode, status) {
         document.body.appendChild(modal);
     }
 
-    let senderEmail = "coe.aiit@blr.amity.edu"; // Institutional COE Sender ID
+    let senderEmail = "gopalr@blr.amity.edu"; // Official Microsoft 365 COE SPOC Account
+    let ccEmail = "Chandrashekharbn@blr.amity.edu"; // Head of Institution CC
     let subject = `URGENT: Reminder for ${taskName} Submission - Course ${courseCode}`;
-    let body = `Dear Faculty Member,\n\nThis is an official reminder from the Controller of Examinations (COE) office regarding your assigned course ${courseCode}.\n\nTask: ${taskName}\nCurrent Status: ${status}\n\nPlease complete and freeze your submission on the COE Portal before the deadline.\n\nWarm regards,\nController of Examinations (COE)\nAmity University Bengaluru`;
+    let body = `Dear Faculty Member,\n\nThis is an official reminder from the Controller of Examinations (COE) office regarding your assigned course ${courseCode}.\n\nTask: ${taskName}\nCurrent Status: ${status}\n\nPlease complete and freeze your submission on the COE Portal before the deadline.\n\nWarm regards,\nDr. Gopal Rajendran\nCOE Incharge - SPOC COE (AIIT)\nAmity University Bengaluru`;
 
     modal.innerHTML = `
-        <div style="background:white; width:90%; max-width:600px; border-radius:8px; padding:25px; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
-            <h3 style="margin-top:0; color:#0f172a; border-bottom:1px solid #e2e8f0; padding-bottom:10px;">✉️ Draft Mail Preview</h3>
+        <div style="background:white; width:90%; max-width:650px; border-radius:8px; padding:25px; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
+            <h3 style="margin-top:0; color:#0f172a; border-bottom:1px solid #e2e8f0; padding-bottom:10px;">✉️ Microsoft Outlook Mail Dispatcher</h3>
             
-            <div style="margin-bottom:12px;">
-                <label style="font-size:0.85rem; font-weight:bold; color:#475569;">From (Sender):</label>
-                <input type="text" value="${senderEmail}" readonly style="width:100%; padding:8px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:4px; font-weight:bold; color:#334155;">
+            <div style="margin-bottom:10px;">
+                <label style="font-size:0.85rem; font-weight:bold; color:#475569;">From (Official MS 365 Account):</label>
+                <input type="text" value="${senderEmail}" readonly style="width:100%; padding:8px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:4px; font-weight:bold; color:#0284c7;">
             </div>
 
-            <div style="margin-bottom:12px;">
-                <label style="font-size:0.85rem; font-weight:bold; color:#475569;">To (Recipient):</label>
+            <div style="margin-bottom:10px;">
+                <label style="font-size:0.85rem; font-weight:bold; color:#475569;">CC (Head of Institution):</label>
+                <input type="text" value="${ccEmail}" readonly style="width:100%; padding:8px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:4px; font-weight:bold; color:#334155;">
+            </div>
+
+            <div style="margin-bottom:10px;">
+                <label style="font-size:0.85rem; font-weight:bold; color:#475569;">To (Faculty Recipient):</label>
                 <input type="text" value="${facultyEmail}" readonly style="width:100%; padding:8px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:4px; font-weight:bold; color:#334155;">
             </div>
 
-            <div style="margin-bottom:12px;">
+            <div style="margin-bottom:10px;">
                 <label style="font-size:0.85rem; font-weight:bold; color:#475569;">Subject:</label>
                 <input type="text" id="draft-subject" value="${subject}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; font-weight:bold;">
             </div>
@@ -1721,22 +1730,130 @@ window.openDraftEmail = function(facultyEmail, taskName, courseCode, status) {
 
             <div style="display:flex; justify-content:flex-end; gap:10px;">
                 <button onclick="document.getElementById('draft-email-modal').remove()" style="background:#cbd5e1; color:#334155; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer;">Cancel</button>
-                <button onclick="window.sendDraftEmailAction('${facultyEmail}')" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer;">🚀 Send Email Now</button>
+                <button onclick="window.sendOutlookEmailAction('${facultyEmail}', '${ccEmail}')" style="background:#0284c7; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer;">🚀 Open Outlook & Send</button>
             </div>
         </div>
     `;
     modal.style.display = 'flex';
 };
 
-window.sendDraftEmailAction = function(recipient) {
+window.sendOutlookEmailAction = function(recipient, cc) {
     let subject = encodeURIComponent(document.getElementById('draft-subject').value);
     let body = encodeURIComponent(document.getElementById('draft-body').value);
     
-    // Opens default mail client / webmail (Gmail composer) pre-filled with Sender & Recipient details
-    window.location.href = `mailto:${recipient}?subject=${subject}&body=${body}`;
+    // Triggers Outlook desktop app / Outlook web (OWA) pre-filled with Sender & CC
+    window.location.href = `mailto:${recipient}?cc=${cc}&subject=${subject}&body=${body}`;
     
     document.getElementById('draft-email-modal').remove();
-    alert("✅ Draft reviewed and dispatched to mail client!");
+    alert("✅ Opened Outlook with official sender context and CC!");
+};
+
+window.sendDraftEmailAction = function(recipient, cc) {
+    window.sendOutlookEmailAction(recipient, cc);
+};
+
+window.renderFacultyPerformanceMatrix = function() {
+    let container = document.getElementById('faculty-performance-matrix-container');
+    if (!container) return;
+
+    let assignments = [];
+    let submissions = {};
+    try {
+        assignments = JSON.parse(localStorage.getItem('AIIT_FACULTY_ASSIGNMENTS')) || [];
+        submissions = JSON.parse(localStorage.getItem('AIIT_SUBMISSIONS')) || {};
+    } catch(e){}
+
+    let filterFac = document.getElementById('matrix-fac-filter') ? document.getElementById('matrix-fac-filter').value.toLowerCase() : 'all';
+    let filterTask = document.getElementById('matrix-task-filter') ? document.getElementById('matrix-task-filter').value : 'all';
+
+    let facultyMap = {};
+    assignments.forEach(a => {
+        let email = a.facultyEmail;
+        if (!facultyMap[email]) facultyMap[email] = [];
+        facultyMap[email].push(a);
+    });
+
+    let rowsHTML = "";
+    Object.keys(facultyMap).forEach(email => {
+        if (filterFac !== 'all' && !email.toLowerCase().includes(filterFac)) return;
+
+        let courses = facultyMap[email];
+        let totalTasks = 0;
+        let completedTasks = 0;
+
+        courses.forEach(c => {
+            let courseKey = `${c.courseCode}_${c.batch}_${c.program}`;
+            let subState = submissions[courseKey] || {};
+            let prefix = (parseInt(c.caCount) === 3) ? 'pg' : 'ug';
+            
+            let taskList = [`${prefix}_ca1_qp`, `${prefix}_ca1_scrutiny`, `${prefix}_ca1_marks`, `${prefix}_ca2_qp`, `${prefix}_ca2_scrutiny`, `${prefix}_ca2_marks`, `${prefix}_internal_marks`];
+            if (parseInt(c.caCount) === 3) taskList.push(`${prefix}_ca3_qp`, `${prefix}_ca3_scrutiny`, `${prefix}_ca3_marks`);
+            if (c.hasLab) taskList.push(`${prefix}_lab_internal`);
+
+            taskList.forEach(t => {
+                if (filterTask !== 'all' && !t.includes(filterTask)) return;
+                totalTasks++;
+                if (subState[t] && subState[t].submitted) completedTasks++;
+            });
+        });
+
+        if (totalTasks === 0) return;
+
+        let ratio = completedTasks / totalTasks;
+        let statusBadge = "";
+        let rowBg = "white";
+
+        if (ratio === 1) {
+            statusBadge = `<span style="background:#dcfce3; color:#16a34a; padding:6px 12px; border-radius:6px; font-weight:bold;">🟢 On-Time / Complete</span>`;
+        } else if (ratio > 0) {
+            statusBadge = `<span style="background:#ffedd5; color:#d97706; padding:6px 12px; border-radius:6px; font-weight:bold;">🟠 Partial Submission (${completedTasks}/${totalTasks})</span>`;
+            rowBg = "#fffbeb";
+        } else {
+            statusBadge = `<span style="background:#fee2e2; color:#dc2626; padding:6px 12px; border-radius:6px; font-weight:bold;">🔴 Not Submitted / Overdue</span>`;
+            rowBg = "#fef2f2";
+        }
+
+        rowsHTML += `
+        <tr style="background:${rowBg}; border-bottom:1px solid #e2e8f0;">
+            <td style="padding:12px; font-weight:bold; color:#0f172a;">${esc(email)}</td>
+            <td style="padding:12px;">${courses.length} Assigned Courses</td>
+            <td style="padding:12px; font-weight:bold;">${completedTasks} / ${totalTasks} Tasks Done</td>
+            <td style="padding:12px;">${statusBadge}</td>
+        </tr>`;
+    });
+
+    let uniqueEmails = Object.keys(facultyMap);
+
+    container.innerHTML = `
+        <div style="background:white; border:1px solid #cbd5e1; border-radius:8px; padding:20px; margin-top:25px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
+                <h3 style="margin:0; color:#0f172a;">📊 Faculty Performance Overview Matrix</h3>
+                <div style="display:flex; gap:10px;">
+                    <select id="matrix-fac-filter" onchange="window.renderFacultyPerformanceMatrix()" style="padding:6px 12px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold;">
+                        <option value="all">All Faculty</option>
+                        ${uniqueEmails.map(e => `<option value="${e}" ${filterFac===e.toLowerCase()?'selected':''}>${e}</option>`).join('')}
+                    </select>
+                    <select id="matrix-task-filter" onchange="window.renderFacultyPerformanceMatrix()" style="padding:6px 12px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold;">
+                        <option value="all">All Tasks</option>
+                        <option value="qp">QP Submissions</option>
+                        <option value="scrutiny">Scrutiny Done</option>
+                        <option value="marks">Marks Submitted</option>
+                        <option value="internal">Internal Marks</option>
+                    </select>
+                </div>
+            </div>
+            <table style="width:100%; border-collapse:collapse; text-align:left; font-size:0.9rem;">
+                <thead>
+                    <tr style="background:#f8fafc; border-bottom:2px solid #cbd5e1; color:#334155;">
+                        <th style="padding:12px;">Faculty Email</th>
+                        <th style="padding:12px;">Courses Count</th>
+                        <th style="padding:12px;">Completed Ratio</th>
+                        <th style="padding:12px;">Overall Status</th>
+                    </tr>
+                </thead>
+                <tbody>${rowsHTML || `<tr><td colspan="4" style="text-align:center; padding:20px; color:#64748b;">No faculty records found.</td></tr>`}</tbody>
+            </table>
+        </div>`;
 };
 
 // Admin Faculty Password Reset

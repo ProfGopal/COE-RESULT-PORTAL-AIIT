@@ -1,24 +1,18 @@
-# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 3.3 (UG = 3 CAs & PG = 2 CAs Structuring)
+# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 3.4 (UG 3-CA Deadlines & Faculty Read-Only Curriculum Viewer)
 
-You are updating a static GitHub Pages site (`script.js`, `admin-hidden.html`). We are reconfiguring undergraduate programs to use 3 CAs and postgraduate programs to use 2 CAs across the course assignments, deadline manager, faculty task lists, and audit matrix.
+You are updating a static GitHub Pages site (`script.js`, `admin-hidden.html`). We are correcting the UG deadline manager to render 3 CAs and PG to render 2 CAs, adding a read-only curriculum viewer with batch/program filters in the Faculty Portal, and setting version strictly to Ver 3.4.
 
 Please execute the following strict updates:
 
 ## 1. Global Versioning Update
 * **File:** `admin-hidden.html` & `index.html`
-  * Change all version tags in the top left corners to `Ver 3.3`.
+  * Change all version tags in the top left corners to `Ver 3.4`.
 
-## 2. Reconfigure CA Count Mappings (UG = 3 CAs, PG = 2 CAs)
-* **File:** `script.js` & `admin-hidden.html`
-  * Update the CA count dropdown and parsing logic so **UG = 3 CAs** and **PG = 2 CAs**:
+## 2. Correct Deadline Manager Sections (UG = 3 CAs, PG = 2 CAs)
+* **File:** `script.js`
+  * Ensure `renderAdminDeadlinesPanel` loops through 3 CAs for UG and 2 CAs for PG:
 
     ```javascript
-    // In Admin Course Assignment form HTML:
-    // <select id="admin-ca-count-select">
-    //     <option value="3">UG - 3 CAs</option>
-    //     <option value="2">PG - 2 CAs</option>
-    // </select>
-
     window.renderAdminDeadlinesPanel = function() {
         let container = document.getElementById('admin-deadlines-container');
         if (!container) return;
@@ -86,6 +80,53 @@ Please execute the following strict updates:
     };
     ```
 
-## 3. Faculty Portal Task Rendering (UG = 3 CAs, PG = 2 CAs)
+## 3. Faculty Read-Only Curriculum Viewer
 * **File:** `script.js`
-  * Ensure the faculty coursework portal renders 3 CAs for UG courses and 2 CAs for PG courses correctly based on the assigned CA count.
+  * Add a read-only curriculum tab to the Faculty Portal with Batch and Program filters:
+
+    ```javascript
+    window.renderFacultyCurriculumViewer = function(container) {
+        let rules = {};
+        try { rules = JSON.parse(localStorage.getItem('AIIT_CUSTOM_CURRICULUM')) || window.CURRICULUM_RULES || {}; } catch(e){}
+
+        let keys = Object.keys(rules);
+        let selectedKey = document.getElementById('fac-curr-select') ? document.getElementById('fac-curr-select').value : keys[0];
+
+        let currentRules = rules[selectedKey] || [];
+        let rulesHTML = "";
+
+        currentRules.forEach(main => {
+            let subs = main.subCategories || [];
+            let subHTML = "";
+            subs.forEach(sub => {
+                let codes = sub.codes || [];
+                subHTML += `<div style="background:#f8fafc; padding:10px; border-radius:6px; margin-bottom:8px; border:1px solid #e2e8f0;">
+                    <h5 style="margin:0 0 5px 0; color:#334155;">📄 ${esc(sub.name)} (Min Credits: ${sub.minCredits || 0})</h5>
+                    <div style="font-size:0.85rem; color:#64748b;">Courses: ${codes.map(c => `<span style="background:white; border:1px solid #cbd5e1; padding:2px 6px; border-radius:4px; margin-right:4px; display:inline-block; font-weight:bold; color:#0f172a;">${esc(c)}</span>`).join('')}</div>
+                </div>`;
+            });
+
+            rulesHTML += `<div style="background:white; border:1px solid #cbd5e1; border-radius:8px; padding:15px; margin-bottom:15px;">
+                <h4 style="margin:0 0 10px 0; color:#0f172a;">📂 ${esc(main.category)} (Required: ${main.minCredits || 0} Credits)</h4>
+                ${subHTML}
+            </div>`;
+        });
+
+        container.innerHTML = `
+            <div style="background:white; padding:20px; border-radius:8px; border:1px solid #cbd5e1;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+                    <h3 style="margin:0; color:#0f172a;">📚 Official Curriculum Viewer (Read-Only)</h3>
+                    <div style="display:flex; gap:10px; align-items:center;">
+                        <label style="font-weight:bold; font-size:0.9rem;">Select Batch & Program:</label>
+                        <select id="fac-curr-select" onchange="window.renderFacultyCurriculumTab()" style="padding:6px 12px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold;">
+                            ${keys.map(k => `<option value="${k}" ${selectedKey===k?'selected':''}>${k}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+                ${rulesHTML || `<p style="text-align:center; color:#64748b; padding:20px;">No curriculum rules mapped for this selection.</p>`}
+            </div>`;
+    };
+    ```
+
+## 4. Markdown Release Document (`VERSION3.4.md`)
+* Create a file named `VERSION3.4.md` in your project root with the release notes for Ver 3.4.

@@ -769,6 +769,7 @@ window.renderFacultyPortal = async function(email) {
             <h3 style="margin:0; color:#0f172a; font-size:1.1rem; margin-right:auto;">🎓 Faculty Portal</h3>
             <button onclick="window.switchFacultyTab('analytics')" id="btn-tab-analytics" style="padding:8px 16px; background:#3b82f6; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">📊 Student Results & Analytics</button>
             <button onclick="window.switchFacultyTab('courseworks')" id="btn-tab-courseworks" style="padding:8px 16px; background:#e2e8f0; color:#334155; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">📚 Course-COE-Works & Submissions</button>
+            <button onclick="window.switchFacultyTab('curriculum')" id="btn-tab-curriculum" style="padding:8px 16px; background:#e2e8f0; color:#334155; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">📖 Curriculum Viewer</button>
         `;
         facultyDash.prepend(navHeader);
     }
@@ -793,6 +794,14 @@ window.renderFacultyPortal = async function(email) {
         facultyDash.appendChild(courseworkView);
     }
 
+    let curriculumView = document.getElementById('faculty-curriculum-view');
+    if (!curriculumView) {
+        curriculumView = document.createElement('div');
+        curriculumView.id = 'faculty-curriculum-view';
+        curriculumView.style.display = 'none';
+        facultyDash.appendChild(curriculumView);
+    }
+
     window.switchFacultyTab('analytics');
     window.renderFacultyCourseworkPanel(email, courseworkView);
 };
@@ -800,20 +809,75 @@ window.renderFacultyPortal = async function(email) {
 window.switchFacultyTab = function(tab) {
     const analyticsView = document.getElementById('faculty-analytics-view');
     const courseworkView = document.getElementById('faculty-coursework-view');
+    const curriculumView = document.getElementById('faculty-curriculum-view');
     const btnAnalytics = document.getElementById('btn-tab-analytics');
     const btnCourseworks = document.getElementById('btn-tab-courseworks');
+    const btnCurriculum = document.getElementById('btn-tab-curriculum');
+
+    // Reset all
+    [analyticsView, courseworkView, curriculumView].forEach(v => { if (v) v.style.display = 'none'; });
+    [btnAnalytics, btnCourseworks, btnCurriculum].forEach(b => { if (b) { b.style.background = '#e2e8f0'; b.style.color = '#334155'; } });
 
     if (tab === 'analytics') {
         if (analyticsView) analyticsView.style.display = 'block';
-        if (courseworkView) courseworkView.style.display = 'none';
         if (btnAnalytics) { btnAnalytics.style.background = '#3b82f6'; btnAnalytics.style.color = 'white'; }
-        if (btnCourseworks) { btnCourseworks.style.background = '#e2e8f0'; btnCourseworks.style.color = '#334155'; }
-    } else {
-        if (analyticsView) analyticsView.style.display = 'none';
+    } else if (tab === 'courseworks') {
         if (courseworkView) courseworkView.style.display = 'block';
-        if (btnAnalytics) { btnAnalytics.style.background = '#e2e8f0'; btnAnalytics.style.color = '#334155'; }
         if (btnCourseworks) { btnCourseworks.style.background = '#3b82f6'; btnCourseworks.style.color = 'white'; }
+    } else if (tab === 'curriculum') {
+        if (curriculumView) curriculumView.style.display = 'block';
+        if (btnCurriculum) { btnCurriculum.style.background = '#3b82f6'; btnCurriculum.style.color = 'white'; }
+        window.renderFacultyCurriculumTab();
     }
+};
+
+// Ver 3.4 — Faculty Read-Only Curriculum Viewer
+window.renderFacultyCurriculumTab = function() {
+    let container = document.getElementById('faculty-curriculum-view');
+    if (!container) return;
+    window.renderFacultyCurriculumViewer(container);
+};
+
+window.renderFacultyCurriculumViewer = function(container) {
+    let rules = {};
+    try { rules = JSON.parse(localStorage.getItem('AIIT_CUSTOM_CURRICULUM')) || window.CURRICULUM_RULES || {}; } catch(e){}
+
+    let keys = Object.keys(rules);
+    let selectedKey = document.getElementById('fac-curr-select') ? document.getElementById('fac-curr-select').value : (keys[0] || '');
+
+    let currentRules = rules[selectedKey] || [];
+    let rulesHTML = '';
+
+    currentRules.forEach(main => {
+        let subs = main.subCategories || [];
+        let subHTML = '';
+        subs.forEach(sub => {
+            let codes = sub.codes || [];
+            subHTML += `<div style="background:#f8fafc; padding:10px; border-radius:6px; margin-bottom:8px; border:1px solid #e2e8f0;">
+                <h5 style="margin:0 0 5px 0; color:#334155;">📄 ${esc(sub.name)} (Min Credits: ${sub.minCredits || 0})</h5>
+                <div style="font-size:0.85rem; color:#64748b;">Courses: ${codes.map(c => `<span style="background:white; border:1px solid #cbd5e1; padding:2px 6px; border-radius:4px; margin-right:4px; display:inline-block; font-weight:bold; color:#0f172a;">${esc(c)}</span>`).join('')}</div>
+            </div>`;
+        });
+
+        rulesHTML += `<div style="background:white; border:1px solid #cbd5e1; border-radius:8px; padding:15px; margin-bottom:15px;">
+            <h4 style="margin:0 0 10px 0; color:#0f172a;">📂 ${esc(main.category)} (Required: ${main.minCredits || 0} Credits)</h4>
+            ${subHTML}
+        </div>`;
+    });
+
+    container.innerHTML = `
+        <div style="background:white; padding:20px; border-radius:8px; border:1px solid #cbd5e1;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+                <h3 style="margin:0; color:#0f172a;">📚 Official Curriculum Viewer (Read-Only)</h3>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <label style="font-weight:bold; font-size:0.9rem;">Select Batch &amp; Program:</label>
+                    <select id="fac-curr-select" onchange="window.renderFacultyCurriculumTab()" style="padding:6px 12px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold;">
+                        ${keys.map(k => `<option value="${esc(k)}" ${selectedKey===k?'selected':''}>${esc(k)}</option>`).join('')}
+                    </select>
+                </div>
+            </div>
+            ${rulesHTML || `<p style="text-align:center; color:#64748b; padding:20px;">No curriculum rules mapped for this selection.</p>`}
+        </div>`;
 };
 
 window.renderFacultyCourseworkPanel = function(email, container) {

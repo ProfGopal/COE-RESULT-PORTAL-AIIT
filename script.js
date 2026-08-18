@@ -844,7 +844,7 @@ window.renderFacultyCourseworkPanel = function(email, container) {
         let hasLab = c.hasLab === true || c.hasLab === "true";
         
         let progUpper = String(c.program || '').toUpperCase();
-        let prefix = (progUpper.includes('PG') || progUpper.includes('MCA') || progUpper.includes('M.TECH') || progUpper.includes('MSC') || caCount >= 3) ? 'pg' : 'ug';
+        let prefix = (progUpper.includes('PG') || progUpper.includes('MCA') || progUpper.includes('M.TECH') || progUpper.includes('MSC') || caCount <= 2) ? 'pg' : 'ug';
 
         let renderSubRow = (taskName, label) => {
             let isSubmitted = subState[taskName] && subState[taskName].submitted;
@@ -1638,8 +1638,8 @@ window.renderAdminDeadlinesPanel = function() {
                     </select>
                 </div>
             </div>
-            ${renderSection('UG Programs (2 CAs)', 'ug', 2)}
-            ${renderSection('PG Programs (3 CAs)', 'pg', 3)}
+            ${renderSection('UG Programs (3 CAs)', 'ug', 3)}
+            ${renderSection('PG Programs (2 CAs)', 'pg', 2)}
             <div style="text-align:right; margin-top:15px;">
                 <button onclick="window.saveSemesterDeadlines('${esc(currentSem)}')" style="background:#10b981; color:white; border:none; padding:10px 20px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1rem;">💾 Save Deadlines for ${esc(currentSem)}</button>
             </div>
@@ -1709,7 +1709,7 @@ window.renderAdminSubmissionAudit = function() {
     assignments.forEach(a => {
         let courseKey = `${a.courseCode}_${a.batch}_${a.program}`;
         let subState = submissions[courseKey] || {};
-        let prefix = (parseInt(a.caCount) === 3) ? 'pg' : 'ug';
+        let prefix = (parseInt(a.caCount) === 3) ? 'ug' : 'pg';
 
         // Check tasks (CA1, CA2, Internal, etc.)
         let tasks = [
@@ -1898,7 +1898,7 @@ window.renderFacultyPerformanceMatrix = function() {
         courses.forEach(c => {
             let courseKey = `${c.courseCode}_${c.batch}_${c.program}`;
             let subState = submissions[courseKey] || {};
-            let prefix = (parseInt(c.caCount) === 3) ? 'pg' : 'ug';
+            let prefix = (parseInt(c.caCount) === 3) ? 'ug' : 'pg';
             
             let taskList = [`${prefix}_ca1_qp`, `${prefix}_ca1_scrutiny`, `${prefix}_ca1_marks`, `${prefix}_ca2_qp`, `${prefix}_ca2_scrutiny`, `${prefix}_ca2_marks`, `${prefix}_internal_marks`];
             if (parseInt(c.caCount) === 3) taskList.push(`${prefix}_ca3_qp`, `${prefix}_ca3_scrutiny`, `${prefix}_ca3_marks`);
@@ -2080,7 +2080,7 @@ window.triggerAutomatedRemindersNow = function() {
         let semDeadlines = deadlines[sem] || {};
         let courseKey = `${a.courseCode}_${a.batch}_${a.program}`;
         let subState = submissions[courseKey] || {};
-        let prefix = (parseInt(a.caCount) === 3) ? 'pg' : 'ug';
+        let prefix = (parseInt(a.caCount) === 3) ? 'ug' : 'pg';
 
         let tasks = [`${prefix}_ca1_qp`, `${prefix}_ca1_scrutiny`, `${prefix}_ca1_marks`, `${prefix}_ca2_qp`, `${prefix}_ca2_scrutiny`, `${prefix}_ca2_marks`, `${prefix}_internal_marks`];
         if (parseInt(a.caCount) === 3) tasks.push(`${prefix}_ca3_qp`, `${prefix}_ca3_scrutiny`, `${prefix}_ca3_marks`);

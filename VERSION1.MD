@@ -1,16 +1,16 @@
-# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 2.3 (Bulletproof Student Password Reset & 'pwd' Prompt)
+# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 2.4 (Bulletproof Universal Password Reset Handler)
 
-You are updating a static GitHub Pages site (`script.js`). We are ensuring that whenever an admin clears a student's password, typing **`pwd`** (or even leaving it blank/entering any temporary text) immediately forces the student login to prompt for a brand-new permanent password, updating version to Ver 2.3, and creating `VERSION2.3.md`.
+You are updating a static GitHub Pages site (`script.js`). We are ensuring that whenever an admin clears a student password, attempting to sign in with *any* password or `pwd` automatically bypasses the old password check and forces the student password update prompt, updating version to Ver 2.4, and creating `VERSION2.4.md`.
 
 Please execute the following strict updates:
 
 ## 1. Global Versioning Update
 * **File:** `index.html` & `admin-hidden.html`
-  * Change all version tags in the top left corners to `Ver 2.3`.
+  * Change all version tags in the top left corners to `Ver 2.4`.
 
-## 2. Force New Password Prompt on Cleared Student Login
+## 2. Universal Password Reset Interceptor
 * **File:** `script.js`
-  * Find your student login verification function (`verifyStudent` or login click handler) and update it with this bulletproof check:
+  * Update your student login handler so that cleared student records always intercept sign-in and force the new password creation modal:
 
     ```javascript
     window.verifyStudentLogin = function() {
@@ -20,8 +20,8 @@ Please execute the following strict updates:
         let sen = senInput ? senInput.value.trim().toUpperCase() : "";
         let pass = passInput ? passInput.value : "";
         
-        if (!sen || !pass) {
-            showErr('student-err', 'Please enter both SEN and password.');
+        if (!sen) {
+            showErr('student-err', 'Please enter SEN number.');
             return;
         }
 
@@ -33,14 +33,14 @@ Please execute the following strict updates:
             return;
         }
 
-        // Check if password was cleared by Admin
+        // Check if admin cleared this password
         let clearedPasswords = [];
         try { clearedPasswords = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || []; } catch(e){}
         let isClearedByAdmin = clearedPasswords.includes(sen);
 
-        // If cleared by admin, allow 'pwd' or treat as first-time login
-        if (isClearedByAdmin || !student.customPassword || pass === 'pwd') {
-            let newPass = prompt("🔐 Password reset detected. Please enter your new permanent password (min 6 characters):");
+        // ALWAYS force new password prompt if admin cleared it, or if it's first time, or if pass is 'pwd'
+        if (isClearedByAdmin || !student.customPassword || pass === 'pwd' || pass === '') {
+            let newPass = prompt("🔐 Password reset active for this SEN. Please enter your new permanent password (min 6 characters):");
             if (!newPass || newPass.length < 6) {
                 alert("❌ Password must be at least 6 characters.");
                 return;
@@ -50,25 +50,26 @@ Please execute the following strict updates:
             student.customPassword = newPass;
             try {
                 localStorage.setItem(`AIIT_STUDENT_PASS_${sen}`, newPass);
-                // Remove from cleared list once reset
+                // Clear from admin reset list
                 clearedPasswords = clearedPasswords.filter(s => s !== sen);
                 localStorage.setItem('AIIT_CLEARED_PASSWORDS', JSON.stringify(clearedPasswords));
             } catch(e){}
 
-            alert("✅ Password successfully set! Logging you in...");
-        } else {
-            // Verify normal custom password
-            let savedPass = localStorage.getItem(`AIIT_STUDENT_PASS_${sen}`) || student.customPassword;
-            if (pass !== savedPass) {
-                showErr('student-err', '⚠ Incorrect password. If your password was reset by the admin, please type "pwd".');
-                return;
-            }
+            alert("✅ Password successfully created! Logging you in...");
+            window.loadStudentDashboard(student);
+            return;
         }
 
-        // Proceed to Student Dashboard
+        // Standard verification
+        let savedPass = localStorage.getItem(`AIIT_STUDENT_PASS_${sen}`) || student.customPassword;
+        if (pass !== savedPass) {
+            showErr('student-err', '⚠ Incorrect password. (Tip: If password was cleared by admin, clear the password box or type "pwd").');
+            return;
+        }
+
         window.loadStudentDashboard(student);
     };
     ```
 
-## 3. Create `VERSION2.3.md`
-* Create a file named `VERSION2.3.md` in your project root containing the release notes for Ver 2.3.
+## 3. Create `VERSION2.4.md`
+* Create a file named `VERSION2.4.md` in your project root containing the release notes for Ver 2.4.

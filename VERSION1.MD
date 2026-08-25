@@ -1,108 +1,84 @@
-# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 2.8 (Universal Student Data Normalization & Hydration)
+# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 2.9 (Permanent Password Persistence & Reset Fix)
 
-You are updating a static GitHub Pages site (`script.js`). We are implementing a universal data normalization parser for student dashboards so that regardless of how student records and course lists are stored in local storage, they are instantly mapped and rendered with zero missing data, updating version to Ver 2.8, and creating `VERSION2.8.md`.
+You are updating a static GitHub Pages site (`script.js`). We are permanently fixing student password storage and verification so that newly set passwords persist across page refreshes and never trigger false "Incorrect password" errors, updating version to Ver 2.9, and creating `VERSION2.9.md`.
 
 Please execute the following strict updates:
 
 ## 1. Global Versioning Update
 * **File:** `index.html` & `admin-hidden.html`
-  * Change all version tags in the top left corners to `Ver 2.8`.
+  * Change all version tags in the top left corners to `Ver 2.9`.
 
-## 2. Universal Student Data Normalization & Dashboard Hydration
+## 2. Permanent Student Password Authentication Engine
 * **File:** `script.js`
-  * Update `window.loadStudentDashboard` to normalize student objects and courses dynamically:
+  * Replace your student login verification function with this clean, permanent persistence engine:
 
     ```javascript
-    window.loadStudentDashboard = function(student) {
-        window.currentStudent = student;
+    window.verifyStudentLogin = function() {
+        let senInput = document.getElementById('student-sen') || document.querySelector('input[placeholder*="SEN"], input[id*="sen"]');
+        let passInput = document.getElementById('student-pass') || document.querySelector('input[type="password"]');
         
-        // Hide landing views, show student dashboard
-        const studentDash = document.getElementById('student-dash') || document.querySelector('.student-dashboard-section');
-        document.querySelectorAll('body > div, .landing-container').forEach(el => {
-            if (el && !el.contains(studentDash)) el.style.display = 'none';
-        });
-
-        if (studentDash) studentDash.style.display = 'block';
-
-        // Normalize student properties across uppercase/lowercase variants
-        let sen = student.sen || student.SEN || student.enrollment || student.ENROLLMENT || "N/A";
-        let name = student.name || student.NAME || student.studentName || ("Student " + sen);
-        let program = student.program || student.PROGRAM || student.prog || "MCA";
-        let cgpa = student.cgpa || student.CGPA || student.cgpi || student.CGPI || "8.50";
-        let credits = student.earnedCredits || student.CREDITS || student.completedCredits || student.creditsEarned || "24";
+        let sen = senInput ? senInput.value.trim().toUpperCase() : "";
+        let pass = passInput ? passInput.value : "";
         
-        // Extract courses array from any possible property name
-        let rawCourses = student.courses || student.COURSES || student.courseList || student.COURSE_LIST || student.subjects || [];
-        
-        // If rawCourses is empty or stored as stringified JSON, parse it
-        if (typeof rawCourses === 'string') {
-            try { rawCourses = JSON.parse(rawCourses); } catch(e){ rawCourses = []; }
+        if (!sen || !pass) {
+            showErr('student-err', 'Please enter both SEN and password.');
+            return;
         }
 
-        // Fallback default courses if none found in object, to ensure dashboard is never totally blank
-        if (!Array.isArray(rawCourses) || rawCourses.length === 0) {
-            rawCourses = [
-                { code: "BCAC101", title: "Programming in C", type: "Core", credits: 4, marks: 85, grade: "A", gradePoints: 8, earnedCredits: 4 },
-                { code: "BCAC102", title: "Data Structures", type: "Core", credits: 4, marks: 90, grade: "A+", gradePoints: 9, earnedCredits: 4 },
-                { code: "BCAC103", title: "Database Management Systems", type: "Core", credits: 4, marks: 88, grade: "A", gradePoints: 8, earnedCredits: 4 }
-            ];
+        // Fetch master students
+        let students = window.STUDENTS || [];
+        if (students.length === 0) {
+            try { students = JSON.parse(localStorage.getItem('AIIT_STUDENTS_DATA')) || []; } catch(e){}
+        }
+        if (students.length === 0) {
+            try { students = JSON.parse(localStorage.getItem('AIIT_UPLOADED_STUDENTS')) || []; } catch(e){}
         }
 
-        // Populate header fields
-        let nameEl = document.getElementById('student-name-label') || document.querySelector('.student-name');
-        if (nameEl) nameEl.textContent = `${name} (${sen})`;
+        let student = students.find(s => s && String(s.sen || s.SEN || s.enrollment || '').toUpperCase().trim() === sen);
 
-        let progEl = document.querySelector('.student-program, [id*="program"]');
-        if (progEl) progEl.textContent = program;
+        if (!student) {
+            showErr('student-err', '❌ SEN not found in uploaded result records.');
+            return;
+        }
 
-        let cgpaEl = document.querySelector('[id*="cgpa"], .student-cgpi, .cgpa-val');
-        if (cgpaEl) cgpaEl.textContent = cgpa;
+        // Check if admin recently cleared this student's password
+        let clearedList = [];
+        try { clearedList = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || []; } catch(e){}
+        let isClearedByAdmin = clearedList.includes(sen);
 
-        let creditsEl = document.querySelector('[id*="credits"], .student-credits, .credits-val');
-        if (creditsEl) creditsEl.textContent = credits;
+        // Check permanent stored password
+        let permanentPass = localStorage.getItem(`AIIT_STUDENT_PASS_${sen}`);
 
-        let coursesCountEl = document.querySelector('.courses-count, [id*="courses-count"]');
-        if (coursesCountEl) coursesCountEl.textContent = rawCourses.length;
-
-        // Fix logout buttons to strictly display "LOGOUT"
-        document.querySelectorAll('button, a').forEach(el => {
-            let txt = el.textContent.trim().toLowerCase();
-            if (txt.includes('logout') || txt.includes('search another')) {
-                el.textContent = 'LOGOUT';
-                el.onclick = function() { window.location.reload(); };
+        // If cleared by admin, or no permanent password exists yet, or user typed 'pwd'
+        if (isClearedByAdmin || !permanentPass || pass === 'pwd') {
+            let newPass = prompt("🔐 Password reset required. Please enter your new permanent password (min 6 characters):");
+            if (!newPass || newPass.length < 6) {
+                alert("❌ Password must be at least 6 characters long.");
+                return;
             }
-        });
 
-        // Render courses table
-        let coursesTableBody = document.querySelector('#student-courses-table tbody, .student-courses-body, table tbody');
-        if (coursesTableBody) {
-            let html = "";
-            rawCourses.forEach(c => {
-                let code = c.code || c.CODE || c.courseCode || '';
-                let title = c.title || c.TITLE || c.courseTitle || 'Course Title';
-                let type = c.type || c.TYPE || 'Core';
-                let cr = c.credits || c.CREDITS || '4';
-                let marks = c.marks || c.MARKS || '85';
-                let grade = c.grade || c.GRADE || 'A';
-                let pts = c.gradePoints || c.POINTS || c.gp || '8';
-                let earned = c.earnedCredits || c.CREDITS || cr;
+            // Save permanently
+            localStorage.setItem(`AIIT_STUDENT_PASS_${sen}`, newPass);
+            student.customPassword = newPass;
+            
+            // Remove from cleared list so future logins use this permanent password
+            clearedList = clearedList.filter(s => s !== sen);
+            localStorage.setItem('AIIT_CLEARED_PASSWORDS', JSON.stringify(clearedList));
 
-                html += `
-                <tr style="border-bottom:1px solid #e2e8f0;">
-                    <td style="padding:10px; font-weight:bold; color:#0f172a;">${esc(code)}</td>
-                    <td style="padding:10px; color:#334155;">${esc(title)}</td>
-                    <td style="padding:10px; color:#475569;">${esc(type)}</td>
-                    <td style="padding:10px;">${esc(String(cr))}</td>
-                    <td style="padding:10px; font-weight:bold;">${esc(String(marks))}</td>
-                    <td style="padding:10px; font-weight:bold; color:#2563eb;">${esc(grade)}</td>
-                    <td style="padding:10px;">${esc(String(pts))}</td>
-                    <td style="padding:10px;">${esc(String(earned))}</td>
-                </tr>`;
-            });
-            coursesTableBody.innerHTML = html;
+            alert("✅ Password saved successfully! Logging you into your dashboard...");
+            window.loadStudentDashboard(student);
+            return;
         }
+
+        // Validate against permanent stored password
+        if (pass !== permanentPass) {
+            showErr('student-err', '⚠ Incorrect password. If your password was reset by the admin, please type "pwd".');
+            return;
+        }
+
+        window.loadStudentDashboard(student);
     };
     ```
 
-## 3. Create `VERSION2.8.md`
-* Create a file named `VERSION2.8.md` in your project root containing the release notes for Ver 2.8.
+## 3. Create `VERSION2.9.md`
+* Create a file named `VERSION2.9.md` in your project root containing the release notes for Ver 2.9.

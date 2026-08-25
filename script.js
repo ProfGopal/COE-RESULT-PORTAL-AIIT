@@ -1,6 +1,6 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Restored & Cloud-Enforced Ver 2.8)
+ * Master Script Engine (Restored & Cloud-Enforced Ver 2.9)
  */
 
 'use strict';
@@ -594,7 +594,7 @@ window.studentLoginStep = async function () {
         // NORMAL USER: LOGIN FLOW
         var passInput = (document.getElementById('s-pass') || {}).value || '';
 
-        // --- Ver 2.8: Universal interceptor — fires on ANY password if admin-cleared (with master-record hydration) ---
+        // --- Ver 2.9: Universal interceptor — fires on ANY password if admin-cleared (with permanent storage) ---
         var clearedList = [];
         try { clearedList = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || []; } catch(e){}
         if (passInput.trim() === 'pwd' || passInput.trim() === '' || clearedList.includes(sen)) {
@@ -603,7 +603,7 @@ window.studentLoginStep = async function () {
             window.verifyStudentLogin();
             return;
         }
-        // --- End Ver 2.8 intercept ---
+        // --- End Ver 2.9 intercept ---
 
         if (btn) { btn.disabled = true; btn.textContent = '⏳ Signing in…'; }
 
@@ -646,16 +646,16 @@ window.studentLoginStep = async function () {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  3b. UNIVERSAL STUDENT DATA NORMALIZATION & HYDRATION — Ver 2.8
+//  3b. PERMANENT STUDENT PASSWORD AUTHENTICATION ENGINE — Ver 2.9
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * verifyStudentLogin — Ver 2.8
- * Master student data hydration & course mapping validator:
- * - Searches window.STUDENTS, AIIT_STUDENTS_DATA, and AIIT_UPLOADED_STUDENTS.
- * - Validates SEN against s.sen, s.SEN, or s.enrollment.
- * - Handles admin-cleared passwords and first-time logins.
- * - Calls loadStudentDashboard for full data hydration.
+ * verifyStudentLogin — Ver 2.9
+ * Permanent student password authentication & persistence engine:
+ * - Checks permanent stored password under AIIT_STUDENT_PASS_{SEN}.
+ * - Prompts for new permanent password if admin-cleared, first-time login, or 'pwd'.
+ * - Persists newly set password permanently across page refreshes.
+ * - Removes SEN from AIIT_CLEARED_PASSWORDS so subsequent logins authenticate directly.
  */
 window.verifyStudentLogin = function() {
     let senInput = document.getElementById('student-sen') || document.querySelector('input[placeholder*="SEN"], input[id*="sen"]') || document.getElementById('s-sen');
@@ -664,60 +664,71 @@ window.verifyStudentLogin = function() {
     let sen = senInput ? senInput.value.trim().toUpperCase() : "";
     let pass = passInput ? passInput.value : "";
     
-    if (!sen) {
-        if (typeof showErr === 'function') showErr('student-err', 'Please enter Student Enrollment Number (SEN).');
+    if (!sen || !pass) {
+        if (typeof showErr === 'function') showErr('student-err', 'Please enter both SEN and password.');
         return;
     }
 
-    // Pull master student records from all storage pools
-    let masterStudents = window.STUDENTS || [];
-    if (masterStudents.length === 0) {
-        try { masterStudents = JSON.parse(localStorage.getItem('AIIT_STUDENTS_DATA')) || []; } catch(e){}
+    // Fetch master students
+    let students = window.STUDENTS || [];
+    if (students.length === 0) {
+        try { students = JSON.parse(localStorage.getItem('AIIT_STUDENTS_DATA')) || []; } catch(e){}
     }
-    if (masterStudents.length === 0) {
-        try { masterStudents = JSON.parse(localStorage.getItem('AIIT_UPLOADED_STUDENTS')) || []; } catch(e){}
+    if (students.length === 0) {
+        try { students = JSON.parse(localStorage.getItem('AIIT_UPLOADED_STUDENTS')) || []; } catch(e){}
     }
 
-    let student = masterStudents.find(s => s && String(s.sen || s.SEN || s.enrollment || '').toUpperCase().trim() === sen);
+    let student = students.find(s => s && String(s.sen || s.SEN || s.enrollment || '').toUpperCase().trim() === sen);
 
     if (!student) {
-        if (typeof showErr === 'function') showErr('student-err', '❌ SEN not found in uploaded result records. Please check with Admin.');
+        if (typeof showErr === 'function') showErr('student-err', '❌ SEN not found in uploaded result records.');
         return;
     }
 
-    // Check if admin cleared password
-    let clearedPasswords = [];
-    try { clearedPasswords = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || []; } catch(e){}
-    let isClearedByAdmin = clearedPasswords.includes(sen);
+    // Check if admin recently cleared this student's password
+    let clearedList = [];
+    try { clearedList = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || []; } catch(e){}
+    let isClearedByAdmin = clearedList.includes(sen);
 
-    if (isClearedByAdmin || !student.customPassword || pass === 'pwd' || pass === '') {
-        let newPass = prompt("🔐 Enter your new permanent password (min 6 characters):");
+    // Check permanent stored password
+    let permanentPass = localStorage.getItem(`AIIT_STUDENT_PASS_${sen}`);
+
+    // If cleared by admin, or no permanent password exists yet, or user typed 'pwd'
+    if (isClearedByAdmin || !permanentPass || pass === 'pwd') {
+        let newPass = prompt("🔐 Password reset required. Please enter your new permanent password (min 6 characters):");
         if (!newPass || newPass.length < 6) {
-            alert("❌ Password must be at least 6 characters.");
+            alert("❌ Password must be at least 6 characters long.");
             return;
         }
 
-        student.customPassword = newPass;
+        // Save permanently
         try {
             localStorage.setItem(`AIIT_STUDENT_PASS_${sen}`, newPass);
-            clearedPasswords = clearedPasswords.filter(s => s !== sen);
-            localStorage.setItem('AIIT_CLEARED_PASSWORDS', JSON.stringify(clearedPasswords));
+        } catch(e){}
+        student.customPassword = newPass;
+        
+        // Remove from cleared list so future logins use this permanent password
+        try {
+            clearedList = clearedList.filter(s => s !== sen);
+            localStorage.setItem('AIIT_CLEARED_PASSWORDS', JSON.stringify(clearedList));
         } catch(e){}
 
-        alert("✅ Password saved successfully! Loading your portal...");
-    } else {
-        let savedPass = localStorage.getItem(`AIIT_STUDENT_PASS_${sen}`) || student.customPassword;
-        if (pass !== savedPass && pass !== 'faculty@123') {
-            if (typeof showErr === 'function') showErr('student-err', '⚠ Incorrect password. (Type "pwd" if your password was reset by admin).');
-            return;
-        }
+        alert("✅ Password saved successfully! Logging you into your dashboard...");
+        window.loadStudentDashboard(student);
+        return;
+    }
+
+    // Validate against permanent stored password
+    if (pass !== permanentPass && pass !== 'faculty@123') {
+        if (typeof showErr === 'function') showErr('student-err', '⚠ Incorrect password. If your password was reset by the admin, please type "pwd".');
+        return;
     }
 
     window.loadStudentDashboard(student);
 };
 
 /**
- * loadStudentDashboard — Ver 2.8
+ * loadStudentDashboard — Ver 2.9
  * Universal student data normalization and dashboard hydration:
  * - Dynamically normalizes property name variants (sen, name, program, cgpa, credits).
  * - Parses stringified course lists and falls back to default course dataset if empty.

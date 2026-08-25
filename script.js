@@ -843,40 +843,75 @@ window.renderFacultyCurriculumViewer = function(container) {
     try { rules = JSON.parse(localStorage.getItem('AIIT_CUSTOM_CURRICULUM')) || window.CURRICULUM_RULES || {}; } catch(e){}
 
     let keys = Object.keys(rules);
-    let selectedKey = document.getElementById('fac-curr-select') ? document.getElementById('fac-curr-select').value : (keys[0] || '');
+    if (keys.length === 0) keys = ["2024_MCA"]; // Fallback default
+
+    let selectEl = document.getElementById('fac-curr-select');
+    let selectedKey = selectEl ? selectEl.value : keys[0];
+    if (!rules[selectedKey]) selectedKey = keys[0];
 
     let currentRules = rules[selectedKey] || [];
-    let rulesHTML = '';
+    let tableRowsHTML = "";
 
     currentRules.forEach(main => {
         let subs = main.subCategories || [];
-        let subHTML = '';
-        subs.forEach(sub => {
-            let codes = sub.codes || [];
-            subHTML += `<div style="background:#f8fafc; padding:10px; border-radius:6px; margin-bottom:8px; border:1px solid #e2e8f0;">
-                <h5 style="margin:0 0 5px 0; color:#334155;">📄 ${esc(sub.name)} (Min Credits: ${sub.minCredits || 0})</h5>
-                <div style="font-size:0.85rem; color:#64748b;">Courses: ${codes.map(c => `<span style="background:white; border:1px solid #cbd5e1; padding:2px 6px; border-radius:4px; margin-right:4px; display:inline-block; font-weight:bold; color:#0f172a;">${esc(c)}</span>`).join('')}</div>
-            </div>`;
-        });
-
-        rulesHTML += `<div style="background:white; border:1px solid #cbd5e1; border-radius:8px; padding:15px; margin-bottom:15px;">
-            <h4 style="margin:0 0 10px 0; color:#0f172a;">📂 ${esc(main.category)} (Required: ${main.minCredits || 0} Credits)</h4>
-            ${subHTML}
-        </div>`;
+        if (subs.length === 0) {
+            tableRowsHTML += `
+            <tr style="border-bottom:1px solid #e2e8f0;">
+                <td style="padding:12px; font-weight:bold; color:#0f172a;">${esc(main.category)}</td>
+                <td style="padding:12px; color:#475569;">General / Core</td>
+                <td style="padding:12px; font-weight:bold; color:#2563eb;">${main.minCredits || 0} Cr</td>
+                <td style="padding:12px;">
+                    ${(main.codes || []).map(c => `<span style="background:#f1f5f9; border:1px solid #cbd5e1; padding:3px 8px; border-radius:4px; margin:2px; display:inline-block; font-weight:bold; font-size:0.85rem; color:#1e293b;">${esc(c)}</span>`).join('')}
+                </td>
+            </tr>`;
+        } else {
+            subs.forEach(sub => {
+                tableRowsHTML += `
+                <tr style="border-bottom:1px solid #e2e8f0;">
+                    <td style="padding:12px; font-weight:bold; color:#0f172a;">${esc(main.category)}</td>
+                    <td style="padding:12px; color:#475569;">${esc(sub.name)}</td>
+                    <td style="padding:12px; font-weight:bold; color:#2563eb;">${sub.minCredits || 0} Cr</td>
+                    <td style="padding:12px;">
+                        ${(sub.codes || sub.items || []).map(item => {
+                            let code = typeof item === 'string' ? item : (item.code || '');
+                            return `<span style="background:#f1f5f9; border:1px solid #cbd5e1; padding:3px 8px; border-radius:4px; margin:2px; display:inline-block; font-weight:bold; font-size:0.85rem; color:#1e293b;">${esc(code)}</span>`;
+                        }).join('')}
+                    </td>
+                </tr>`;
+            });
+        }
     });
 
     container.innerHTML = `
-        <div style="background:white; padding:20px; border-radius:8px; border:1px solid #cbd5e1;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
-                <h3 style="margin:0; color:#0f172a;">📚 Official Curriculum Viewer (Read-Only)</h3>
+        <div style="background:white; padding:25px; border-radius:8px; border:1px solid #cbd5e1; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:15px;">
+                <div>
+                    <h3 style="margin:0; color:#0f172a;">📚 Official Curriculum Viewer (Read-Only)</h3>
+                    <p style="margin:4px 0 0 0; font-size:0.85rem; color:#64748b;">Viewing institutional curriculum mappings and requirements.</p>
+                </div>
                 <div style="display:flex; gap:10px; align-items:center;">
-                    <label style="font-weight:bold; font-size:0.9rem;">Select Batch &amp; Program:</label>
-                    <select id="fac-curr-select" onchange="window.renderFacultyCurriculumTab()" style="padding:6px 12px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold;">
-                        ${keys.map(k => `<option value="${esc(k)}" ${selectedKey===k?'selected':''}>${esc(k)}</option>`).join('')}
+                    <label style="font-weight:bold; font-size:0.9rem; color:#334155;">Select Batch &amp; Program:</label>
+                    <select id="fac-curr-select" onchange="window.renderFacultyCurriculumTab()" style="padding:8px 14px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold; background:#f8fafc; color:#0f172a; cursor:pointer;">
+                        ${keys.map(k => `<option value="${k}" ${selectedKey===k?'selected':''}>${k.replace('_', ' ')}</option>`).join('')}
                     </select>
                 </div>
             </div>
-            ${rulesHTML || `<p style="text-align:center; color:#64748b; padding:20px;">No curriculum rules mapped for this selection.</p>`}
+
+            <div style="overflow-x:auto;">
+                <table style="width:100%; border-collapse:collapse; text-align:left; font-size:0.9rem;">
+                    <thead>
+                        <tr style="background:#f8fafc; border-bottom:2px solid #cbd5e1; color:#334155;">
+                            <th style="padding:12px;">Category / Basket</th>
+                            <th style="padding:12px;">Sub-Category</th>
+                            <th style="padding:12px;">Min Credits</th>
+                            <th style="padding:12px;">Assigned Courses</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tableRowsHTML || `<tr><td colspan="4" style="text-align:center; padding:20px; color:#64748b;">No curriculum records available.</td></tr>`}
+                    </tbody>
+                </table>
+            </div>
         </div>`;
 };
 

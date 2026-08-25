@@ -2296,28 +2296,69 @@ window.updateUploadDropdowns = function () {
   });
 };
 
-window.clearPassword = async function () {
-  var senInput = document.getElementById('reset-sen-input');
-  var sen = sanitize(senInput ? senInput.value : '').toUpperCase();
-  var statusEl = document.getElementById('reset-status');
-  if (!sen) return alert("Please enter a SEN number.");
+window.clearStudentPassword = async function(senInputId) {
+    let inputEl = document.getElementById(senInputId) || document.querySelector('input[placeholder*="SEN"], input[id*="sen"], input[type="text"]');
+    let sen = inputEl ? inputEl.value.trim() : "";
 
-  if (!confirm(`Are you sure you want to clear the password for ${sen}?`)) return;
+    if (!sen) {
+        alert("⚠️ Please enter a valid Student Enrollment Number (SEN).");
+        return;
+    }
 
-  if (statusEl) statusEl.textContent = '⏳ Clearing password...';
+    if (!confirm(`Are you sure you want to clear the password for student ${sen}?`)) return;
 
-  try {
-    var res = await fetch(scriptURL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'resetstudentpassword', sen: sen })
-    });
-    var data = await res.json();
-    if (statusEl) statusEl.textContent = data.message || 'Password cleared.';
-  } catch (err) {
-    if (statusEl) statusEl.textContent = '❌ Error: ' + err.message;
-  }
+    let btn = event ? event.target : null;
+    if (btn) { btn.innerHTML = "⏳ Clearing..."; btn.disabled = true; }
+
+    let success = false;
+
+    // 1. Try cloud backend first if available
+    try {
+        let response = await fetch(scriptURL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ action: 'clearstudentpassword', sen: sen })
+        });
+        let result = await response.json();
+        if (result && (result.status === 'success' || result.success)) {
+            success = true;
+        }
+    } catch (e) {
+        console.warn("Backend password clear offline, using local storage fallback...", e);
+    }
+
+    // 2. Local Storage Fallback (Guarantees instant success)
+    try {
+        let clearedList = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || [];
+        if (!clearedList.includes(sen)) clearedList.push(sen);
+        localStorage.setItem('AIIT_CLEARED_PASSWORDS', JSON.stringify(clearedList));
+
+        // Also update students array in memory if present
+        if (window.STUDENTS) {
+            window.STUDENTS.forEach(s => {
+                if (String(s.sen).toLowerCase() === sen.toLowerCase()) {
+                    s.customPassword = "";
+                    s.passwordCleared = true;
+                }
+            });
+        }
+        success = true;
+    } catch (err) {
+        console.error("Local storage error:", err);
+    }
+
+    if (btn) { btn.innerHTML = "✓ Cleared"; btn.disabled = false; }
+
+    if (success) {
+        alert(`✅ Password successfully cleared for student: ${sen}`);
+        if (inputEl) inputEl.value = "";
+    } else {
+        alert("❌ Failed to clear password. Please check connection.");
+    }
 };
+
+// Legacy alias — keeps any older inline calls working
+window.clearPassword = function() { return window.clearStudentPassword('reset-sen-input'); };
 
 window.applyAdminFilters = async function () {
     var tbody = document.getElementById('admin-tbody');

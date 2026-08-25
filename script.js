@@ -1,6 +1,6 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Restored & Cloud-Enforced Ver 3.0)
+ * Master Script Engine (Restored & Cloud-Enforced Ver 3.1)
  */
 
 'use strict';
@@ -594,7 +594,7 @@ window.studentLoginStep = async function () {
         // NORMAL USER: LOGIN FLOW
         var passInput = (document.getElementById('s-pass') || {}).value || '';
 
-        // --- Ver 3.0: Universal interceptor — fires on ANY password if admin-cleared (with autofill bypass) ---
+        // --- Ver 3.1: Universal interceptor — fires on ANY password if admin-cleared (with autofill bypass & hydration) ---
         var clearedList = [];
         try { clearedList = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || []; } catch(e){}
         if (passInput.trim() === 'pwd' || passInput.trim() === '' || clearedList.includes(sen)) {
@@ -603,7 +603,7 @@ window.studentLoginStep = async function () {
             window.verifyStudentLogin();
             return;
         }
-        // --- End Ver 3.0 intercept ---
+        // --- End Ver 3.1 intercept ---
 
         if (btn) { btn.disabled = true; btn.textContent = '⏳ Signing in…'; }
 
@@ -646,16 +646,16 @@ window.studentLoginStep = async function () {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  3b. BULLETPROOF STUDENT LOGIN & AUTOFILL BYPASS ENGINE — Ver 3.0
+//  3b. ROBUST STUDENT LOGIN & DASHBOARD HYDRATION ENGINE — Ver 3.1
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * verifyStudentLogin — Ver 3.0
- * Bulletproof student login & autofill bypass engine:
- * - Validates SEN and overrides browser autofill interference.
- * - Forces password reset prompt if password was cleared by admin, no permanent password exists, or 'pwd' entered.
- * - Auto-clears password input box post-reset or on bad attempt to break autofill loops.
- * - Persists newly set password permanently under AIIT_STUDENT_PASS_{SEN}.
+ * verifyStudentLogin — Ver 3.1
+ * Robust student authentication & password persistence engine:
+ * - Multi-source student record search: AIIT_STUDENTS_DATA -> AIIT_UPLOADED_STUDENTS -> window.STUDENTS.
+ * - Handles admin reset, missing permanent password, or 'pwd' keyword.
+ * - Saves new password permanently to AIIT_STUDENT_PASS_{SEN}.
+ * - Calls loadStudentDashboard for full data hydration.
  */
 window.verifyStudentLogin = function() {
     let senInput = document.getElementById('student-sen') || document.querySelector('input[placeholder*="SEN"], input[id*="sen"]') || document.getElementById('s-sen');
@@ -669,16 +669,17 @@ window.verifyStudentLogin = function() {
         return;
     }
 
-    // Fetch master students dataset
-    let students = window.STUDENTS || [];
-    if (students.length === 0) {
-        try { students = JSON.parse(localStorage.getItem('AIIT_STUDENTS_DATA')) || []; } catch(e){}
+    // Retrieve master student records from all storage pools
+    let masterStudents = [];
+    try { masterStudents = JSON.parse(localStorage.getItem('AIIT_STUDENTS_DATA')) || []; } catch(e){}
+    if (masterStudents.length === 0) {
+        try { masterStudents = JSON.parse(localStorage.getItem('AIIT_UPLOADED_STUDENTS')) || []; } catch(e){}
     }
-    if (students.length === 0) {
-        try { students = JSON.parse(localStorage.getItem('AIIT_UPLOADED_STUDENTS')) || []; } catch(e){}
+    if (masterStudents.length === 0 && window.STUDENTS) {
+        masterStudents = window.STUDENTS;
     }
 
-    let student = students.find(s => s && String(s.sen || s.SEN || s.enrollment || '').toUpperCase().trim() === sen);
+    let student = masterStudents.find(s => s && String(s.sen || s.SEN || s.enrollment || '').toUpperCase().trim() === sen);
 
     if (!student) {
         if (typeof showErr === 'function') showErr('student-err', '❌ SEN not found in uploaded result records.');
@@ -692,27 +693,26 @@ window.verifyStudentLogin = function() {
 
     let permanentPass = localStorage.getItem(`AIIT_STUDENT_PASS_${sen}`);
 
-    // Force password reset if cleared by admin, or no permanent password exists, or user typed 'pwd'
+    // Force password reset if cleared, or no password exists, or user entered 'pwd'
     if (isClearedByAdmin || !permanentPass || pass === 'pwd') {
-        let newPass = prompt("🔐 Password reset active. Please enter your new permanent password (min 6 characters):");
+        let newPass = prompt("🔐 Password reset required. Please enter your new permanent password (min 6 characters):");
         if (!newPass || newPass.length < 6) {
             alert("❌ Password must be at least 6 characters long.");
             return;
         }
 
-        // Save new password permanently
+        // Save permanently
         try {
             localStorage.setItem(`AIIT_STUDENT_PASS_${sen}`, newPass);
         } catch(e){}
         student.customPassword = newPass;
         
-        // Clear from admin reset list
+        // Remove from cleared list
         try {
             clearedList = clearedList.filter(s => s !== sen);
             localStorage.setItem('AIIT_CLEARED_PASSWORDS', JSON.stringify(clearedList));
         } catch(e){}
 
-        // Clear password input box to prevent autofill loops
         if (passInput) passInput.value = "";
 
         alert("✅ Password saved successfully! Loading your dashboard...");
@@ -720,10 +720,10 @@ window.verifyStudentLogin = function() {
         return;
     }
 
-    // Validate password
+    // Validate against permanent password
     if (pass !== permanentPass && pass !== 'faculty@123') {
-        if (typeof showErr === 'function') showErr('student-err', '⚠ Incorrect password. (Tip: If password was reset by admin, clear the password box and type "pwd").');
-        if (passInput) passInput.value = ""; // Auto-clear bad password box
+        if (typeof showErr === 'function') showErr('student-err', '⚠ Incorrect password. (If your password was reset by admin, type "pwd").');
+        if (passInput) passInput.value = "";
         return;
     }
 
@@ -731,16 +731,12 @@ window.verifyStudentLogin = function() {
 };
 
 /**
- * loadStudentDashboard — Ver 3.0
- * Universal student data normalization and dashboard hydration:
- * - Dynamically normalizes property name variants (sen, name, program, cgpa, credits).
- * - Parses stringified course lists and falls back to default course dataset if empty.
- * - Standardizes all logout action links to "LOGOUT".
+ * loadStudentDashboard — Ver 3.1
+ * Fully hydrates student dashboard details, course list, CGPA, and earned credits.
  */
 window.loadStudentDashboard = function(student) {
     window.currentStudent = student;
     
-    // Hide landing views, show student dashboard
     const studentDash = document.getElementById('student-dash') || document.querySelector('.student-dashboard-section');
     document.querySelectorAll('body > div, .landing-container').forEach(el => {
         if (el && !el.contains(studentDash)) el.style.display = 'none';
@@ -748,22 +744,18 @@ window.loadStudentDashboard = function(student) {
 
     if (studentDash) studentDash.style.display = 'block';
 
-    // Normalize student properties across uppercase/lowercase variants
-    let sen = student.sen || student.SEN || student.enrollment || student.ENROLLMENT || "N/A";
+    let sen = student.sen || student.SEN || student.enrollment || "N/A";
     let name = student.name || student.NAME || student.studentName || ("Student " + sen);
-    let program = student.program || student.PROGRAM || student.prog || "MCA";
-    let cgpa = student.cgpa || student.CGPA || student.cgpi || student.CGPI || "8.50";
-    let credits = student.earnedCredits || student.CREDITS || student.completedCredits || student.creditsEarned || "24";
+    let program = student.program || student.PROGRAM || "MCA";
+    let cgpa = student.cgpa || student.CGPA || student.cgpi || "8.50";
+    let credits = student.earnedCredits || student.CREDITS || student.completedCredits || "24";
     
-    // Extract courses array from any possible property name
-    let rawCourses = student.courses || student.COURSES || student.courseList || student.COURSE_LIST || student.subjects || [];
-    
-    // If rawCourses is empty or stored as stringified JSON, parse it
+    let rawCourses = student.courses || student.COURSES || student.courseList || [];
     if (typeof rawCourses === 'string') {
         try { rawCourses = JSON.parse(rawCourses); } catch(e){ rawCourses = []; }
     }
 
-    // Fallback default courses if none found in object, to ensure dashboard is never totally blank
+    // Fallback default courses if none found in student object
     if (!Array.isArray(rawCourses) || rawCourses.length === 0) {
         rawCourses = [
             { code: "BCAC101", title: "Programming in C", type: "Core", credits: 4, marks: 85, grade: "A", gradePoints: 8, earnedCredits: 4 },
@@ -772,7 +764,6 @@ window.loadStudentDashboard = function(student) {
         ];
     }
 
-    // Populate header fields
     let nameEl = document.getElementById('student-name-label') || document.querySelector('.student-name');
     if (nameEl) nameEl.textContent = `${name} (${sen})`;
 
@@ -784,9 +775,6 @@ window.loadStudentDashboard = function(student) {
 
     let creditsEl = document.querySelector('[id*="credits"], .student-credits, .credits-val');
     if (creditsEl) creditsEl.textContent = credits;
-
-    let coursesCountEl = document.querySelector('.courses-count, [id*="courses-count"]');
-    if (coursesCountEl) coursesCountEl.textContent = rawCourses.length;
 
     // Fix logout buttons to strictly display "LOGOUT"
     document.querySelectorAll('button, a').forEach(el => {
@@ -826,7 +814,6 @@ window.loadStudentDashboard = function(student) {
         coursesTableBody.innerHTML = html;
     }
 
-    // Also call existing renderStudentDash if present (compatibility with main dashboard renderer)
     if (typeof renderStudentDash === 'function') {
         renderStudentDash(student);
     }

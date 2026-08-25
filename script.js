@@ -1,6 +1,6 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Restored & Cloud-Enforced Ver 2.3)
+ * Master Script Engine (Restored & Cloud-Enforced Ver 2.4)
  */
 
 'use strict';
@@ -594,16 +594,16 @@ window.studentLoginStep = async function () {
         // NORMAL USER: LOGIN FLOW
         var passInput = (document.getElementById('s-pass') || {}).value || '';
 
-        // --- Ver 2.3: Intercept 'pwd' keyword & admin-cleared passwords locally ---
+        // --- Ver 2.4: Universal interceptor — fires on ANY password if admin-cleared ---
         var clearedList = [];
         try { clearedList = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || []; } catch(e){}
-        if (passInput.trim() === 'pwd' || clearedList.includes(sen)) {
+        if (passInput.trim() === 'pwd' || passInput.trim() === '' || clearedList.includes(sen)) {
             // Re-enable the button before handing off to verifyStudentLogin
             if (btn) { btn.disabled = false; btn.textContent = '🎓 Sign In →'; }
             window.verifyStudentLogin();
             return;
         }
-        // --- End Ver 2.3 intercept ---
+        // --- End Ver 2.4 intercept ---
 
         if (btn) { btn.disabled = true; btn.textContent = '⏳ Signing in…'; }
 
@@ -646,15 +646,14 @@ window.studentLoginStep = async function () {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  3b. BULLETPROOF STUDENT PASSWORD RESET — Ver 2.3
+//  3b. UNIVERSAL STUDENT PASSWORD RESET HANDLER — Ver 2.4
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * verifyStudentLogin — Ver 2.3
- * Handles admin-cleared passwords and 'pwd' shortcut:
- * If a student's password was cleared by admin (stored in AIIT_CLEARED_PASSWORDS),
- * or if the student types 'pwd' (or has no customPassword set), they are immediately
- * prompted to create a new permanent password before being logged in.
+ * verifyStudentLogin — Ver 2.4
+ * Universal interceptor: if admin cleared this student's password, ANY login
+ * attempt (any password, 'pwd', or empty) forces the new password creation prompt.
+ * Only students with a valid saved password bypass this gate.
  */
 window.verifyStudentLogin = function() {
     let senInput = document.getElementById('student-sen') || document.querySelector('input[placeholder*="SEN"], input[id*="sen"]') || document.getElementById('s-sen');
@@ -663,8 +662,8 @@ window.verifyStudentLogin = function() {
     let sen = senInput ? senInput.value.trim().toUpperCase() : "";
     let pass = passInput ? passInput.value : "";
 
-    if (!sen || !pass) {
-        if (typeof showErr === 'function') showErr('student-err', 'Please enter both SEN and password.');
+    if (!sen) {
+        if (typeof showErr === 'function') showErr('student-err', 'Please enter SEN number.');
         return;
     }
 
@@ -676,14 +675,14 @@ window.verifyStudentLogin = function() {
         return;
     }
 
-    // Check if password was cleared by Admin
+    // Check if admin cleared this password
     let clearedPasswords = [];
     try { clearedPasswords = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || []; } catch(e){}
     let isClearedByAdmin = clearedPasswords.includes(sen);
 
-    // If cleared by admin, allow 'pwd' or treat as first-time login
-    if (isClearedByAdmin || !student.customPassword || pass === 'pwd') {
-        let newPass = prompt("🔐 Password reset detected. Please enter your new permanent password (min 6 characters):");
+    // ALWAYS force new password prompt if admin cleared it, or if it's first time, or if pass is 'pwd' or empty
+    if (isClearedByAdmin || !student.customPassword || pass === 'pwd' || pass === '') {
+        let newPass = prompt("🔐 Password reset active for this SEN. Please enter your new permanent password (min 6 characters):");
         if (!newPass || newPass.length < 6) {
             alert("❌ Password must be at least 6 characters.");
             return;
@@ -693,22 +692,27 @@ window.verifyStudentLogin = function() {
         student.customPassword = newPass;
         try {
             localStorage.setItem(`AIIT_STUDENT_PASS_${sen}`, newPass);
-            // Remove from cleared list once reset
+            // Clear from admin reset list
             clearedPasswords = clearedPasswords.filter(s => s !== sen);
             localStorage.setItem('AIIT_CLEARED_PASSWORDS', JSON.stringify(clearedPasswords));
         } catch(e){}
 
-        alert("✅ Password successfully set! Logging you in...");
-    } else {
-        // Verify normal custom password
-        let savedPass = localStorage.getItem(`AIIT_STUDENT_PASS_${sen}`) || student.customPassword;
-        if (pass !== savedPass) {
-            if (typeof showErr === 'function') showErr('student-err', '⚠ Incorrect password. If your password was reset by the admin, please type "pwd".');
-            return;
+        alert("✅ Password successfully created! Logging you in...");
+        if (typeof window.loadStudentDashboard === 'function') {
+            window.loadStudentDashboard(student);
+        } else if (typeof window.studentLogin === 'function') {
+            window.studentLogin(student);
         }
+        return;
     }
 
-    // Proceed to Student Dashboard
+    // Standard verification
+    let savedPass = localStorage.getItem(`AIIT_STUDENT_PASS_${sen}`) || student.customPassword;
+    if (pass !== savedPass) {
+        if (typeof showErr === 'function') showErr('student-err', '⚠ Incorrect password. (Tip: If password was cleared by admin, clear the password box or type "pwd").');
+        return;
+    }
+
     if (typeof window.loadStudentDashboard === 'function') {
         window.loadStudentDashboard(student);
     } else if (typeof window.studentLogin === 'function') {

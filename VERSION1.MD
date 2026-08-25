@@ -1,16 +1,16 @@
-# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 2.9 (Permanent Password Persistence & Reset Fix)
+# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 3.0 (Bulletproof Autofill Bypass & Password Reset Engine)
 
-You are updating a static GitHub Pages site (`script.js`). We are permanently fixing student password storage and verification so that newly set passwords persist across page refreshes and never trigger false "Incorrect password" errors, updating version to Ver 2.9, and creating `VERSION2.9.md`.
+You are updating a static GitHub Pages site (`script.js`). We are overriding browser password autofill interference, adding explicit autocomplete blocking, forcing password reset prompts on cleared accounts or when `pwd` is entered, updating version to Ver 3.0, and creating `VERSION3.0.md`.
 
 Please execute the following strict updates:
 
 ## 1. Global Versioning Update
 * **File:** `index.html` & `admin-hidden.html`
-  * Change all version tags in the top left corners to `Ver 2.9`.
+  * Change all version tags in the top left corners to `Ver 3.0`.
 
-## 2. Permanent Student Password Authentication Engine
+## 2. Bulletproof Student Login & Autofill Bypass Engine
 * **File:** `script.js`
-  * Replace your student login verification function with this clean, permanent persistence engine:
+  * Replace your student login verification function with this clean, autofill-immune version:
 
     ```javascript
     window.verifyStudentLogin = function() {
@@ -20,12 +20,12 @@ Please execute the following strict updates:
         let sen = senInput ? senInput.value.trim().toUpperCase() : "";
         let pass = passInput ? passInput.value : "";
         
-        if (!sen || !pass) {
-            showErr('student-err', 'Please enter both SEN and password.');
+        if (!sen) {
+            showErr('student-err', 'Please enter Student Enrollment Number (SEN).');
             return;
         }
 
-        // Fetch master students
+        // Fetch master students dataset
         let students = window.STUDENTS || [];
         if (students.length === 0) {
             try { students = JSON.parse(localStorage.getItem('AIIT_STUDENTS_DATA')) || []; } catch(e){}
@@ -41,38 +41,41 @@ Please execute the following strict updates:
             return;
         }
 
-        // Check if admin recently cleared this student's password
+        // Check if admin cleared password
         let clearedList = [];
         try { clearedList = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || []; } catch(e){}
         let isClearedByAdmin = clearedList.includes(sen);
 
-        // Check permanent stored password
         let permanentPass = localStorage.getItem(`AIIT_STUDENT_PASS_${sen}`);
 
-        // If cleared by admin, or no permanent password exists yet, or user typed 'pwd'
+        // Force password reset if cleared by admin, or no permanent password exists, or user typed 'pwd'
         if (isClearedByAdmin || !permanentPass || pass === 'pwd') {
-            let newPass = prompt("🔐 Password reset required. Please enter your new permanent password (min 6 characters):");
+            let newPass = prompt("🔐 Password reset active. Please enter your new permanent password (min 6 characters):");
             if (!newPass || newPass.length < 6) {
                 alert("❌ Password must be at least 6 characters long.");
                 return;
             }
 
-            // Save permanently
+            // Save new password permanently
             localStorage.setItem(`AIIT_STUDENT_PASS_${sen}`, newPass);
             student.customPassword = newPass;
             
-            // Remove from cleared list so future logins use this permanent password
+            // Clear from admin reset list
             clearedList = clearedList.filter(s => s !== sen);
             localStorage.setItem('AIIT_CLEARED_PASSWORDS', JSON.stringify(clearedList));
 
-            alert("✅ Password saved successfully! Logging you into your dashboard...");
+            // Clear password input box to prevent autofill loops
+            if (passInput) passInput.value = "";
+
+            alert("✅ Password saved successfully! Loading your dashboard...");
             window.loadStudentDashboard(student);
             return;
         }
 
-        // Validate against permanent stored password
+        // Validate password
         if (pass !== permanentPass) {
-            showErr('student-err', '⚠ Incorrect password. If your password was reset by the admin, please type "pwd".');
+            showErr('student-err', '⚠ Incorrect password. (Tip: If password was reset by admin, clear the password box and type "pwd").');
+            if (passInput) passInput.value = ""; // Auto-clear bad password box
             return;
         }
 
@@ -80,5 +83,5 @@ Please execute the following strict updates:
     };
     ```
 
-## 3. Create `VERSION2.9.md`
-* Create a file named `VERSION2.9.md` in your project root containing the release notes for Ver 2.9.
+## 3. Create `VERSION3.0.md`
+* Create a file named `VERSION3.0.md` in your project root containing the release notes for Ver 3.0.

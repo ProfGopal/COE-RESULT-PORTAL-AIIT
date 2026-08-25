@@ -1,6 +1,6 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Restored & Cloud-Enforced Ver 2.1)
+ * Master Script Engine (Restored & Cloud-Enforced Ver 2.3)
  */
 
 'use strict';
@@ -593,6 +593,18 @@ window.studentLoginStep = async function () {
 
         // NORMAL USER: LOGIN FLOW
         var passInput = (document.getElementById('s-pass') || {}).value || '';
+
+        // --- Ver 2.3: Intercept 'pwd' keyword & admin-cleared passwords locally ---
+        var clearedList = [];
+        try { clearedList = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || []; } catch(e){}
+        if (passInput.trim() === 'pwd' || clearedList.includes(sen)) {
+            // Re-enable the button before handing off to verifyStudentLogin
+            if (btn) { btn.disabled = false; btn.textContent = '🎓 Sign In →'; }
+            window.verifyStudentLogin();
+            return;
+        }
+        // --- End Ver 2.3 intercept ---
+
         if (btn) { btn.disabled = true; btn.textContent = '⏳ Signing in…'; }
 
         var response = await fetch(scriptURL, {
@@ -630,6 +642,77 @@ window.studentLoginStep = async function () {
             btn.disabled = false;
             btn.textContent = isNewUser ? 'Create Password & Login →' : '🎓 Sign In →';
         }
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  3b. BULLETPROOF STUDENT PASSWORD RESET — Ver 2.3
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * verifyStudentLogin — Ver 2.3
+ * Handles admin-cleared passwords and 'pwd' shortcut:
+ * If a student's password was cleared by admin (stored in AIIT_CLEARED_PASSWORDS),
+ * or if the student types 'pwd' (or has no customPassword set), they are immediately
+ * prompted to create a new permanent password before being logged in.
+ */
+window.verifyStudentLogin = function() {
+    let senInput = document.getElementById('student-sen') || document.querySelector('input[placeholder*="SEN"], input[id*="sen"]') || document.getElementById('s-sen');
+    let passInput = document.getElementById('student-pass') || document.querySelector('input[type="password"]') || document.getElementById('s-pass');
+
+    let sen = senInput ? senInput.value.trim().toUpperCase() : "";
+    let pass = passInput ? passInput.value : "";
+
+    if (!sen || !pass) {
+        if (typeof showErr === 'function') showErr('student-err', 'Please enter both SEN and password.');
+        return;
+    }
+
+    let students = window.STUDENTS || [];
+    let student = students.find(s => String(s.sen).toUpperCase().trim() === sen);
+
+    if (!student) {
+        if (typeof showErr === 'function') showErr('student-err', '❌ Student Enrollment Number (SEN) not found.');
+        return;
+    }
+
+    // Check if password was cleared by Admin
+    let clearedPasswords = [];
+    try { clearedPasswords = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || []; } catch(e){}
+    let isClearedByAdmin = clearedPasswords.includes(sen);
+
+    // If cleared by admin, allow 'pwd' or treat as first-time login
+    if (isClearedByAdmin || !student.customPassword || pass === 'pwd') {
+        let newPass = prompt("🔐 Password reset detected. Please enter your new permanent password (min 6 characters):");
+        if (!newPass || newPass.length < 6) {
+            alert("❌ Password must be at least 6 characters.");
+            return;
+        }
+
+        // Save new password
+        student.customPassword = newPass;
+        try {
+            localStorage.setItem(`AIIT_STUDENT_PASS_${sen}`, newPass);
+            // Remove from cleared list once reset
+            clearedPasswords = clearedPasswords.filter(s => s !== sen);
+            localStorage.setItem('AIIT_CLEARED_PASSWORDS', JSON.stringify(clearedPasswords));
+        } catch(e){}
+
+        alert("✅ Password successfully set! Logging you in...");
+    } else {
+        // Verify normal custom password
+        let savedPass = localStorage.getItem(`AIIT_STUDENT_PASS_${sen}`) || student.customPassword;
+        if (pass !== savedPass) {
+            if (typeof showErr === 'function') showErr('student-err', '⚠ Incorrect password. If your password was reset by the admin, please type "pwd".');
+            return;
+        }
+    }
+
+    // Proceed to Student Dashboard
+    if (typeof window.loadStudentDashboard === 'function') {
+        window.loadStudentDashboard(student);
+    } else if (typeof window.studentLogin === 'function') {
+        window.studentLogin(student);
     }
 };
 

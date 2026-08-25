@@ -1,79 +1,74 @@
-# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 2.1 (Password Reset Local Fallback Fix)
+# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 2.3 (Bulletproof Student Password Reset & 'pwd' Prompt)
 
-You are updating a static GitHub Pages site (`script.js`, `admin-hidden.html`). We are implementing a local fallback handler for student password clearing so that admin actions never fail due to backend action mapping issues, updating version to Ver 2.1, and creating `VERSION2.1.md`.
+You are updating a static GitHub Pages site (`script.js`). We are ensuring that whenever an admin clears a student's password, typing **`pwd`** (or even leaving it blank/entering any temporary text) immediately forces the student login to prompt for a brand-new permanent password, updating version to Ver 2.3, and creating `VERSION2.3.md`.
 
 Please execute the following strict updates:
 
 ## 1. Global Versioning Update
-* **File:** `admin-hidden.html` & `index.html`
-  * Change all version tags in the top left corners to `Ver 2.1`.
+* **File:** `index.html` & `admin-hidden.html`
+  * Change all version tags in the top left corners to `Ver 2.3`.
 
-## 2. Bulletproof Student Password Clearing (Local Fallback Handler)
+## 2. Force New Password Prompt on Cleared Student Login
 * **File:** `script.js`
-  * Press `Ctrl + F` and find your password clearing function (e.g., `clearStudentPassword` or similar). Replace it with this robust implementation that handles local storage clearing seamlessly:
+  * Find your student login verification function (`verifyStudent` or login click handler) and update it with this bulletproof check:
 
     ```javascript
-    window.clearStudentPassword = async function(senInputId) {
-        let inputEl = document.getElementById(senInputId) || document.querySelector('input[placeholder*="SEN"], input[id*="sen"], input[type="text"]');
-        let sen = inputEl ? inputEl.value.trim() : "";
+    window.verifyStudentLogin = function() {
+        let senInput = document.getElementById('student-sen') || document.querySelector('input[placeholder*="SEN"], input[id*="sen"]');
+        let passInput = document.getElementById('student-pass') || document.querySelector('input[type="password"]');
         
-        if (!sen) {
-            alert("⚠️ Please enter a valid Student Enrollment Number (SEN).");
+        let sen = senInput ? senInput.value.trim().toUpperCase() : "";
+        let pass = passInput ? passInput.value : "";
+        
+        if (!sen || !pass) {
+            showErr('student-err', 'Please enter both SEN and password.');
             return;
         }
 
-        if (!confirm(`Are you sure you want to clear the password for student ${sen}?`)) return;
+        let students = window.STUDENTS || [];
+        let student = students.find(s => String(s.sen).toUpperCase().trim() === sen);
 
-        let btn = event ? event.target : null;
-        if (btn) { btn.innerHTML = "⏳ Clearing..."; btn.disabled = true; }
-
-        let success = false;
-
-        // 1. Try cloud backend first if available
-        try {
-            let response = await fetch(scriptURL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify({ action: 'clearstudentpassword', sen: sen })
-            });
-            let result = await response.json();
-            if (result && (result.status === 'success' || result.success)) {
-                success = true;
-            }
-        } catch (e) {
-            console.warn("Backend password clear offline, using local storage fallback...", e);
+        if (!student) {
+            showErr('student-err', '❌ Student Enrollment Number (SEN) not found.');
+            return;
         }
 
-        // 2. Local Storage Fallback (Guarantees instant success)
-        try {
-            let clearedList = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || [];
-            if (!clearedList.includes(sen)) clearedList.push(sen);
-            localStorage.setItem('AIIT_CLEARED_PASSWORDS', JSON.stringify(clearedList));
-            
-            // Also update students array in memory if present
-            if (window.STUDENTS) {
-                window.STUDENTS.forEach(s => {
-                    if (String(s.sen).toLowerCase() === sen.toLowerCase()) {
-                        s.customPassword = "";
-                        s.passwordCleared = true;
-                    }
-                });
+        // Check if password was cleared by Admin
+        let clearedPasswords = [];
+        try { clearedPasswords = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || []; } catch(e){}
+        let isClearedByAdmin = clearedPasswords.includes(sen);
+
+        // If cleared by admin, allow 'pwd' or treat as first-time login
+        if (isClearedByAdmin || !student.customPassword || pass === 'pwd') {
+            let newPass = prompt("🔐 Password reset detected. Please enter your new permanent password (min 6 characters):");
+            if (!newPass || newPass.length < 6) {
+                alert("❌ Password must be at least 6 characters.");
+                return;
             }
-            success = true;
-        } catch (err) {
-            console.error("Local storage error:", err);
-        }
 
-        if (btn) { btn.innerHTML = "✓ Cleared"; btn.disabled = false; }
+            // Save new password
+            student.customPassword = newPass;
+            try {
+                localStorage.setItem(`AIIT_STUDENT_PASS_${sen}`, newPass);
+                // Remove from cleared list once reset
+                clearedPasswords = clearedPasswords.filter(s => s !== sen);
+                localStorage.setItem('AIIT_CLEARED_PASSWORDS', JSON.stringify(clearedPasswords));
+            } catch(e){}
 
-        if (success) {
-            alert(`✅ Password successfully cleared for student: ${sen}`);
-            if (inputEl) inputEl.value = "";
+            alert("✅ Password successfully set! Logging you in...");
         } else {
-            alert("❌ Failed to clear password. Please check connection.");
+            // Verify normal custom password
+            let savedPass = localStorage.getItem(`AIIT_STUDENT_PASS_${sen}`) || student.customPassword;
+            if (pass !== savedPass) {
+                showErr('student-err', '⚠ Incorrect password. If your password was reset by the admin, please type "pwd".');
+                return;
+            }
         }
+
+        // Proceed to Student Dashboard
+        window.loadStudentDashboard(student);
     };
     ```
 
-## 3. Create `VERSION2.1.md`
-* Create a file named `VERSION2.1.md` in your project root containing the release notes for Ver 2.1.
+## 3. Create `VERSION2.3.md`
+* Create a file named `VERSION2.3.md` in your project root containing the release notes for Ver 2.3.

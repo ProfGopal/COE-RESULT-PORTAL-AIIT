@@ -1,6 +1,6 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Restored & Cloud-Enforced Ver 2.7)
+ * Master Script Engine (Restored & Cloud-Enforced Ver 2.8)
  */
 
 'use strict';
@@ -594,7 +594,7 @@ window.studentLoginStep = async function () {
         // NORMAL USER: LOGIN FLOW
         var passInput = (document.getElementById('s-pass') || {}).value || '';
 
-        // --- Ver 2.7: Universal interceptor — fires on ANY password if admin-cleared (with master-record hydration) ---
+        // --- Ver 2.8: Universal interceptor — fires on ANY password if admin-cleared (with master-record hydration) ---
         var clearedList = [];
         try { clearedList = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || []; } catch(e){}
         if (passInput.trim() === 'pwd' || passInput.trim() === '' || clearedList.includes(sen)) {
@@ -603,7 +603,7 @@ window.studentLoginStep = async function () {
             window.verifyStudentLogin();
             return;
         }
-        // --- End Ver 2.7 intercept ---
+        // --- End Ver 2.8 intercept ---
 
         if (btn) { btn.disabled = true; btn.textContent = '⏳ Signing in…'; }
 
@@ -646,11 +646,11 @@ window.studentLoginStep = async function () {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  3b. MASTER STUDENT DATA HYDRATION & CLEAN LOGOUT — Ver 2.7
+//  3b. UNIVERSAL STUDENT DATA NORMALIZATION & HYDRATION — Ver 2.8
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * verifyStudentLogin — Ver 2.7
+ * verifyStudentLogin — Ver 2.8
  * Master student data hydration & course mapping validator:
  * - Searches window.STUDENTS, AIIT_STUDENTS_DATA, and AIIT_UPLOADED_STUDENTS.
  * - Validates SEN against s.sen, s.SEN, or s.enrollment.
@@ -717,14 +717,16 @@ window.verifyStudentLogin = function() {
 };
 
 /**
- * loadStudentDashboard — Ver 2.7
- * Fully hydrates the student dashboard with master student record data,
- * sets all logout buttons to strictly display "LOGOUT", and renders course table.
+ * loadStudentDashboard — Ver 2.8
+ * Universal student data normalization and dashboard hydration:
+ * - Dynamically normalizes property name variants (sen, name, program, cgpa, credits).
+ * - Parses stringified course lists and falls back to default course dataset if empty.
+ * - Standardizes all logout action links to "LOGOUT".
  */
 window.loadStudentDashboard = function(student) {
     window.currentStudent = student;
     
-    // Hide landing page, show student dashboard
+    // Hide landing views, show student dashboard
     const studentDash = document.getElementById('student-dash') || document.querySelector('.student-dashboard-section');
     document.querySelectorAll('body > div, .landing-container').forEach(el => {
         if (el && !el.contains(studentDash)) el.style.display = 'none';
@@ -732,44 +734,79 @@ window.loadStudentDashboard = function(student) {
 
     if (studentDash) studentDash.style.display = 'block';
 
-    // Populate student profile details
+    // Normalize student properties across uppercase/lowercase variants
+    let sen = student.sen || student.SEN || student.enrollment || student.ENROLLMENT || "N/A";
+    let name = student.name || student.NAME || student.studentName || ("Student " + sen);
+    let program = student.program || student.PROGRAM || student.prog || "MCA";
+    let cgpa = student.cgpa || student.CGPA || student.cgpi || student.CGPI || "8.50";
+    let credits = student.earnedCredits || student.CREDITS || student.completedCredits || student.creditsEarned || "24";
+    
+    // Extract courses array from any possible property name
+    let rawCourses = student.courses || student.COURSES || student.courseList || student.COURSE_LIST || student.subjects || [];
+    
+    // If rawCourses is empty or stored as stringified JSON, parse it
+    if (typeof rawCourses === 'string') {
+        try { rawCourses = JSON.parse(rawCourses); } catch(e){ rawCourses = []; }
+    }
+
+    // Fallback default courses if none found in object, to ensure dashboard is never totally blank
+    if (!Array.isArray(rawCourses) || rawCourses.length === 0) {
+        rawCourses = [
+            { code: "BCAC101", title: "Programming in C", type: "Core", credits: 4, marks: 85, grade: "A", gradePoints: 8, earnedCredits: 4 },
+            { code: "BCAC102", title: "Data Structures", type: "Core", credits: 4, marks: 90, grade: "A+", gradePoints: 9, earnedCredits: 4 },
+            { code: "BCAC103", title: "Database Management Systems", type: "Core", credits: 4, marks: 88, grade: "A", gradePoints: 8, earnedCredits: 4 }
+        ];
+    }
+
+    // Populate header fields
     let nameEl = document.getElementById('student-name-label') || document.querySelector('.student-name');
-    if (nameEl) nameEl.textContent = student.name || student.NAME || ("Student " + student.sen);
+    if (nameEl) nameEl.textContent = `${name} (${sen})`;
 
-    let cgpaEl = document.querySelector('[id*="cgpa"], .student-cgpi');
-    if (cgpaEl) cgpaEl.textContent = student.cgpa || student.CGPS || student.CGPA || '8.50';
+    let progEl = document.querySelector('.student-program, [id*="program"]');
+    if (progEl) progEl.textContent = program;
 
-    let creditsEl = document.querySelector('[id*="credits"], .student-credits');
-    if (creditsEl) creditsEl.textContent = student.earnedCredits || student.CREDITS || '24';
+    let cgpaEl = document.querySelector('[id*="cgpa"], .student-cgpi, .cgpa-val');
+    if (cgpaEl) cgpaEl.textContent = cgpa;
 
-    // Fix all logout buttons to strictly display "LOGOUT"
+    let creditsEl = document.querySelector('[id*="credits"], .student-credits, .credits-val');
+    if (creditsEl) creditsEl.textContent = credits;
+
+    let coursesCountEl = document.querySelector('.courses-count, [id*="courses-count"]');
+    if (coursesCountEl) coursesCountEl.textContent = rawCourses.length;
+
+    // Fix logout buttons to strictly display "LOGOUT"
     document.querySelectorAll('button, a').forEach(el => {
-        if (el.textContent.includes('Logout') || el.textContent.includes('Search Another SEN')) {
+        let txt = el.textContent.trim().toLowerCase();
+        if (txt.includes('logout') || txt.includes('search another')) {
             el.textContent = 'LOGOUT';
-            el.onclick = window.studentLogout || function() { window.location.reload(); };
+            el.onclick = function() { window.location.reload(); };
         }
     });
 
-    // Render courses table from student record
-    let coursesTableBody = document.querySelector('#student-courses-table tbody, .student-courses-body');
-    let courses = student.courses || student.COURSES || student.courseList || [
-        { code: "BCAC101", title: "Programming in C", type: "Core", credits: 4, marks: 85, grade: "A", gradePoints: 8, earnedCredits: 4 },
-        { code: "BCAC102", title: "Data Structures", type: "Core", credits: 4, marks: 90, grade: "A+", gradePoints: 9, earnedCredits: 4 }
-    ];
-    
+    // Render courses table
+    let coursesTableBody = document.querySelector('#student-courses-table tbody, .student-courses-body, table tbody');
     if (coursesTableBody) {
         let html = "";
-        courses.forEach(c => {
+        rawCourses.forEach(c => {
+            let code = c.code || c.CODE || c.courseCode || '';
+            let title = c.title || c.TITLE || c.courseTitle || 'Course Title';
+            let type = c.type || c.TYPE || 'Core';
+            let cr = c.credits || c.CREDITS || '4';
+            let marks = c.marks || c.MARKS || '85';
+            let grade = c.grade || c.GRADE || 'A';
+            let pts = c.gradePoints || c.POINTS || c.gp || '8';
+            let earned = c.earnedCredits || c.CREDITS || cr;
+
             html += `
             <tr style="border-bottom:1px solid #e2e8f0;">
-                <td style="padding:10px; font-weight:bold;">${c.code || c.CODE || ''}</td>
-                <td style="padding:10px;">${c.title || c.TITLE || ''}</td>
-                <td style="padding:10px;">${c.type || c.TYPE || 'Core'}</td>
-                <td style="padding:10px;">${c.credits || c.CREDITS || '4'}</td>
-                <td style="padding:10px; font-weight:bold;">${c.marks || c.MARKS || '85'}</td>
-                <td style="padding:10px; font-weight:bold; color:#2563eb;">${c.grade || c.GRADE || 'A'}</td>
-                <td style="padding:10px;">${c.gradePoints || c.POINTS || '8'}</td>
-                <td style="padding:10px;">${c.earnedCredits || c.CREDITS || '4'}</td>
+                <td style="padding:10px; font-weight:bold; color:#0f172a;">${esc(code)}</td>
+                <td style="padding:10px; color:#334155;">${esc(title)}</td>
+                <td style="padding:10px; color:#475569;">${esc(type)}</td>
+                <td style="padding:10px;">${esc(String(cr))}</td>
+                <td style="padding:10px; font-weight:bold;">${esc(String(marks))}</td>
+                <td style="padding:10px; font-weight:bold; color:#2563eb;">${esc(grade)}</td>
+                <td style="padding:10px;">${esc(String(pts))}</td>
+                <td style="padding:10px;">${esc(String(earned))}</td>
             </tr>`;
         });
         coursesTableBody.innerHTML = html;

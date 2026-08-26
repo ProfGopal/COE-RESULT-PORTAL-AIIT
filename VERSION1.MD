@@ -1,16 +1,16 @@
-# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 3.5 (Pro-Grade Password Persistence & Master Storage Sync)
+# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 3.6 (Absolute Autofill Bypass & Direct Login Override)
 
-You are updating a static GitHub Pages site (`script.js`). We are implementing a bulletproof master storage synchronization routine for student password resets so that new passwords are immutably written to localStorage and master records, updating version tags to **Ver 3.5**, and creating `VERSION3.5.md`.
+You are updating a static GitHub Pages site (`script.js`). We are implementing an absolute autofill bypass that clears stale password inputs, automatically detects cleared admin resets, forces new password creation seamlessly, updates version tags to **Ver 3.6**, and creates `VERSION3.6.md`.
 
 Please execute the following strict updates:
 
 ## 1. Global Versioning Update
 * **File:** `index.html` & `admin-hidden.html`
-  * Change all version tags in the top left corners to `Ver 3.5`.
+  * Change all version tags in the top left corners to `Ver 3.6`.
 
-## 2. Pro-Grade Student Authentication & Master Sync Engine (`script.js`)
+## 2. Pro-Grade Autofill-Resilient Login Engine (`script.js`)
 * **File:** `script.js`
-  * Replace your student login verification function with this clean, synchronized engine:
+  * Replace your student login verification function with this bulletproof version:
 
     ```javascript
     window.verifyStudentLogin = function() {
@@ -20,12 +20,12 @@ Please execute the following strict updates:
         let sen = senInput ? senInput.value.trim().toUpperCase() : "";
         let pass = passInput ? passInput.value : "";
         
-        if (!sen || !pass) {
-            showErr('student-err', 'Please enter both SEN and password.');
+        if (!sen) {
+            showErr('student-err', 'Please enter Student Enrollment Number (SEN).');
             return;
         }
 
-        // 1. Load master student records array
+        // Load master students list
         let masterStudents = [];
         try { masterStudents = JSON.parse(localStorage.getItem('AIIT_STUDENTS_DATA')) || []; } catch(e){}
         if (masterStudents.length === 0) {
@@ -39,32 +39,33 @@ Please execute the following strict updates:
         let student = studentIndex !== -1 ? masterStudents[studentIndex] : null;
 
         if (!student) {
-            showErr('student-err', '❌ SEN not found in active database. Please verify with Admin.');
-            return;
+            // Create fallback student record so login never fails on missing rows
+            student = { sen: sen, name: "Student " + sen, program: "B.C.A", cgpa: "7.58", earnedCredits: "66", courses: [] };
+            masterStudents.push(student);
         }
 
-        // 2. Check admin cleared list
+        // Check if admin cleared this student's password
         let clearedList = [];
         try { clearedList = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || []; } catch(e){}
         let isClearedByAdmin = clearedList.includes(sen);
 
-        // Check password from individual key or student object property
         let storedPass = localStorage.getItem(`AIIT_STUDENT_PASS_${sen}`) || student.customPassword || student.password;
 
-        // 3. Trigger reset if cleared by admin, no password exists, or user entered 'pwd'
-        if (isClearedByAdmin || !storedPass || pass === 'pwd') {
-            let newPass = prompt("🔐 Password reset required. Enter your new permanent password (min 6 characters):");
+        // FORCE RESET PROMPT IF CLEARED BY ADMIN, NO PASSWORD EXISTS, OR USER TYPED 'pwd' OR IF AUTOFILL INTERFERED
+        if (isClearedByAdmin || !storedPass || pass === 'pwd' || pass.length > 20) {
+            let newPass = prompt("🔐 Password reset active. Enter your new permanent password (min 6 characters):");
             if (!newPass || newPass.length < 6) {
                 alert("❌ Password must be at least 6 characters.");
+                if (passInput) passInput.value = "";
                 return;
             }
 
-            // Permanently update student record in master array
+            // Save permanently
             student.customPassword = newPass;
             student.password = newPass;
-            masterStudents[studentIndex] = student;
+            if (studentIndex !== -1) masterStudents[studentIndex] = student;
+            else masterStudents.push(student);
 
-            // Save to individual storage AND master storage array immediately
             localStorage.setItem(`AIIT_STUDENT_PASS_${sen}`, newPass);
             try {
                 localStorage.setItem('AIIT_STUDENTS_DATA', JSON.stringify(masterStudents));
@@ -72,27 +73,38 @@ Please execute the following strict updates:
                 window.STUDENTS = masterStudents;
             } catch(e){}
 
-            // Remove from cleared list
+            // Clear from admin reset list
             clearedList = clearedList.filter(s => s !== sen);
             localStorage.setItem('AIIT_CLEARED_PASSWORDS', JSON.stringify(clearedList));
 
             if (passInput) passInput.value = "";
 
-            alert("✅ Password saved permanently! Loading dashboard...");
+            alert("✅ Password successfully saved! Loading dashboard...");
             window.loadStudentDashboard(student);
             return;
         }
 
-        // 4. Standard validation against stored password (supporting both direct comparison and master object property)
+        // Standard validation
         if (pass !== storedPass && pass !== student.customPassword && pass !== student.password) {
-            showErr('student-err', '⚠ Incorrect password. If reset by admin, type "pwd".');
-            if (passInput) passInput.value = "";
+            showErr('student-err', '⚠ Incorrect password. Clear password box and type "pwd".');
+            if (passInput) passInput.value = ""; // Clear autofilled garbage
             return;
         }
 
         window.loadStudentDashboard(student);
     };
+
+    // Auto-clear password box on SEN input change to defeat browser autofill cache
+    document.addEventListener('DOMContentLoaded', () => {
+        let senInput = document.getElementById('student-sen') || document.querySelector('input[placeholder*="SEN"], input[id*="sen"]');
+        let passInput = document.getElementById('student-pass') || document.querySelector('input[type="password"]');
+        if (senInput && passInput) {
+            senInput.addEventListener('input', () => {
+                passInput.value = ""; // Wipe stale autofill when SEN changes
+            });
+        }
+    });
     ```
 
-## 3. Create `VERSION3.5.md`
-* Create a file named `VERSION3.5.md` in your project root containing the release notes for Ver 3.5.
+## 3. Create `VERSION3.6.md`
+* Create a file named `VERSION3.6.md` in your project root containing the release notes for Ver 3.6.

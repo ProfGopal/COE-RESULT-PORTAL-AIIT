@@ -1,6 +1,6 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Restored & Cloud-Enforced Ver 4.0)
+ * Master Script Engine (Restored & Cloud-Enforced Ver 4.1)
  */
 
 'use strict';
@@ -646,15 +646,16 @@ window.studentLoginStep = async function () {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  3b. PRO-GRADE AUTHENTICATION & UNIVERSAL DOM HYDRATION ENGINE — Ver 4.0
+//  3b. STRICT ONE-TIME RESET & PERMANENT LOGIN ENGINE — Ver 4.1
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * verifyStudentLogin — Ver 4.0
- * Pro-Grade Student Authentication Engine:
- * - Checks permanent stored password from localStorage key AIIT_STUDENT_PASS_<SEN>.
- * - Prompts for password reset if cleared by admin, no permanent password exists, or user typed 'pwd'.
- * - Persists newly set passwords permanently in localStorage and master student objects.
+ * verifyStudentLogin — Ver 4.1
+ * Strict One-Time Reset & Permanent Login Engine:
+ * - Enforces password reset ('pwd') ONLY when student is explicitly in AIIT_CLEARED_PASSWORDS or has no permanent password.
+ * - Removes student from cleared list upon creation so 'pwd' NEVER works again.
+ * - Rejects 'pwd' logins once a permanent password exists.
+ * - Validates strictly against permanent stored password.
  */
 window.verifyStudentLogin = function() {
     let senInput = document.getElementById('student-sen') || document.querySelector('input[placeholder*="SEN"], input[id*="sen"], input[type="text"]');
@@ -678,7 +679,6 @@ window.verifyStudentLogin = function() {
         masterStudents = window.STUDENTS;
     }
 
-    // Fuzzy search matching
     let student = masterStudents.find(s => {
         if (!s) return false;
         let candidate = String(s.sen || s.SEN || s.enrollment || s.ENROLLMENT || s.id || '').toUpperCase().trim();
@@ -686,19 +686,8 @@ window.verifyStudentLogin = function() {
     });
 
     if (!student) {
-        student = {
-            sen: sen,
-            name: "PAVAN KUMAR H G",
-            program: "B.C.A",
-            cgpa: "7.58",
-            earnedCredits: "66",
-            courses: [
-                { code: "CHE1001", title: "Environmental Studies", type: "T", credits: 3, marks: 58, grade: "P", gradePoints: "-", earnedCredits: 3 },
-                { code: "CSE1016", title: "Introduction to Information Technology", type: "ELT", credits: 3, marks: "-", grade: "B", gradePoints: "-", earnedCredits: 3 },
-                { code: "CSE1019", title: "Programming in C", type: "L", credits: 2, marks: 85, grade: "A", gradePoints: "-", earnedCredits: 2 }
-            ]
-        };
-        masterStudents.push(student);
+        showErr('student-err', '❌ SEN not found in active database.');
+        return;
     }
 
     // 2. Check admin cleared list
@@ -706,18 +695,23 @@ window.verifyStudentLogin = function() {
     try { clearedList = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || []; } catch(e){}
     let isClearedByAdmin = clearedList.includes(sen);
 
-    // Get permanent stored password from localStorage key
     let permanentPass = localStorage.getItem(`AIIT_STUDENT_PASS_${sen}`);
 
-    // 3. Trigger reset if cleared by admin, no permanent password exists, or user typed 'pwd'
-    if (isClearedByAdmin || !permanentPass || pass === 'pwd') {
-        let newPass = prompt("🔐 Password reset required. Enter your new permanent password (min 6 characters):");
+    // 3. STRICT RULE: 'pwd' or prompt ONLY works if admin explicitly cleared the password
+    if (isClearedByAdmin || !permanentPass) {
+        if (pass !== 'pwd' && !isClearedByAdmin) {
+            showErr('student-err', '⚠ Password reset required by admin. Please type "pwd".');
+            if (passInput) passInput.value = "";
+            return;
+        }
+
+        let newPass = prompt("🔐 Enter your new permanent password (min 6 characters):");
         if (!newPass || newPass.length < 6) {
             alert("❌ Password must be at least 6 characters.");
             return;
         }
 
-        // Save permanently to localStorage and student object
+        // Save permanently
         localStorage.setItem(`AIIT_STUDENT_PASS_${sen}`, newPass);
         student.customPassword = newPass;
         student.password = newPass;
@@ -727,20 +721,27 @@ window.verifyStudentLogin = function() {
             localStorage.setItem('AIIT_UPLOADED_STUDENTS', JSON.stringify(masterStudents));
         } catch(e){}
 
-        // Remove from cleared list
+        // REMOVE from cleared list immediately so 'pwd' NEVER works again for this student
         clearedList = clearedList.filter(s => s !== sen);
         localStorage.setItem('AIIT_CLEARED_PASSWORDS', JSON.stringify(clearedList));
 
         if (passInput) passInput.value = "";
 
-        alert("✅ Password saved successfully! Loading dashboard...");
+        alert("✅ Password created successfully! Loading dashboard...");
         window.loadStudentDashboard(student);
         return;
     }
 
-    // 4. Validate password against permanent storage
-    if (pass !== permanentPass && pass !== student.customPassword && pass !== student.password) {
-        showErr('student-err', '⚠ Incorrect password. If reset by admin, type "pwd".');
+    // 4. NORMAL LOGIN: If student tries to type 'pwd' after password is created, reject it!
+    if (pass === 'pwd') {
+        showErr('student-err', '⚠ Password already configured. Please enter your active password (or contact Admin to reset).');
+        if (passInput) passInput.value = "";
+        return;
+    }
+
+    // 5. Strictly validate against permanent stored password
+    if (pass !== permanentPass) {
+        showErr('student-err', '⚠ Incorrect password.');
         if (passInput) passInput.value = "";
         return;
     }

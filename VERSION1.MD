@@ -1,16 +1,16 @@
-# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 3.2 (Absolute Password Persistence & Student Hydration Fix)
+# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 3.3 (Password State Machine & Permanent Student Data Hydration)
 
-You are updating a static GitHub Pages site (`script.js`, `admin-hidden.html`, `index.html`). We are fixing the student login authentication sequence to prioritize the admin reset/cleared list, permanently saving new passwords to `localStorage`, fixing data hydration for student profiles/courses, updating version tags to **Ver 3.2**, and creating `VERSION3.2.md`.
+You are updating a static GitHub Pages site (`script.js`). We are fixing the student password lifecycle state machine so that newly configured passwords are permanently saved to the master records array and local storage, ensuring subsequent logins never fail, and ensuring course data, CGPA, and credits hydrate correctly on the dashboard. Update version tags to **Ver 3.3** and create `VERSION3.3.md`.
 
 Please execute the following strict updates:
 
 ## 1. Global Versioning Update
 * **File:** `index.html` & `admin-hidden.html`
-  * Change all version tags in the top left corners to `Ver 3.2`.
+  * Change all version tags in the top left corners to `Ver 3.3`.
 
-## 2. Universal Authentication & Data Hydration Engine (`script.js`)
+## 2. Bulletproof State Machine Authentication & Data Hydration Engine (`script.js`)
 * **File:** `script.js`
-  * Replace your student login verification and dashboard loader with this foolproof engine:
+  * Replace your student login verification and dashboard loading functions with this robust version:
 
     ```javascript
     window.verifyStudentLogin = function() {
@@ -25,43 +25,62 @@ Please execute the following strict updates:
             return;
         }
 
-        // Pull master student list from all possible storage locations
-        let students = [];
-        try { students = JSON.parse(localStorage.getItem('AIIT_STUDENTS_DATA')) || []; } catch(e){}
-        if (students.length === 0) {
-            try { students = JSON.parse(localStorage.getItem('AIIT_UPLOADED_STUDENTS')) || []; } catch(e){}
+        // 1. Load master student list from local storage pools
+        let masterStudents = [];
+        try { masterStudents = JSON.parse(localStorage.getItem('AIIT_STUDENTS_DATA')) || []; } catch(e){}
+        if (masterStudents.length === 0) {
+            try { masterStudents = JSON.parse(localStorage.getItem('AIIT_UPLOADED_STUDENTS')) || []; } catch(e){}
         }
-        if (students.length === 0 && window.STUDENTS) {
-            students = window.STUDENTS;
+        if (masterStudents.length === 0 && window.STUDENTS) {
+            masterStudents = window.STUDENTS;
         }
 
-        let student = students.find(s => s && String(s.sen || s.SEN || s.enrollment || '').toUpperCase().trim() === sen);
+        let student = masterStudents.find(s => s && String(s.sen || s.SEN || s.enrollment || '').toUpperCase().trim() === sen);
 
         if (!student) {
-            // Fallback object creation so login never hard-fails on missing array records
-            student = { sen: sen, name: "Student " + sen, program: "MCA", cgpa: "8.50", earnedCredits: "24", courses: [] };
+            // Auto-hydrate fallback record if missing
+            student = {
+                sen: sen,
+                name: "Student " + sen,
+                program: "MCA",
+                cgpa: "8.50",
+                earnedCredits: "24",
+                courses: [
+                    { code: "BCAC101", title: "Programming in C", type: "Core", credits: 4, marks: 85, grade: "A", gradePoints: 8, earnedCredits: 4 },
+                    { code: "BCAC102", title: "Data Structures", type: "Core", credits: 4, marks: 90, grade: "A+", gradePoints: 9, earnedCredits: 4 }
+                ]
+            };
+            masterStudents.push(student);
         }
 
-        // 1. CHECK ADMIN CLEARED LIST FIRST
+        // 2. Check admin cleared list
         let clearedList = [];
         try { clearedList = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || []; } catch(e){}
         let isClearedByAdmin = clearedList.includes(sen);
 
-        let permanentPass = localStorage.getItem(`AIIT_STUDENT_PASS_${sen}`);
+        // Check password source: object property or localStorage backup
+        let savedPass = student.customPassword || student.password || localStorage.getItem(`AIIT_STUDENT_PASS_${sen}`);
 
-        // 2. TRIGGER RESET PROMPT IF CLEARED, NO PASS, OR USER TYPED 'pwd'
-        if (isClearedByAdmin || !permanentPass || pass === 'pwd') {
+        // 3. Trigger reset prompt if cleared by admin, no password exists, or user typed 'pwd'
+        if (isClearedByAdmin || !savedPass || pass === 'pwd') {
             let newPass = prompt("🔐 Password reset required. Enter your new permanent password (min 6 characters):");
             if (!newPass || newPass.length < 6) {
                 alert("❌ Password must be at least 6 characters.");
                 return;
             }
 
-            // Save permanently
-            localStorage.setItem(`AIIT_STUDENT_PASS_${sen}`, newPass);
+            // Permanently update student record properties
             student.customPassword = newPass;
+            student.password = newPass;
             
-            // Remove from cleared list
+            // Save to individual storage and master storage array
+            localStorage.setItem(`AIIT_STUDENT_PASS_${sen}`, newPass);
+            try {
+                localStorage.setItem('AIIT_STUDENTS_DATA', JSON.stringify(masterStudents));
+                localStorage.setItem('AIIT_UPLOADED_STUDENTS', JSON.stringify(masterStudents));
+            } catch(e){}
+
+            // Clear from admin reset list
             clearedList = clearedList.filter(s => s !== sen);
             localStorage.setItem('AIIT_CLEARED_PASSWORDS', JSON.stringify(clearedList));
 
@@ -72,8 +91,8 @@ Please execute the following strict updates:
             return;
         }
 
-        // 3. STANDARD VALIDATION AGAINST PERMANENT PASS
-        if (pass !== permanentPass) {
+        // 4. Standard validation against saved password
+        if (pass !== savedPass) {
             showErr('student-err', '⚠ Incorrect password. If reset by admin, type "pwd".');
             if (passInput) passInput.value = "";
             return;
@@ -92,7 +111,7 @@ Please execute the following strict updates:
 
         if (studentDash) studentDash.style.display = 'block';
 
-        let sen = student.sen || student.SEN || student.enrollment || "A86904824004";
+        let sen = student.sen || student.SEN || student.enrollment || "N/A";
         let name = student.name || student.NAME || student.studentName || ("Student " + sen);
         let program = student.program || student.PROGRAM || "MCA";
         let cgpa = student.cgpa || student.CGPA || student.cgpi || student.CGPI || "8.50";
@@ -163,5 +182,5 @@ Please execute the following strict updates:
     };
     ```
 
-## 3. Create `VERSION3.2.md`
-* Create a file named `VERSION3.2.md` in your project root containing the release notes for Ver 3.2.
+## 3. Create `VERSION3.3.md`
+* Create a file named `VERSION3.3.md` in your project root containing the release notes for Ver 3.3.

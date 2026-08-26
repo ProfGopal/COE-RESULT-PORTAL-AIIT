@@ -1,6 +1,6 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Restored & Cloud-Enforced Ver 3.3)
+ * Master Script Engine (Restored & Cloud-Enforced Ver 3.4)
  */
 
 'use strict';
@@ -646,17 +646,47 @@ window.studentLoginStep = async function () {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  3b. ABSOLUTE PASSWORD PERSISTENCE & STUDENT HYDRATION FIX — Ver 3.3
+//  3b. UNIFIED MASTER STORAGE & SEN NORMALIZATION ENGINE — Ver 3.4
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * verifyStudentLogin — Ver 3.3
+ * getGlobalStudentsMasterList — Ver 3.4
+ * Unified loader: reads from AIIT_STUDENTS_DATA (master), falls back to
+ * AIIT_UPLOADED_STUDENTS, then to window.STUDENTS in-memory list.
+ */
+window.getGlobalStudentsMasterList = function() {
+    let list = [];
+    try { list = JSON.parse(localStorage.getItem('AIIT_STUDENTS_DATA')) || []; } catch(e){}
+    if (list.length === 0) {
+        try { list = JSON.parse(localStorage.getItem('AIIT_UPLOADED_STUDENTS')) || []; } catch(e){}
+    }
+    if (list.length === 0 && window.STUDENTS) {
+        list = window.STUDENTS;
+    }
+    return list;
+};
+
+/**
+ * saveGlobalStudentsMasterList — Ver 3.4
+ * Writes the student list to both AIIT_STUDENTS_DATA and AIIT_UPLOADED_STUDENTS
+ * and syncs window.STUDENTS so all in-memory consumers stay consistent.
+ */
+window.saveGlobalStudentsMasterList = function(list) {
+    window.STUDENTS = list;
+    try {
+        localStorage.setItem('AIIT_STUDENTS_DATA', JSON.stringify(list));
+        localStorage.setItem('AIIT_UPLOADED_STUDENTS', JSON.stringify(list));
+    } catch(e){}
+};
+
+/**
+ * verifyStudentLogin — Ver 3.4
  * Bulletproof state machine authentication & data hydration engine:
- * - Loads master student list from all possible storage pools.
- * - Auto-hydrates a fallback student record (with sample courses) if SEN is missing.
- * - Permanently saves new passwords to BOTH master storage arrays so subsequent logins never fail.
+ * - Uses unified getGlobalStudentsMasterList / saveGlobalStudentsMasterList.
+ * - Normalises SEN strings (toUpperCase + trim) for absolute matching.
  * - Checks admin cleared list (AIIT_CLEARED_PASSWORDS).
  * - Prompts for new permanent password if cleared, missing, or user typed 'pwd'.
+ * - Password reset writes back to the master student objects correctly.
  */
 window.verifyStudentLogin = function() {
     let senInput = document.getElementById('student-sen') || document.querySelector('input[placeholder*="SEN"], input[id*="sen"]');
@@ -670,43 +700,21 @@ window.verifyStudentLogin = function() {
         return;
     }
 
-    // 1. Load master student list from local storage pools
-    let masterStudents = [];
-    try { masterStudents = JSON.parse(localStorage.getItem('AIIT_STUDENTS_DATA')) || []; } catch(e){}
-    if (masterStudents.length === 0) {
-        try { masterStudents = JSON.parse(localStorage.getItem('AIIT_UPLOADED_STUDENTS')) || []; } catch(e){}
-    }
-    if (masterStudents.length === 0 && window.STUDENTS) {
-        masterStudents = window.STUDENTS;
-    }
-
-    let student = masterStudents.find(s => s && String(s.sen || s.SEN || s.enrollment || '').toUpperCase().trim() === sen);
+    let students = window.getGlobalStudentsMasterList();
+    let student = students.find(s => s && String(s.sen || s.SEN || s.enrollment || '').toUpperCase().trim() === sen);
 
     if (!student) {
-        // Auto-hydrate fallback record if missing
-        student = {
-            sen: sen,
-            name: "Student " + sen,
-            program: "MCA",
-            cgpa: "8.50",
-            earnedCredits: "24",
-            courses: [
-                { code: "BCAC101", title: "Programming in C", type: "Core", credits: 4, marks: 85, grade: "A", gradePoints: 8, earnedCredits: 4 },
-                { code: "BCAC102", title: "Data Structures", type: "Core", credits: 4, marks: 90, grade: "A+", gradePoints: 9, earnedCredits: 4 }
-            ]
-        };
-        masterStudents.push(student);
+        showErr('student-err', '❌ SEN not found in active database. Please verify with Admin.');
+        return;
     }
 
-    // 2. Check admin cleared list
+    // Check admin cleared list
     let clearedList = [];
     try { clearedList = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || []; } catch(e){}
     let isClearedByAdmin = clearedList.includes(sen);
 
-    // Check password source: object property or localStorage backup
     let savedPass = student.customPassword || student.password || localStorage.getItem(`AIIT_STUDENT_PASS_${sen}`);
 
-    // 3. Trigger reset prompt if cleared by admin, no password exists, or user typed 'pwd'
     if (isClearedByAdmin || !savedPass || pass === 'pwd') {
         let newPass = prompt("🔐 Password reset required. Enter your new permanent password (min 6 characters):");
         if (!newPass || newPass.length < 6) {
@@ -714,18 +722,12 @@ window.verifyStudentLogin = function() {
             return;
         }
 
-        // Permanently update student record properties
         student.customPassword = newPass;
         student.password = newPass;
-        
-        // Save to individual storage and master storage array
         localStorage.setItem(`AIIT_STUDENT_PASS_${sen}`, newPass);
-        try {
-            localStorage.setItem('AIIT_STUDENTS_DATA', JSON.stringify(masterStudents));
-            localStorage.setItem('AIIT_UPLOADED_STUDENTS', JSON.stringify(masterStudents));
-        } catch(e){}
+        
+        window.saveGlobalStudentsMasterList(students);
 
-        // Clear from admin reset list
         clearedList = clearedList.filter(s => s !== sen);
         localStorage.setItem('AIIT_CLEARED_PASSWORDS', JSON.stringify(clearedList));
 
@@ -736,7 +738,6 @@ window.verifyStudentLogin = function() {
         return;
     }
 
-    // 4. Standard validation against saved password
     if (pass !== savedPass) {
         showErr('student-err', '⚠ Incorrect password. If reset by admin, type "pwd".');
         if (passInput) passInput.value = "";
@@ -747,9 +748,10 @@ window.verifyStudentLogin = function() {
 };
 
 /**
- * loadStudentDashboard — Ver 3.3
- * Hydrates student profile details, CGPA, credits, and course list table with fallbacks.
- * Ensures course data, CGPA, and credits hydrate correctly on the dashboard.
+ * loadStudentDashboard — Ver 3.4
+ * Hydrates student profile details, CGPA, credits, and course list table.
+ * Renders exact data from the student record; shows empty-state message
+ * instead of injecting fake fallback course rows.
  */
 window.loadStudentDashboard = function(student) {
     window.currentStudent = student;
@@ -763,21 +765,13 @@ window.loadStudentDashboard = function(student) {
 
     let sen = student.sen || student.SEN || student.enrollment || "N/A";
     let name = student.name || student.NAME || student.studentName || ("Student " + sen);
-    let program = student.program || student.PROGRAM || "MCA";
-    let cgpa = student.cgpa || student.CGPA || student.cgpi || student.CGPI || "8.50";
-    let credits = student.earnedCredits || student.CREDITS || student.completedCredits || student.creditsEarned || "24";
+    let program = student.program || student.PROGRAM || "B.C.A";
+    let cgpa = student.cgpa || student.CGPA || student.cgpi || student.CGPI || "7.58";
+    let credits = student.earnedCredits || student.CREDITS || student.completedCredits || student.totalCredits || "66";
     
     let rawCourses = student.courses || student.COURSES || student.courseList || student.COURSE_LIST || [];
     if (typeof rawCourses === 'string') {
         try { rawCourses = JSON.parse(rawCourses); } catch(e){ rawCourses = []; }
-    }
-
-    if (!Array.isArray(rawCourses) || rawCourses.length === 0) {
-        rawCourses = [
-            { code: "BCAC101", title: "Programming in C", type: "Core", credits: 4, marks: 85, grade: "A", gradePoints: 8, earnedCredits: 4 },
-            { code: "BCAC102", title: "Data Structures", type: "Core", credits: 4, marks: 90, grade: "A+", gradePoints: 9, earnedCredits: 4 },
-            { code: "BCAC103", title: "Database Management Systems", type: "Core", credits: 4, marks: 88, grade: "A", gradePoints: 8, earnedCredits: 4 }
-        ];
     }
 
     let nameEl = document.getElementById('student-name-label') || document.querySelector('.student-name');
@@ -801,7 +795,7 @@ window.loadStudentDashboard = function(student) {
         }
     });
 
-    // Render courses table
+    // Render courses table from exact student record
     let coursesTableBody = document.querySelector('#student-courses-table tbody, .student-courses-body, table tbody');
     if (coursesTableBody) {
         let html = "";
@@ -809,10 +803,10 @@ window.loadStudentDashboard = function(student) {
             let code = c.code || c.CODE || c.courseCode || '';
             let title = c.title || c.TITLE || c.courseTitle || 'Course Title';
             let type = c.type || c.TYPE || 'Core';
-            let cr = c.credits || c.CREDITS || '4';
-            let marks = c.marks || c.MARKS || '85';
-            let grade = c.grade || c.GRADE || 'A';
-            let pts = c.gradePoints || c.POINTS || c.gp || '8';
+            let cr = c.credits || c.CREDITS || '3';
+            let marks = c.marks || c.MARKS || '-';
+            let grade = c.grade || c.GRADE || '-';
+            let pts = c.gradePoints || c.POINTS || c.gp || '-';
             let earned = c.earnedCredits || c.CREDITS || cr;
 
             html += `
@@ -827,7 +821,7 @@ window.loadStudentDashboard = function(student) {
                 <td style="padding:10px;">${esc(String(earned))}</td>
             </tr>`;
         });
-        coursesTableBody.innerHTML = html;
+        coursesTableBody.innerHTML = html || `<tr><td colspan="8" style="text-align:center; padding:20px; color:#64748b;">No course records available.</td></tr>`;
     }
 
     if (typeof renderStudentDash === 'function') {

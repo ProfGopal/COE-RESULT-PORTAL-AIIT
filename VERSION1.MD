@@ -1,18 +1,38 @@
-# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 3.3 (Password State Machine & Permanent Student Data Hydration)
+# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 3.4 (Unified Master Storage Key & SEN Normalization)
 
-You are updating a static GitHub Pages site (`script.js`). We are fixing the student password lifecycle state machine so that newly configured passwords are permanently saved to the master records array and local storage, ensuring subsequent logins never fail, and ensuring course data, CGPA, and credits hydrate correctly on the dashboard. Update version tags to **Ver 3.3** and create `VERSION3.3.md`.
+You are updating a static GitHub Pages site (`script.js`). We are unifying student record storage under `AIIT_STUDENTS_DATA`, normalizing SEN strings for absolute matching between Admin and Student Portals, ensuring password reset flows write back to the master student objects correctly, updating version to **Ver 3.4**, and creating `VERSION3.4.md`.
 
 Please execute the following strict updates:
 
 ## 1. Global Versioning Update
 * **File:** `index.html` & `admin-hidden.html`
-  * Change all version tags in the top left corners to `Ver 3.3`.
+  * Change all version tags in the top left corners to `Ver 3.4`.
 
-## 2. Bulletproof State Machine Authentication & Data Hydration Engine (`script.js`)
+## 2. Unified Master Dataset & Student Login Engine (`script.js`)
 * **File:** `script.js`
-  * Replace your student login verification and dashboard loading functions with this robust version:
+  * Replace your student login validation and master record loaders with this unified version:
 
     ```javascript
+    window.getGlobalStudentsMasterList = function() {
+        let list = [];
+        try { list = JSON.parse(localStorage.getItem('AIIT_STUDENTS_DATA')) || []; } catch(e){}
+        if (list.length === 0) {
+            try { list = JSON.parse(localStorage.getItem('AIIT_UPLOADED_STUDENTS')) || []; } catch(e){}
+        }
+        if (list.length === 0 && window.STUDENTS) {
+            list = window.STUDENTS;
+        }
+        return list;
+    };
+
+    window.saveGlobalStudentsMasterList = function(list) {
+        window.STUDENTS = list;
+        try {
+            localStorage.setItem('AIIT_STUDENTS_DATA', JSON.stringify(list));
+            localStorage.setItem('AIIT_UPLOADED_STUDENTS', JSON.stringify(list));
+        } catch(e){}
+    };
+
     window.verifyStudentLogin = function() {
         let senInput = document.getElementById('student-sen') || document.querySelector('input[placeholder*="SEN"], input[id*="sen"]');
         let passInput = document.getElementById('student-pass') || document.querySelector('input[type="password"]');
@@ -25,43 +45,21 @@ Please execute the following strict updates:
             return;
         }
 
-        // 1. Load master student list from local storage pools
-        let masterStudents = [];
-        try { masterStudents = JSON.parse(localStorage.getItem('AIIT_STUDENTS_DATA')) || []; } catch(e){}
-        if (masterStudents.length === 0) {
-            try { masterStudents = JSON.parse(localStorage.getItem('AIIT_UPLOADED_STUDENTS')) || []; } catch(e){}
-        }
-        if (masterStudents.length === 0 && window.STUDENTS) {
-            masterStudents = window.STUDENTS;
-        }
-
-        let student = masterStudents.find(s => s && String(s.sen || s.SEN || s.enrollment || '').toUpperCase().trim() === sen);
+        let students = window.getGlobalStudentsMasterList();
+        let student = students.find(s => s && String(s.sen || s.SEN || s.enrollment || '').toUpperCase().trim() === sen);
 
         if (!student) {
-            // Auto-hydrate fallback record if missing
-            student = {
-                sen: sen,
-                name: "Student " + sen,
-                program: "MCA",
-                cgpa: "8.50",
-                earnedCredits: "24",
-                courses: [
-                    { code: "BCAC101", title: "Programming in C", type: "Core", credits: 4, marks: 85, grade: "A", gradePoints: 8, earnedCredits: 4 },
-                    { code: "BCAC102", title: "Data Structures", type: "Core", credits: 4, marks: 90, grade: "A+", gradePoints: 9, earnedCredits: 4 }
-                ]
-            };
-            masterStudents.push(student);
+            showErr('student-err', '❌ SEN not found in active database. Please verify with Admin.');
+            return;
         }
 
-        // 2. Check admin cleared list
+        // Check admin cleared list
         let clearedList = [];
         try { clearedList = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || []; } catch(e){}
         let isClearedByAdmin = clearedList.includes(sen);
 
-        // Check password source: object property or localStorage backup
         let savedPass = student.customPassword || student.password || localStorage.getItem(`AIIT_STUDENT_PASS_${sen}`);
 
-        // 3. Trigger reset prompt if cleared by admin, no password exists, or user typed 'pwd'
         if (isClearedByAdmin || !savedPass || pass === 'pwd') {
             let newPass = prompt("🔐 Password reset required. Enter your new permanent password (min 6 characters):");
             if (!newPass || newPass.length < 6) {
@@ -69,18 +67,12 @@ Please execute the following strict updates:
                 return;
             }
 
-            // Permanently update student record properties
             student.customPassword = newPass;
             student.password = newPass;
-            
-            // Save to individual storage and master storage array
             localStorage.setItem(`AIIT_STUDENT_PASS_${sen}`, newPass);
-            try {
-                localStorage.setItem('AIIT_STUDENTS_DATA', JSON.stringify(masterStudents));
-                localStorage.setItem('AIIT_UPLOADED_STUDENTS', JSON.stringify(masterStudents));
-            } catch(e){}
+            
+            window.saveGlobalStudentsMasterList(students);
 
-            // Clear from admin reset list
             clearedList = clearedList.filter(s => s !== sen);
             localStorage.setItem('AIIT_CLEARED_PASSWORDS', JSON.stringify(clearedList));
 
@@ -91,7 +83,6 @@ Please execute the following strict updates:
             return;
         }
 
-        // 4. Standard validation against saved password
         if (pass !== savedPass) {
             showErr('student-err', '⚠ Incorrect password. If reset by admin, type "pwd".');
             if (passInput) passInput.value = "";
@@ -113,21 +104,13 @@ Please execute the following strict updates:
 
         let sen = student.sen || student.SEN || student.enrollment || "N/A";
         let name = student.name || student.NAME || student.studentName || ("Student " + sen);
-        let program = student.program || student.PROGRAM || "MCA";
-        let cgpa = student.cgpa || student.CGPA || student.cgpi || student.CGPI || "8.50";
-        let credits = student.earnedCredits || student.CREDITS || student.completedCredits || student.creditsEarned || "24";
+        let program = student.program || student.PROGRAM || "B.C.A";
+        let cgpa = student.cgpa || student.CGPA || student.cgpi || student.CGPI || "7.58";
+        let credits = student.earnedCredits || student.CREDITS || student.completedCredits || student.totalCredits || "66";
         
         let rawCourses = student.courses || student.COURSES || student.courseList || student.COURSE_LIST || [];
         if (typeof rawCourses === 'string') {
             try { rawCourses = JSON.parse(rawCourses); } catch(e){ rawCourses = []; }
-        }
-
-        if (!Array.isArray(rawCourses) || rawCourses.length === 0) {
-            rawCourses = [
-                { code: "BCAC101", title: "Programming in C", type: "Core", credits: 4, marks: 85, grade: "A", gradePoints: 8, earnedCredits: 4 },
-                { code: "BCAC102", title: "Data Structures", type: "Core", credits: 4, marks: 90, grade: "A+", gradePoints: 9, earnedCredits: 4 },
-                { code: "BCAC103", title: "Database Management Systems", type: "Core", credits: 4, marks: 88, grade: "A", gradePoints: 8, earnedCredits: 4 }
-            ];
         }
 
         let nameEl = document.getElementById('student-name-label') || document.querySelector('.student-name');
@@ -151,7 +134,7 @@ Please execute the following strict updates:
             }
         });
 
-        // Render courses table
+        // Render courses table from exact student record
         let coursesTableBody = document.querySelector('#student-courses-table tbody, .student-courses-body, table tbody');
         if (coursesTableBody) {
             let html = "";
@@ -159,10 +142,10 @@ Please execute the following strict updates:
                 let code = c.code || c.CODE || c.courseCode || '';
                 let title = c.title || c.TITLE || c.courseTitle || 'Course Title';
                 let type = c.type || c.TYPE || 'Core';
-                let cr = c.credits || c.CREDITS || '4';
-                let marks = c.marks || c.MARKS || '85';
-                let grade = c.grade || c.GRADE || 'A';
-                let pts = c.gradePoints || c.POINTS || c.gp || '8';
+                let cr = c.credits || c.CREDITS || '3';
+                let marks = c.marks || c.MARKS || '-';
+                let grade = c.grade || c.GRADE || '-';
+                let pts = c.gradePoints || c.POINTS || c.gp || '-';
                 let earned = c.earnedCredits || c.CREDITS || cr;
 
                 html += `
@@ -177,10 +160,10 @@ Please execute the following strict updates:
                     <td style="padding:10px;">${esc(String(earned))}</td>
                 </tr>`;
             });
-            coursesTableBody.innerHTML = html;
+            coursesTableBody.innerHTML = html || `<tr><td colspan="8" style="text-align:center; padding:20px; color:#64748b;">No course records available.</td></tr>`;
         }
     };
     ```
 
-## 3. Create `VERSION3.3.md`
-* Create a file named `VERSION3.3.md` in your project root containing the release notes for Ver 3.3.
+## 3. Create `VERSION3.4.md`
+* Create a file named `VERSION3.4.md` in your project root containing the release notes for Ver 3.4.

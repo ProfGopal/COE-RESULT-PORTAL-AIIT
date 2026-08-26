@@ -1,6 +1,6 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Restored & Cloud-Enforced Ver 3.4)
+ * Master Script Engine (Restored & Cloud-Enforced Ver 3.5)
  */
 
 'use strict';
@@ -646,11 +646,11 @@ window.studentLoginStep = async function () {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  3b. UNIFIED MASTER STORAGE & SEN NORMALIZATION ENGINE — Ver 3.4
+//  3b. PRO-GRADE STUDENT AUTHENTICATION & MASTER SYNC ENGINE — Ver 3.5
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * getGlobalStudentsMasterList — Ver 3.4
+ * getGlobalStudentsMasterList — Ver 3.5
  * Unified loader: reads from AIIT_STUDENTS_DATA (master), falls back to
  * AIIT_UPLOADED_STUDENTS, then to window.STUDENTS in-memory list.
  */
@@ -667,7 +667,7 @@ window.getGlobalStudentsMasterList = function() {
 };
 
 /**
- * saveGlobalStudentsMasterList — Ver 3.4
+ * saveGlobalStudentsMasterList — Ver 3.5
  * Writes the student list to both AIIT_STUDENTS_DATA and AIIT_UPLOADED_STUDENTS
  * and syncs window.STUDENTS so all in-memory consumers stay consistent.
  */
@@ -680,13 +680,11 @@ window.saveGlobalStudentsMasterList = function(list) {
 };
 
 /**
- * verifyStudentLogin — Ver 3.4
- * Bulletproof state machine authentication & data hydration engine:
- * - Uses unified getGlobalStudentsMasterList / saveGlobalStudentsMasterList.
- * - Normalises SEN strings (toUpperCase + trim) for absolute matching.
- * - Checks admin cleared list (AIIT_CLEARED_PASSWORDS).
- * - Prompts for new permanent password if cleared, missing, or user typed 'pwd'.
- * - Password reset writes back to the master student objects correctly.
+ * verifyStudentLogin — Ver 3.5
+ * Pro-Grade Student Authentication & Master Sync Engine:
+ * - Immutably updates master student record and localStorage on password reset.
+ * - Supports password lookup from individual key, customPassword, or password fields.
+ * - Syncs window.STUDENTS, AIIT_STUDENTS_DATA, and AIIT_UPLOADED_STUDENTS atomically.
  */
 window.verifyStudentLogin = function() {
     let senInput = document.getElementById('student-sen') || document.querySelector('input[placeholder*="SEN"], input[id*="sen"]');
@@ -700,45 +698,66 @@ window.verifyStudentLogin = function() {
         return;
     }
 
-    let students = window.getGlobalStudentsMasterList();
-    let student = students.find(s => s && String(s.sen || s.SEN || s.enrollment || '').toUpperCase().trim() === sen);
+    // 1. Load master student records array
+    let masterStudents = [];
+    try { masterStudents = JSON.parse(localStorage.getItem('AIIT_STUDENTS_DATA')) || []; } catch(e){}
+    if (masterStudents.length === 0) {
+        try { masterStudents = JSON.parse(localStorage.getItem('AIIT_UPLOADED_STUDENTS')) || []; } catch(e){}
+    }
+    if (masterStudents.length === 0 && window.STUDENTS) {
+        masterStudents = window.STUDENTS;
+    }
+
+    let studentIndex = masterStudents.findIndex(s => s && String(s.sen || s.SEN || s.enrollment || '').toUpperCase().trim() === sen);
+    let student = studentIndex !== -1 ? masterStudents[studentIndex] : null;
 
     if (!student) {
         showErr('student-err', '❌ SEN not found in active database. Please verify with Admin.');
         return;
     }
 
-    // Check admin cleared list
+    // 2. Check admin cleared list
     let clearedList = [];
     try { clearedList = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || []; } catch(e){}
     let isClearedByAdmin = clearedList.includes(sen);
 
-    let savedPass = student.customPassword || student.password || localStorage.getItem(`AIIT_STUDENT_PASS_${sen}`);
+    // Check password from individual key or student object property
+    let storedPass = localStorage.getItem(`AIIT_STUDENT_PASS_${sen}`) || student.customPassword || student.password;
 
-    if (isClearedByAdmin || !savedPass || pass === 'pwd') {
+    // 3. Trigger reset if cleared by admin, no password exists, or user entered 'pwd'
+    if (isClearedByAdmin || !storedPass || pass === 'pwd') {
         let newPass = prompt("🔐 Password reset required. Enter your new permanent password (min 6 characters):");
         if (!newPass || newPass.length < 6) {
             alert("❌ Password must be at least 6 characters.");
             return;
         }
 
+        // Permanently update student record in master array
         student.customPassword = newPass;
         student.password = newPass;
-        localStorage.setItem(`AIIT_STUDENT_PASS_${sen}`, newPass);
-        
-        window.saveGlobalStudentsMasterList(students);
+        masterStudents[studentIndex] = student;
 
+        // Save to individual storage AND master storage array immediately
+        localStorage.setItem(`AIIT_STUDENT_PASS_${sen}`, newPass);
+        try {
+            localStorage.setItem('AIIT_STUDENTS_DATA', JSON.stringify(masterStudents));
+            localStorage.setItem('AIIT_UPLOADED_STUDENTS', JSON.stringify(masterStudents));
+            window.STUDENTS = masterStudents;
+        } catch(e){}
+
+        // Remove from cleared list
         clearedList = clearedList.filter(s => s !== sen);
         localStorage.setItem('AIIT_CLEARED_PASSWORDS', JSON.stringify(clearedList));
 
         if (passInput) passInput.value = "";
 
-        alert("✅ Password saved successfully! Loading dashboard...");
+        alert("✅ Password saved permanently! Loading dashboard...");
         window.loadStudentDashboard(student);
         return;
     }
 
-    if (pass !== savedPass) {
+    // 4. Standard validation against stored password (supporting both direct comparison and master object property)
+    if (pass !== storedPass && pass !== student.customPassword && pass !== student.password) {
         showErr('student-err', '⚠ Incorrect password. If reset by admin, type "pwd".');
         if (passInput) passInput.value = "";
         return;

@@ -1,6 +1,6 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 7.0 - Full UI & Action Restoration)
+ * Master Script Engine (Ver 7.1 - Cloud Curriculum Auto-Restore & Sign-In Fix)
  */
 
 'use strict';
@@ -34,7 +34,7 @@ window.showPage = function (id) {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  FACULTY & ADMIN NAVIGATION HANDLERS (Ver 7.0)
+//  FACULTY & ADMIN NAVIGATION HANDLERS (Ver 7.1)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 window.showFacultyLogin = function() {
@@ -195,6 +195,34 @@ window.clearStudentPassword = async function(senInputId) {
     }
 };
 
+// --- 1. AUTO-RESTORE CURRICULUM & PROGRAMS FROM GOOGLE SHEET CLOUD ---
+window.syncCloudCurriculumOnLoad = async function() {
+    try {
+        let res = await fetch(scriptURL + "?action=getCurriculum");
+        let data = await res.json();
+        if (data && (data.rules || data.programs)) {
+            if (data.rules) {
+                window.CURRICULUM_RULES = data.rules;
+                localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(data.rules));
+            }
+            if (data.programs && Array.isArray(data.programs)) {
+                localStorage.setItem('AIIT_SYSTEM_PROGRAMS', JSON.stringify(data.programs));
+            }
+            if (data.courses) {
+                window.CUSTOM_COURSE_DICT = data.courses;
+                localStorage.setItem('AIIT_CUSTOM_COURSES', JSON.stringify(data.courses));
+            }
+            console.log("✅ Successfully restored Batches, Programs, and Curriculums from Google Sheet Cloud!");
+        }
+    } catch(e) {
+        console.warn("Cloud curriculum sync offline, using local cache.", e);
+    }
+
+    if (typeof window.renderSystemPrograms === 'function') window.renderSystemPrograms();
+    if (typeof window.loadCurriculumEditor === 'function') window.loadCurriculumEditor();
+};
+
+// --- 2. DIRECT STUDENT SIGN-IN BINDING ---
 window.studentLoginStep = async function () {
     var rawSen = document.getElementById('s-sen')?.value || document.getElementById('student-sen')?.value || document.querySelector('input[placeholder*="SEN"]')?.value;
     var sen = String(rawSen || '').toUpperCase().trim();
@@ -240,7 +268,7 @@ window.studentLoginStep = async function () {
             alert("⚠ " + (result.message || 'Incorrect password.'));
         }
     } catch (err) {
-        alert("✗ Cloud connection error. Check your network.");
+        alert("✗ Cloud connection error. Check your internet.");
     }
 };
 
@@ -290,7 +318,18 @@ window.loadStudentDashboard = function(student) {
     }
 };
 
+// --- 3. EXPLICIT BUTTON CLICK BINDINGS ---
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    let text = (btn.textContent || '').trim().toUpperCase();
+
+    if (text.includes('SIGN IN') || text.id === 's-login-btn') {
+        e.preventDefault();
+        window.studentLoginStep();
+    }
+});
+
 document.addEventListener('DOMContentLoaded', () => {
-    if (typeof window.renderSystemPrograms === 'function') window.renderSystemPrograms();
-    if (typeof window.loadCurriculumEditor === 'function') window.loadCurriculumEditor();
+    window.syncCloudCurriculumOnLoad();
 });

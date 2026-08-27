@@ -1,105 +1,55 @@
-# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 7.0 (Universal UI & Functionality Restoration)
+# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 7.1 (Cloud Curriculum Auto-Restoration & Student Sign-In Fix)
 
-You are updating a static GitHub Pages site (`script.js`, `admin-hidden.html`, `index.html`). We are fixing the admin tab visibility containers, ensuring curriculum dropdowns initialize on load, correcting the clear password and student sign-in actions, updating version tags to **Ver 7.0**, and creating `VERSION7.0.md`.
+You are updating a static GitHub Pages site (`script.js`, `admin-hidden.html`, `index.html`). We are ensuring that the admin panel automatically pulls batches, programs, and curriculum rules from the Google Sheet cloud database on load, and directly binding the student "SIGN IN" button, updating version tags to **Ver 7.1**, and creating `VERSION7.1.md`.
 
 Please execute the following strict updates:
 
 ## 1. Global Versioning Update
 * **File:** `index.html`, `admin-hidden.html`
-  * Change all version tags in the top left corners to `Ver 7.0`.
+  * Change all version tags in the top left corners to `Ver 7.1`.
 
-## 2. Universal Admin & Student Engine (`script.js`)
+## 2. Cloud Auto-Restoration & Sign-In Engine (`script.js`)
 * **File:** `script.js`
-  * Replace your tab switching, clear password, student login, and curriculum loaders with this complete, fault-tolerant version:
+  * Replace your initialization, student login trigger, and curriculum sync logic with this complete version:
 
     ```javascript
     /**
      * script.js — AIIT COE Result Portal
-     * Master Script Engine (Ver 7.0 - Full UI & Action Restoration)
+     * Master Script Engine (Ver 7.1 - Cloud Curriculum Auto-Restore & Sign-In Fix)
      */
 
     'use strict';
 
     const scriptURL = "[https://script.google.com/macros/s/AKfycby0xTAEjyfcN-IrEVaEzQuFFAfCQD1wWhpTJ5dlv9S7jBIT48RY8PxH76mW2Mci0rCGCw/exec](https://script.google.com/macros/s/AKfycby0xTAEjyfcN-IrEVaEzQuFFAfCQD1wWhpTJ5dlv9S7jBIT48RY8PxH76mW2Mci0rCGCw/exec)";
 
-    window.switchAdminTab = function (tabId, btnElement) {
-        // Hide all admin tabs safely
-        ['tab-upload', 'tab-curriculum', 'tab-students', 'tab-faculty', 'tab-admin-all'].forEach(id => {
-            let el = document.getElementById(id);
-            if (el) el.style.display = 'none';
-        });
-
-        // Also hide generic sections
-        document.querySelectorAll('.admin-section, .admin-tab-content').forEach(sec => {
-            if (sec) sec.style.display = 'none';
-        });
-
-        // Reset button states
-        document.querySelectorAll('.admin-tab-btn, .nav-btn, .dashboard-nav button').forEach(b => {
-            if (b) {
-                b.classList.remove('active');
-                b.style.background = '';
-                b.style.color = '';
-            }
-        });
-
-        // Show target section
-        var target = document.getElementById(tabId) || document.querySelector('.' + tabId);
-        if (target) {
-            target.style.display = 'block';
-        }
-
-        if (btnElement) {
-            btnElement.classList.add('active');
-            btnElement.style.background = '#2563eb';
-            btnElement.style.color = '#ffffff';
-        }
-
-        // Trigger specific loaders
-        if (tabId === 'tab-students') {
-            if (typeof window.applyAdminFilters === 'function') window.applyAdminFilters();
-        } else if (tabId === 'tab-curriculum') {
-            if (typeof window.loadCurriculumEditor === 'function') window.loadCurriculumEditor();
-        } else if (tabId === 'tab-upload') {
-            if (typeof window.renderSystemPrograms === 'function') window.renderSystemPrograms();
-        }
-    };
-
-    window.clearStudentPassword = async function(senInputId) {
-        let inputEl = document.getElementById(senInputId) || document.querySelector('input[placeholder*="SEN"], input[id*="sen"], input[type="text"]');
-        let sen = inputEl ? inputEl.value.trim().toUpperCase() : "";
-        
-        if (!sen) {
-            alert("⚠️ Please enter or select a valid Student Enrollment Number (SEN).");
-            return;
-        }
-
-        if (!confirm(`Are you sure you want to clear the password for student ${sen}?`)) return;
-
-        let adminPass = window.currentAdminPassword || sessionStorage.getItem('coe_admin_auth') || '';
-
+    // --- 1. AUTO-RESTORE CURRICULUM & PROGRAMS FROM GOOGLE SHEET CLOUD ---
+    window.syncCloudCurriculumOnLoad = async function() {
         try {
-            let response = await fetch(scriptURL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify({ 
-                    action: 'clearpassword', 
-                    sen: sen,
-                    adminPassword: adminPass 
-                })
-            });
-            let result = await response.json();
-            if (result.status === 'success') {
-                alert(`✅ Password successfully cleared for student: ${sen}.\nThe student can now log in to set a new password.`);
-                if (inputEl) inputEl.value = "";
-            } else {
-                alert(`❌ Error: ${result.message}`);
+            let res = await fetch(scriptURL + "?action=getCurriculum");
+            let data = await res.json();
+            if (data && (data.rules || data.programs)) {
+                if (data.rules) {
+                    window.CURRICULUM_RULES = data.rules;
+                    localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(data.rules));
+                }
+                if (data.programs && Array.isArray(data.programs)) {
+                    localStorage.setItem('AIIT_SYSTEM_PROGRAMS', JSON.stringify(data.programs));
+                }
+                if (data.courses) {
+                    window.CUSTOM_COURSE_DICT = data.courses;
+                    localStorage.setItem('AIIT_CUSTOM_COURSES', JSON.stringify(data.courses));
+                }
+                console.log("✅ Successfully restored Batches, Programs, and Curriculums from Google Sheet Cloud!");
             }
-        } catch (err) {
-            alert("✅ Password reset trigger executed for " + sen);
+        } catch(e) {
+            console.warn("Cloud curriculum sync offline, using local cache.", e);
         }
+
+        if (typeof window.renderSystemPrograms === 'function') window.renderSystemPrograms();
+        if (typeof window.loadCurriculumEditor === 'function') window.loadCurriculumEditor();
     };
 
+    // --- 2. DIRECT STUDENT SIGN-IN BINDING ---
     window.studentLoginStep = async function () {
         var rawSen = document.getElementById('s-sen')?.value || document.getElementById('student-sen')?.value || document.querySelector('input[placeholder*="SEN"]')?.value;
         var sen = String(rawSen || '').toUpperCase().trim();
@@ -145,7 +95,7 @@ Please execute the following strict updates:
                 alert("⚠ " + (result.message || 'Incorrect password.'));
             }
         } catch (err) {
-            alert("✗ Cloud connection error. Check your network.");
+            alert("✗ Cloud connection error. Check your internet.");
         }
     };
 
@@ -195,11 +145,22 @@ Please execute the following strict updates:
         }
     };
 
+    // --- 3. EXPLICIT BUTTON CLICK BINDINGS ---
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        let text = (btn.textContent || '').trim().toUpperCase();
+
+        if (text.includes('SIGN IN') || text.id === 's-login-btn') {
+            e.preventDefault();
+            window.studentLoginStep();
+        }
+    });
+
     document.addEventListener('DOMContentLoaded', () => {
-        if (typeof window.renderSystemPrograms === 'function') window.renderSystemPrograms();
-        if (typeof window.loadCurriculumEditor === 'function') window.loadCurriculumEditor();
+        window.syncCloudCurriculumOnLoad();
     });
     ```
 
-## 3. Create `VERSION7.0.md`
-* Create a file named `VERSION7.0.md` in your project root containing the release notes for Ver 7.0.
+## 3. Create `VERSION7.1.md`
+* Create a file named `VERSION7.1.md` in your project root containing the release notes for Ver 7.1.

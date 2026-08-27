@@ -1,6 +1,6 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 9.5 - Master Curriculum & Bulk Excel Parser)
+ * Master Script Engine (Ver 10.0 - 100% Cloud-Synced Curriculum & Degree Audit)
  */
 
 'use strict';
@@ -10,8 +10,8 @@ const GAS_URL = scriptURL;
 
 window.STUDENTS = [];
 window.CURRICULUM_RULES = {};
-window.SYSTEM_PROGRAMS = [];
 window.CUSTOM_COURSE_DICT = {};
+window.SYSTEM_PROGRAMS = [];
 
 function sanitize(str) {
   return String(str || '').replace(/[<>"'`;\\&\/]/g, '').trim().substring(0, 200);
@@ -24,7 +24,23 @@ function esc(str) {
 window.esc = esc;
 
 // ═══════════════════════════════════════════════════════════════════════
-//  1. LIGHTNING-FAST CLOUD BOOTLOADER
+//  1. COURSE INFO HELPER (Resolves Name & Credits)
+// ═══════════════════════════════════════════════════════════════════════
+window.getCourseInfo = function(code) {
+    if (!code) return { name: "Course Title", credits: 3 };
+    let cleanCode = String(code).toUpperCase().trim();
+    if (window.CUSTOM_COURSE_DICT && window.CUSTOM_COURSE_DICT[cleanCode]) {
+        let item = window.CUSTOM_COURSE_DICT[cleanCode];
+        return {
+            name: item.name || cleanCode,
+            credits: (item.credits !== undefined && !isNaN(item.credits)) ? parseFloat(item.credits) : 3
+        };
+    }
+    return { name: cleanCode, credits: 3 };
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+//  2. CLOUD SYNC & BOOTLOADER
 // ═══════════════════════════════════════════════════════════════════════
 window.initializeCloudPortal = async function() {
     try {
@@ -32,10 +48,10 @@ window.initializeCloudPortal = async function() {
             fetch(scriptURL + "?action=load"),
             fetch(scriptURL + "?action=getCurriculum")
         ]);
-
+        
         let stuData = await stuRes.json();
         window.STUDENTS = Array.isArray(stuData) ? stuData : (stuData.students || []);
-
+        
         let progMap = new Map();
         window.STUDENTS.forEach(s => {
             if (s.batch && s.program) {
@@ -60,15 +76,9 @@ window.initializeCloudPortal = async function() {
         }
     } catch (err) {
         console.warn("Cloud sync warning:", err);
-        window.SYSTEM_PROGRAMS = [
-            { batch: "2024", program: "MCA" }, 
-            { batch: "2025", program: "MCA" }, 
-            { batch: "2024", program: "B.C.A" }, 
-            { batch: "2025", program: "B.C.A" }
-        ];
     }
 
-    // Load from localStorage if present
+    // Load from localStorage as secondary cache
     try {
         let localCur = localStorage.getItem('AIIT_CUSTOM_CURRICULUM');
         if (localCur) {
@@ -93,8 +103,31 @@ window.initializeCloudPortal = async function() {
     if (typeof window.loadCurriculumEditor === 'function') window.loadCurriculumEditor();
 };
 
+window.saveCurriculumToCloud = function() {
+    let masterPayload = {
+        rules: window.CURRICULUM_RULES || {},
+        programs: window.SYSTEM_PROGRAMS || [],
+        courses: window.CUSTOM_COURSE_DICT || {}
+    };
+
+    localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(masterPayload.rules));
+    localStorage.setItem('AIIT_CUSTOM_COURSES', JSON.stringify(masterPayload.courses));
+
+    fetch(scriptURL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+            action: 'saveCurriculum',
+            curriculumData: JSON.stringify(masterPayload)
+        })
+    })
+    .then(res => res.text())
+    .then(txt => console.log("☁️ Curriculum auto-saved to Google Sheets:", txt))
+    .catch(err => console.error("☁️ Cloud save error:", err));
+};
+
 // ═══════════════════════════════════════════════════════════════════════
-//  2. BULK EXCEL CURRICULUM PARSER & UPLOADER (Ver 9.5)
+//  3. BULK EXCEL CURRICULUM PARSER & UPLOADER
 // ═══════════════════════════════════════════════════════════════════════
 window.handleBulkCurriculumUpload = function (event) {
     try {
@@ -128,7 +161,6 @@ window.handleBulkCurriculumUpload = function (event) {
                 if (!window.CUSTOM_COURSE_DICT) window.CUSTOM_COURSE_DICT = {};
 
                 rows.forEach(row => {
-                    // Flexible key mapping
                     const cleanRow = {};
                     for (let key in row) {
                         cleanRow[key.toString().replace(/[^a-zA-Z0-9]/g, '').toLowerCase()] = row[key];
@@ -180,15 +212,10 @@ window.handleBulkCurriculumUpload = function (event) {
                 if (!window.CURRICULUM_RULES) window.CURRICULUM_RULES = {};
                 window.CURRICULUM_RULES[targetKey] = newRules;
 
-                // Save to localStorage & Master Dictionary
-                localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(window.CURRICULUM_RULES));
-                localStorage.setItem('AIIT_CUSTOM_COURSES', JSON.stringify(window.CUSTOM_COURSE_DICT));
+                window.saveCurriculumToCloud();
 
                 if (typeof window.loadCurriculumEditor === 'function') {
                     window.loadCurriculumEditor();
-                }
-                if (typeof window.saveCurriculumToCloud === 'function') {
-                    window.saveCurriculumToCloud();
                 }
 
                 alert(`✅ SUCCESS! Bulk Curriculum uploaded for ${targetKey}. ${newRules.length} Main Categories and all courses registered successfully.`);
@@ -205,9 +232,6 @@ window.handleBulkCurriculumUpload = function (event) {
     }
 };
 
-// ═══════════════════════════════════════════════════════════════════════
-//  3. COMPLETE RESET TO DEFAULT & CLOUD SAVE UTILITIES
-// ═══════════════════════════════════════════════════════════════════════
 window.resetCurriculumEditor = function() {
     if (confirm("⚠️ Are you sure you want to completely clear and reset the curriculum to defaults?")) {
         const keyDropdown = document.getElementById('curriculum-edit-key') || document.querySelector('select[id*="curr"]');
@@ -216,35 +240,14 @@ window.resetCurriculumEditor = function() {
         if (window.CURRICULUM_RULES && window.CURRICULUM_RULES[selectedKey]) {
             delete window.CURRICULUM_RULES[selectedKey];
         }
-        localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(window.CURRICULUM_RULES));
+
+        window.saveCurriculumToCloud();
 
         if (typeof window.loadCurriculumEditor === 'function') {
             window.loadCurriculumEditor();
         }
-        if (typeof window.saveCurriculumToCloud === 'function') {
-            window.saveCurriculumToCloud();
-        }
 
         alert(`✅ Curriculum for ${selectedKey} has been completely reset.`);
-    }
-};
-
-window.saveCurriculumToCloud = async function() {
-    try {
-        const payload = {
-            rules: window.CURRICULUM_RULES,
-            courses: window.CUSTOM_COURSE_DICT
-        };
-        await fetch(scriptURL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({
-                action: 'saveCurriculum',
-                curriculumData: JSON.stringify(payload)
-            })
-        });
-    } catch (e) {
-        console.warn("Cloud save warning:", e);
     }
 };
 
@@ -266,7 +269,6 @@ window.renderSystemPrograms = function() {
         `).join('');
     }
 
-    // Populate curriculum dropdown with ALL available batches & programs
     const dropdown = document.getElementById('curriculum-edit-key') || document.querySelector('select[id*="curr"]');
     if (dropdown) {
         const currentVal = dropdown.value;
@@ -300,12 +302,12 @@ window.removeSystemProgram = function(index) {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-//  5. MASTER CURRICULUM TABLE EDITOR (Fully Detailed & Editable)
+//  5. ADMIN CURRICULUM TABLE EDITOR (Code, Name, Credits, Edit, Remove)
 // ═══════════════════════════════════════════════════════════════════════
 window.loadCurriculumEditor = function() {
     const dropdown = document.getElementById('curriculum-edit-key') || document.querySelector('select[id*="curr"]');
     const container = document.getElementById('curriculum-gui-container') || document.querySelector('.curriculum-container') || document.getElementById('tab-curriculum');
-
+    
     let sysProgs = window.SYSTEM_PROGRAMS.length > 0 ? window.SYSTEM_PROGRAMS : [{ batch: "2024", program: "MCA" }];
 
     if (dropdown && dropdown.options.length <= 1) {
@@ -318,13 +320,13 @@ window.loadCurriculumEditor = function() {
     window.triggerLoadCurriculum = function() {
         let selectedKey = dropdown ? dropdown.value : "2024_MCA";
         window.currentEditingKey = selectedKey;
-
+        
         let rules = window.CURRICULUM_RULES[selectedKey] || [
             { 
-                category: "1. School Core", 
-                minCredits: 10, 
+                category: "A. School Core", 
+                minCredits: 17, 
                 subCategories: [
-                    { name: "General Courses", minCredits: 10, codes: ["ENG5001", "MAT5005"] }
+                    { name: "General Courses", minCredits: 17, codes: ["CSE5129", "MAT5005"] }
                 ] 
             }
         ];
@@ -367,15 +369,25 @@ window.loadCurriculumEditor = function() {
                         <thead>
                             <tr style="background:#f1f5f9; color:#475569; text-align:left;">
                                 <th style="padding:8px;">Course Code</th>
+                                <th style="padding:8px;">Course Name</th>
+                                <th style="padding:8px; text-align:center;">Credits</th>
                                 <th style="padding:8px; text-align:right;">Action</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${(sub.codes || []).length > 0 ? (sub.codes || []).map((code, cIdx) => `
-                            <tr style="border-bottom:1px solid #f1f5f9;">
-                                <td style="padding:8px; font-weight:bold; color:#0f172a;">${esc(code)}</td>
-                                <td style="padding:8px; text-align:right;"><button onclick="window.adminRemoveCourse('${selectedKey}',${mIdx}, ${sIdx},${cIdx})" style="background:#ef4444; color:white; border:none; padding:3px 8px; border-radius:4px; cursor:pointer;">Remove</button></td>
-                            </tr>`).join('') : `<tr><td colspan="2" style="padding:10px; color:#64748b; text-align:center;">No courses in this sub-category yet.</td></tr>`}
+                            ${(sub.codes || []).length > 0 ? (sub.codes || []).map((code, cIdx) => {
+                                let info = window.getCourseInfo(code);
+                                return `
+                                <tr style="border-bottom:1px solid #f1f5f9;">
+                                    <td style="padding:8px; font-weight:bold; color:#0f172a;">${esc(code)}</td>
+                                    <td style="padding:8px; color:#334155;">${esc(info.name)}</td>
+                                    <td style="padding:8px; text-align:center; font-weight:bold; color:#2563eb;">${info.credits} Cr</td>
+                                    <td style="padding:8px; text-align:right; white-space:nowrap;">
+                                        <button onclick="window.adminEditCourse('${selectedKey}', ${mIdx},${sIdx}, ${cIdx}, '${code}')" style="background:#eab308; color:#451a03; border:none; padding:3px 8px; border-radius:4px; cursor:pointer; font-weight:bold; margin-right:4px;">Edit</button>
+                                        <button onclick="window.adminRemoveCourse('${selectedKey}',${mIdx}, ${sIdx},${cIdx})" style="background:#ef4444; color:white; border:none; padding:3px 8px; border-radius:4px; cursor:pointer;">Remove</button>
+                                    </td>
+                                </tr>`;
+                            }).join('') : `<tr><td colspan="4" style="padding:10px; color:#64748b; text-align:center;">No courses in this sub-category yet.</td></tr>`}
                         </tbody>
                     </table>
                     <button onclick="window.adminAddCourse('${selectedKey}', ${mIdx}, ${sIdx})" style="margin-top:10px; background:#10b981; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-weight:bold;">+ Add Course Code</button>
@@ -388,84 +400,216 @@ window.loadCurriculumEditor = function() {
         targetContainer.innerHTML = html;
     };
 
-    document.querySelectorAll('button').forEach(b => {
-        let txt = b.textContent.trim().toUpperCase();
-        if (txt === 'LOAD CURRICULUM') {
-            b.onclick = function(e) {
-                e.preventDefault();
-                window.triggerLoadCurriculum();
-            };
-        } else if (txt.includes('RESET TO DEFAULT')) {
-            b.onclick = function(e) {
-                e.preventDefault();
-                window.resetCurriculumEditor();
-            };
-        }
-    });
-};
+    window.adminEditCourse = function(key, mIdx, sIdx, cIdx, oldCode) {
+        let info = window.getCourseInfo(oldCode);
+        let newCode = prompt("Edit Course Code:", oldCode);
+        if (!newCode) return;
+        let cleanCode = newCode.toUpperCase().trim();
 
-window.adminRenameMainCat = function(mIdx) {
-    let key = window.currentEditingKey || "2024_MCA";
-    let newName = prompt("Enter new Main Category name:");
-    if (newName) {
-        window.CURRICULUM_RULES[key][mIdx].category = newName;
-        localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(window.CURRICULUM_RULES));
+        let newName = prompt(`Edit Course Name for ${cleanCode}:`, info.name);
+        let newCreds = prompt(`Edit Credits for ${cleanCode}:`, info.credits);
+        let parsedCreds = !isNaN(parseFloat(newCreds)) ? parseFloat(newCreds) : 3;
+
+        let rules = window.CURRICULUM_RULES[key];
+        rules[mIdx].subCategories[sIdx].codes[cIdx] = cleanCode;
+
+        if (!window.CUSTOM_COURSE_DICT) window.CUSTOM_COURSE_DICT = {};
+        window.CUSTOM_COURSE_DICT[cleanCode] = { name: newName || cleanCode, credits: parsedCreds };
+
+        window.CURRICULUM_RULES[key] = rules;
+        window.saveCurriculumToCloud();
         window.triggerLoadCurriculum();
-    }
-};
+    };
 
-window.adminEditMainCreds = function(mIdx) {
-    let key = window.currentEditingKey || "2024_MCA";
-    let creds = prompt("Enter minimum credits for this category:");
-    if (creds !== null && !isNaN(creds)) {
-        window.CURRICULUM_RULES[key][mIdx].minCredits = parseFloat(creds);
-        localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(window.CURRICULUM_RULES));
-        window.triggerLoadCurriculum();
-    }
-};
-
-window.adminRenameSubCat = function(mIdx, sIdx) {
-    let key = window.currentEditingKey || "2024_MCA";
-    let newName = prompt("Enter new Sub-Category name:");
-    if (newName) {
-        window.CURRICULUM_RULES[key][mIdx].subCategories[sIdx].name = newName;
-        localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(window.CURRICULUM_RULES));
-        window.triggerLoadCurriculum();
-    }
-};
-
-window.adminEditSubCreds = function(mIdx, sIdx) {
-    let key = window.currentEditingKey || "2024_MCA";
-    let creds = prompt("Enter minimum credits for this sub-category:");
-    if (creds !== null && !isNaN(creds)) {
-        window.CURRICULUM_RULES[key][mIdx].subCategories[sIdx].minCredits = parseFloat(creds);
-        localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(window.CURRICULUM_RULES));
-        window.triggerLoadCurriculum();
-    }
-};
-
-window.adminAddCourse = function(key, mIdx, sIdx) {
-    let code = prompt("Enter Course Code (e.g., CSE5001):");
-    if (code) {
+    window.adminAddCourse = function(key, mIdx, sIdx) {
+        let code = prompt("Enter Course Code (e.g., CSE5001):");
+        if (!code) return;
         let clean = code.toUpperCase().trim();
-        if (!window.CURRICULUM_RULES[key][mIdx].subCategories[sIdx].codes.includes(clean)) {
-            window.CURRICULUM_RULES[key][mIdx].subCategories[sIdx].codes.push(clean);
-            localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(window.CURRICULUM_RULES));
+
+        let name = prompt(`Enter Course Name for ${clean}:`, "Course Title");
+        let creds = prompt(`Enter Credits for ${clean}:`, "3");
+        let parsedCreds = !isNaN(parseFloat(creds)) ? parseFloat(creds) : 3;
+
+        if (!window.CUSTOM_COURSE_DICT) window.CUSTOM_COURSE_DICT = {};
+        window.CUSTOM_COURSE_DICT[clean] = { name: name || clean, credits: parsedCreds };
+
+        let rules = window.CURRICULUM_RULES[key];
+        if (!rules[mIdx].subCategories[sIdx].codes.includes(clean)) {
+            rules[mIdx].subCategories[sIdx].codes.push(clean);
+        }
+
+        window.CURRICULUM_RULES[key] = rules;
+        window.saveCurriculumToCloud();
+        window.triggerLoadCurriculum();
+    };
+
+    window.adminRemoveCourse = function(key, mIdx, sIdx, cIdx) {
+        if (confirm("Remove this course code?")) {
+            let rules = window.CURRICULUM_RULES[key];
+            rules[mIdx].subCategories[sIdx].codes.splice(cIdx, 1);
+            window.CURRICULUM_RULES[key] = rules;
+            window.saveCurriculumToCloud();
             window.triggerLoadCurriculum();
         }
-    }
-};
+    };
 
-window.adminRemoveCourse = function(key, mIdx, sIdx, cIdx) {
-    if (confirm("Remove this course code?")) {
-        window.CURRICULUM_RULES[key][mIdx].subCategories[sIdx].codes.splice(cIdx, 1);
-        localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(window.CURRICULUM_RULES));
-        window.triggerLoadCurriculum();
-    }
+    window.adminRenameMainCat = function(mIdx) {
+        let key = window.currentEditingKey || "2024_MCA";
+        let newName = prompt("Enter new Main Category name:");
+        if (newName) {
+            window.CURRICULUM_RULES[key][mIdx].category = newName;
+            window.saveCurriculumToCloud();
+            window.triggerLoadCurriculum();
+        }
+    };
+
+    window.adminEditMainCreds = function(mIdx) {
+        let key = window.currentEditingKey || "2024_MCA";
+        let creds = prompt("Enter minimum credits for this category:");
+        if (creds !== null && !isNaN(creds)) {
+            window.CURRICULUM_RULES[key][mIdx].minCredits = parseFloat(creds);
+            window.saveCurriculumToCloud();
+            window.triggerLoadCurriculum();
+        }
+    };
+
+    window.adminRenameSubCat = function(mIdx, sIdx) {
+        let key = window.currentEditingKey || "2024_MCA";
+        let newName = prompt("Enter new Sub-Category name:");
+        if (newName) {
+            window.CURRICULUM_RULES[key][mIdx].subCategories[sIdx].name = newName;
+            window.saveCurriculumToCloud();
+            window.triggerLoadCurriculum();
+        }
+    };
+
+    window.adminEditSubCreds = function(mIdx, sIdx) {
+        let key = window.currentEditingKey || "2024_MCA";
+        let creds = prompt("Enter minimum credits for this sub-category:");
+        if (creds !== null && !isNaN(creds)) {
+            window.CURRICULUM_RULES[key][mIdx].subCategories[sIdx].minCredits = parseFloat(creds);
+            window.saveCurriculumToCloud();
+            window.triggerLoadCurriculum();
+        }
+    };
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-//  6. ADMIN STUDENT DIRECTORY (Enrolled Students Count Fix)
+//  6. STUDENT PORTAL DEGREE AUDIT ENGINE (Cross-Verifies Baskets)
+// ═══════════════════════════════════════════════════════════════════════
+window.evaluateDegree = function(student) {
+    let studentBatch = String(student.batch || "").trim();
+    let studentProg = String(student.program || "").trim();
+    let mapKey = `${studentBatch}_${studentProg}`;
+    let mapKeySpace = `${studentBatch} ${studentProg}`;
+
+    let rulesToUse = window.CURRICULUM_RULES[mapKey] || window.CURRICULUM_RULES[mapKeySpace] || Object.values(window.CURRICULUM_RULES)[0];
+    
+    if (!rulesToUse || rulesToUse.length === 0) {
+        return `<div style="text-align:center; padding:25px; background:#f8fafc; border-radius:10px; border:2px dashed #cbd5e1; margin-top:20px;">
+                    <h3 style="color:#ef4444; margin-top:0;">📭 Curriculum Not Mapped</h3>
+                    <p style="color:#475569;">No curriculum rules found for batch/program (${studentBatch} ${studentProg}).</p>
+                </div>`;
+    }
+
+    const cleanString = (str) => String(str).toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const isPass = (grade) => !['F', 'AB', 'DE', 'I', 'U'].includes(String(grade).toUpperCase().trim());
+
+    let earnedCourses = (student.courses || []).map(c => ({
+        ...c,
+        cleanCode: cleanString(c.code || c.CourseCode),
+        grade: String(c.grade || c.Grade || "").toUpperCase().trim()
+    }));
+
+    let auditHTML = `<div class="audit-wrapper" style="margin-top:10px;">`;
+
+    rulesToUse.forEach(mainBasket => {
+        let basketReq = parseFloat(mainBasket.minCredits) || 0;
+        let basketEarned = 0;
+        let subHTML = "";
+
+        let subCats = mainBasket.subCategories || [];
+        if (subCats.length === 0 && mainBasket.codes) {
+            subCats = [{ name: "General Courses", minCredits: basketReq, codes: mainBasket.codes }];
+        }
+
+        subCats.forEach(sub => {
+            let subReq = parseFloat(sub.minCredits) || 0;
+            let subEarned = 0;
+            let coursesHTML = "";
+
+            (sub.codes || []).forEach(reqCode => {
+                let cleanReq = cleanString(reqCode);
+                let match = earnedCourses.find(c => c.cleanCode === cleanReq && isPass(c.grade));
+                let info = window.getCourseInfo(reqCode);
+
+                if (match) {
+                    let cr = parseFloat(match.credits || info.credits || 3);
+                    subEarned += cr;
+                    basketEarned += cr;
+                    coursesHTML += `
+                    <tr style="background:#ecfdf5;">
+                        <td style="padding:8px; border-bottom:1px solid #d1fae5; color:#065f46; font-weight:bold;">${esc(reqCode)}</td>
+                        <td style="padding:8px; border-bottom:1px solid #d1fae5; color:#065f46;">${esc(match.name || info.name)}</td>
+                        <td style="padding:8px; border-bottom:1px solid #d1fae5; color:#065f46; font-weight:bold;">${cr} Cr</td>
+                        <td style="padding:8px; border-bottom:1px solid #d1fae5; color:#065f46; text-align:center;">✅ Passed (${esc(match.grade)})</td>
+                    </tr>`;
+                } else {
+                    coursesHTML += `
+                    <tr>
+                        <td style="padding:8px; border-bottom:1px solid #f1f5f9; color:#64748b; font-weight:bold;">${esc(reqCode)}</td>
+                        <td style="padding:8px; border-bottom:1px solid #f1f5f9; color:#64748b;">${esc(info.name)}</td>
+                        <td style="padding:8px; border-bottom:1px solid #f1f5f9; color:#64748b; font-weight:bold;">${info.credits} Cr</td>
+                        <td style="padding:8px; border-bottom:1px solid #f1f5f9; color:#f59e0b; text-align:center;">⏳ Pending</td>
+                    </tr>`;
+                }
+            });
+
+            subHTML += `
+            <div style="margin-top:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:10px;">
+                <h5 style="margin:0 0 10px 0; color:#334155; display:flex; justify-content:space-between; font-size:1.05rem;">
+                    <span>📄 ${esc(sub.name)}</span>
+                    <span>Earned: <span style="color:#3b82f6;">${subEarned}</span> / ${subReq} Cr</span>
+                </h5>
+                <table style="width:100%; text-align:left; border-collapse:collapse; font-size:0.9rem;">
+                    <thead>
+                        <tr style="background:#f1f5f9; color:#475569;">
+                            <th style="padding:8px;">Code</th>
+                            <th style="padding:8px;">Course Title</th>
+                            <th style="padding:8px;">Credits</th>
+                            <th style="padding:8px; text-align:center;">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>${coursesHTML}</tbody>
+                </table>
+            </div>`;
+        });
+
+        let statusColor = "#f59e0b";
+        let statusIcon = "⏳";
+        if (basketEarned >= basketReq) { statusColor = "#10b981"; statusIcon = "✅"; }
+        else if (basketEarned === 0) { statusColor = "#ef4444"; statusIcon = "❌"; }
+
+        auditHTML += `
+        <div style="border:1px solid ${statusColor}; border-radius:8px; margin-bottom:12px; background:white; overflow:hidden; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
+            <div onclick="const c = this.nextElementSibling; c.style.display = c.style.display === 'none' ? 'block' : 'none';" style="background:${statusColor}10; padding:15px; cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+                <h4 style="margin:0; color:${statusColor}; display:flex; align-items:center; gap:10px;">
+                    <span style="font-size:1.3rem;">${statusIcon}</span> ${esc(mainBasket.category)}
+                </h4>
+                <div style="font-weight:bold; color:${statusColor}; font-size:1.05rem;">
+                    Earned: ${basketEarned} / ${basketReq} Cr <span style="margin-left:10px; font-size:0.8rem;">▼</span>
+                </div>
+            </div>
+            <div style="display:none; padding:15px; border-top:1px solid ${statusColor}40;">${subHTML}</div>
+        </div>`;
+    });
+
+    auditHTML += `</div>`;
+    return auditHTML;
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+//  7. ADMIN STUDENT DIRECTORY (Enrolled Students Count Fix)
 // ═══════════════════════════════════════════════════════════════════════
 window.applyAdminFilters = async function() {
     var tbody = document.getElementById('admin-tbody');
@@ -497,7 +641,7 @@ window.applyAdminFilters = async function() {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-//  7. PAGE NAVIGATION & LOGIN HANDLERS
+//  8. PAGE NAVIGATION & LOGIN HANDLERS
 // ═══════════════════════════════════════════════════════════════════════
 window.showPage = function (id) {
   document.querySelectorAll('.page, .admin-section, .admin-tab-content, .login-container').forEach(function (p) { 
@@ -641,7 +785,7 @@ window.adminLogin = async function() {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-//  8. FACULTY PORTAL & STUDENT DASHBOARD RENDERING
+//  9. FACULTY PORTAL & STUDENT DASHBOARD RENDERING
 // ═══════════════════════════════════════════════════════════════════════
 window.renderFacultyPortal = async function(email) {
     let facultyDash = document.getElementById('faculty-dash') || document.querySelector('.faculty-section');
@@ -844,7 +988,7 @@ window.loadStudentDashboard = function(student) {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-//  9. ADMIN NAVIGATION & UTILITIES
+//  10. ADMIN NAVIGATION & UTILITIES
 // ═══════════════════════════════════════════════════════════════════════
 window.switchAdminTab = function(tabId, btnElement) {
     ['tab-upload', 'tab-curriculum', 'tab-students', 'tab-faculty'].forEach(id => {
@@ -902,7 +1046,7 @@ window.logoutPortal = function() {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-//  10. DOM LOAD INITIALIZATION & EXPLICIT BUTTON WIRING
+//  11. DOM LOAD INITIALIZATION & EXPLICIT BUTTON WIRING
 // ═══════════════════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
     window.initializeCloudPortal();

@@ -1,15 +1,12 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 5.4 - Fully Restored Admin & Student Flows)
+ * Master Script Engine (Ver 5.6 - Unblocked Native Controls & Fully Restored Flows)
  */
 
 'use strict';
 
 const scriptURL = "https://script.google.com/macros/s/AKfycby0xTAEjyfcN-IrEVaEzQuFFAfCQD1wWhpTJ5dlv9S7jBIT48RY8PxH76mW2Mci0rCGCw/exec";
 const GAS_URL = scriptURL;
-
-var LOCAL_STU_KEY = 'coe_students_v2';
-var ADMIN_SESSION = 'coe_admin_auth';
 
 window.STUDENTS = window.STUDENTS || [];
 window.ALL_STUDENTS = window.ALL_STUDENTS || [];
@@ -59,117 +56,44 @@ window.showPage = function (id) {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  ADMIN TAB NAVIGATION FIX (Restores buttons functionality)
+//  1. ADMIN TAB NAVIGATION (Explicit & Non-Blocking)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 window.switchAdminTab = function (tabId, btnElement) {
-  document.querySelectorAll('.admin-tab-content, .page-section, section[id^="tab-"]').forEach(tab => {
-      if (tab) tab.style.display = 'none';
-  });
-  
-  document.querySelectorAll('.admin-tab-btn, .nav-btn').forEach(btn => {
-      if (btn) btn.classList.remove('active', 'bg-blue-600', 'text-white');
-  });
-
-  var target = document.getElementById(tabId);
-  if (target) target.style.display = 'block';
-
-  if (btnElement) {
-      btnElement.classList.add('active');
-  }
-
-  // Trigger specific tab data loaders if needed
-  if (tabId === 'tab-students' || tabId === 'student-directory') {
-      if (typeof window.applyAdminFilters === 'function') window.applyAdminFilters();
-  }
-};
-
-// Automatic button click bindings for admin navigation
-document.addEventListener('click', function(e) {
-    const btn = e.target.closest('button');
-    if (!btn) return;
-
-    // Map top 4 admin tabs securely
-    if (btn.textContent.includes('Upload Results') || btn.textContent.includes('1. Upload')) {
-        e.preventDefault();
-        window.switchAdminTab('tab-upload', btn);
-    } else if (btn.textContent.includes('Manage Curriculum') || btn.textContent.includes('2. Manage')) {
-        e.preventDefault();
-        window.switchAdminTab('tab-curriculum', btn);
-        if (typeof window.loadCurriculumEditor === 'function') window.loadCurriculumEditor();
-    } else if (btn.textContent.includes('Student Directory') || btn.textContent.includes('3. Student')) {
-        e.preventDefault();
-        window.switchAdminTab('tab-students', btn);
-        if (typeof window.applyAdminFilters === 'function') window.applyAdminFilters();
-    } else if (btn.textContent.includes('Faculty Assignments') || btn.textContent.includes('4. Faculty')) {
-        e.preventDefault();
-        window.switchAdminTab('tab-faculty', btn);
-    }
-});
-// ═══════════════════════════════════════════════════════════════════════════════
-//  PRECISE ADMIN TAB SWITCHING ENGINE (Ver 5.5)
-// ═══════════════════════════════════════════════════════════════════════════════
-
-window.switchAdminTab = function (tabId, btnElement) {
-    // Hide all sections in the admin dashboard
+    // Hide all admin tabs/sections
     document.querySelectorAll('.admin-section, .admin-tab-content, div[id^="tab-"], section[id^="tab-"]').forEach(sec => {
         if (sec) sec.style.display = 'none';
     });
 
-    // Remove active styles from top navigation buttons
+    // Remove active styles from nav buttons
     document.querySelectorAll('.admin-tab-btn, .nav-btn, .dashboard-nav button').forEach(b => {
         if (b) {
-            b.classList.remove('active', 'bg-blue-600', 'text-white');
+            b.classList.remove('active');
             b.style.background = '';
             b.style.color = '';
         }
     });
 
-    // Show the target section
+    // Show target section
     var target = document.getElementById(tabId) || document.querySelector('.' + tabId);
     if (target) {
         target.style.display = 'block';
     }
 
-    // Highlight the clicked button
+    // Highlight active button
     if (btnElement) {
         btnElement.classList.add('active');
         btnElement.style.background = '#2563eb';
         btnElement.style.color = '#ffffff';
     }
 
-    // Trigger specific loaders when switching tabs
     if (tabId === 'tab-students' || tabId === 'student-directory') {
         if (typeof window.applyAdminFilters === 'function') window.applyAdminFilters();
-    } else if (tabId === 'tab-curriculum' || tabId === 'manage-curriculum') {
-        if (typeof window.loadCurriculumEditor === 'function') window.loadCurriculumEditor();
     }
 };
 
-// Global click listener to safely intercept the 4 top admin buttons
-document.addEventListener('click', function(e) {
-    const btn = e.target.closest('button');
-    if (!btn) return;
-
-    let text = btn.textContent.trim();
-
-    if (text.includes('1. Upload Results') || text.includes('Upload Results')) {
-        e.preventDefault();
-        window.switchAdminTab('tab-upload', btn);
-    } else if (text.includes('2. Manage Curriculum') || text.includes('Manage Curriculum')) {
-        e.preventDefault();
-        window.switchAdminTab('tab-curriculum', btn);
-    } else if (text.includes('3. Student Directory') || text.includes('Student Directory')) {
-        e.preventDefault();
-        window.switchAdminTab('tab-students', btn);
-    } else if (text.includes('4. Faculty Assignments') || text.includes('Faculty Assignments')) {
-        e.preventDefault();
-        window.switchAdminTab('tab-faculty', btn);
-    }
-});
-
 // ═══════════════════════════════════════════════════════════════════════════════
-//  STUDENT LOGIN & CLOUD AUTHENTICATION
+//  2. STUDENT LOGIN & CLOUD AUTHENTICATION
 // ═══════════════════════════════════════════════════════════════════════════════
 
 window.studentLoginStep = async function () {
@@ -268,7 +192,7 @@ window.loadStudentDashboard = function(student) {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  ADMIN PASSWORD CLEARING & FILTERS
+//  3. ADMIN PASSWORD CLEARING & FILTERS
 // ═══════════════════════════════════════════════════════════════════════════════
 
 window.clearStudentPassword = async function(senInputId) {
@@ -319,11 +243,38 @@ window.applyAdminFilters = async function() {
     }
 };
 
-document.addEventListener('click', function(e) {
-    const btn = e.target.closest('button');
-    if (!btn) return;
-    if (btn.textContent.includes('Clear Password') && !btn.textContent.includes('ALL')) {
-        e.preventDefault();
-        window.clearStudentPassword('reset-sen-input');
+// ═══════════════════════════════════════════════════════════════════════════════
+//  4. ADMIN LOGIN HANDLER
+// ═══════════════════════════════════════════════════════════════════════════════
+
+window.adminLogin = async function() {
+    const emailInput = document.querySelector('input[type="email"]') || document.querySelectorAll('input')[0];
+    const passInput = document.querySelector('input[type="password"]') || document.querySelectorAll('input')[1];
+
+    const password = passInput ? passInput.value.trim() : "";
+
+    if (!scriptURL || scriptURL.includes("YOUR_WEB_APP_URL_HERE")) {
+        alert("⚠ ERROR: scriptURL is missing.");
+        return;
     }
-});
+
+    try {
+        const response = await fetch(scriptURL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ action: 'verifyadmin', password: password })
+        });
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            window.currentAdminPassword = password;
+            sessionStorage.setItem('coe_admin_auth', password);
+            if (typeof showPage === 'function') showPage('admin-dash');
+            if (typeof applyAdminFilters === 'function') applyAdminFilters();
+        } else {
+            alert(`⚠ ${data.message}`);
+        }
+    } catch (err) {
+        alert(`⚠ Network Error: Check your connection.`);
+    }
+};

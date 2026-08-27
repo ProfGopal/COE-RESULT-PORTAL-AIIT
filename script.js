@@ -1,6 +1,6 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Cloud-Enforced Ver 5.3)
+ * Master Script Engine (Ver 5.4 - Fully Restored Admin & Student Flows)
  */
 
 'use strict';
@@ -17,9 +17,6 @@ window.CURRICULUM_RULES = window.CURRICULUM_RULES || {};
 
 var currentStudent = null;
 var isNewUser = false;
-var loginAttempts = {};
-var MAX_ATTEMPTS = 5;
-var LOCKOUT_MS = 15 * 60 * 1000;
 
 function sanitize(str) {
   return String(str || '').replace(/[<>"'`;\\&\/]/g, '').trim().substring(0, 200);
@@ -31,14 +28,12 @@ function esc(str) {
 }
 window.esc = esc;
 
-function showErr(id, msg, inputIds) {
+function showErr(id, msg) {
   var el = document.getElementById(id);
   if (!el) return;
   el.textContent = msg;
   el.className = 'alert err';
   el.style.display = 'block';
-  var okEl = document.getElementById(id.replace('err', 'ok'));
-  if (okEl) okEl.style.display = 'none';
 }
 
 function showOk(id, msg) {
@@ -47,8 +42,6 @@ function showOk(id, msg) {
   el.textContent = msg;
   el.className = 'alert ok';
   el.style.display = 'block';
-  var errEl = document.getElementById(id.replace('ok', 'err'));
-  if (errEl) errEl.style.display = 'none';
 }
 
 function hideAlerts(prefix) {
@@ -58,14 +51,6 @@ function hideAlerts(prefix) {
   });
 }
 
-function syncBar(msg, visible) {
-  var el = document.getElementById('sync-bar');
-  if (!el) return;
-  if (!visible) { el.style.display = 'none'; return; }
-  el.textContent = msg;
-  el.style.display = 'block';
-}
-
 window.showPage = function (id) {
   document.querySelectorAll('.page').forEach(function (p) { p.classList.remove('active'); });
   var target = document.getElementById(id);
@@ -73,107 +58,72 @@ window.showPage = function (id) {
   window.scrollTo(0, 0);
 };
 
-window.showStudentLogin = function () {
-  resetStudentLoginUI();
-  showPage('landing');
-};
+// ═══════════════════════════════════════════════════════════════════════════════
+//  ADMIN TAB NAVIGATION FIX (Restores buttons functionality)
+// ═══════════════════════════════════════════════════════════════════════════════
 
-function resetStudentLoginUI() {
-  ['s-sen', 's-pass', 's-newpass', 's-confirmpass'].forEach(function (id) {
-    var el = document.getElementById(id);
-    if (el) el.value = '';
+window.switchAdminTab = function (tabId, btnElement) {
+  document.querySelectorAll('.admin-tab-content, .page-section, section[id^="tab-"]').forEach(tab => {
+      if (tab) tab.style.display = 'none';
   });
-  hideAlerts('student');
-  var pf = document.getElementById('s-pass-field');
-  if (pf) pf.style.display = 'block';
-  var nf = document.getElementById('s-newpass-fields');
-  if (nf) nf.style.display = 'none';
-  var btn = document.getElementById('s-login-btn');
-  if (btn) { btn.textContent = '🎓 Sign In →'; btn.disabled = false; }
-  isNewUser = false;
-}
+  
+  document.querySelectorAll('.admin-tab-btn, .nav-btn').forEach(btn => {
+      if (btn) btn.classList.remove('active', 'bg-blue-600', 'text-white');
+  });
 
-window.onSenInput = function () {
-  hideAlerts('student');
-  var pf = document.getElementById('s-pass-field');
-  if (pf) pf.style.display = 'block';
-  var nf = document.getElementById('s-newpass-fields');
-  if (nf) nf.style.display = 'none';
-  isNewUser = false;
+  var target = document.getElementById(tabId);
+  if (target) target.style.display = 'block';
+
+  if (btnElement) {
+      btnElement.classList.add('active');
+  }
+
+  // Trigger specific tab data loaders if needed
+  if (tabId === 'tab-students' || tabId === 'student-directory') {
+      if (typeof window.applyAdminFilters === 'function') window.applyAdminFilters();
+  }
 };
 
-// --- STUDENT LOGIN & PASSWORD CREATION FLOW ---
+// Automatic button click bindings for admin navigation
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+
+    // Map top 4 admin tabs securely
+    if (btn.textContent.includes('Upload Results') || btn.textContent.includes('1. Upload')) {
+        e.preventDefault();
+        window.switchAdminTab('tab-upload', btn);
+    } else if (btn.textContent.includes('Manage Curriculum') || btn.textContent.includes('2. Manage')) {
+        e.preventDefault();
+        window.switchAdminTab('tab-curriculum', btn);
+        if (typeof window.loadCurriculumEditor === 'function') window.loadCurriculumEditor();
+    } else if (btn.textContent.includes('Student Directory') || btn.textContent.includes('3. Student')) {
+        e.preventDefault();
+        window.switchAdminTab('tab-students', btn);
+        if (typeof window.applyAdminFilters === 'function') window.applyAdminFilters();
+    } else if (btn.textContent.includes('Faculty Assignments') || btn.textContent.includes('4. Faculty')) {
+        e.preventDefault();
+        window.switchAdminTab('tab-faculty', btn);
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  STUDENT LOGIN & CLOUD AUTHENTICATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
 window.studentLoginStep = async function () {
-    var rawSen = document.getElementById('s-sen').value;
+    var rawSen = document.getElementById('s-sen')?.value || document.getElementById('student-sen')?.value;
     var sen = sanitize(rawSen).toUpperCase();
     hideAlerts('student');
 
-    if (!sen) { showErr('student-err', 'Please enter your SEN number.', ['s-sen']); return; }
+    if (!sen) { showErr('student-err', 'Please enter your SEN number.'); return; }
 
     var btn = document.getElementById('s-login-btn');
     if (btn) btn.disabled = true;
 
-    const executePhaseShift = (studentObj) => {
-        if (btn) btn.innerHTML = "✅ Access Granted";
-        const loginBox = btn ? (btn.closest('.bg-white') || btn.closest('.shadow-lg')) : null;
-        if (loginBox) loginBox.remove();
-        
-        const loginContainer = document.getElementById('student-login-container') || document.querySelector('.login-container');
-        if (loginContainer) loginContainer.style.display = 'none';
-
-        const studentDash = document.getElementById('student-dash') || document.getElementById('student-dashboard');
-        if (studentDash) {
-            studentDash.style.display = 'block';
-            studentDash.classList.add('dashboard-fullscreen-overlay');
-        }
-
-        document.body.classList.add('overlay-active');
-        window.scrollTo({ top: 0, behavior: 'instant' });
-        
-        if (typeof renderStudentDash === 'function') {
-            renderStudentDash(studentObj);
-        }
-    };
-
     try {
-        if (isNewUser) {
-            var newpass = sanitize((document.getElementById('s-newpass') || {}).value || '');
-            var confpass = sanitize((document.getElementById('s-confirmpass') || {}).value || '');
-
-            if (!newpass) { showErr('student-err', 'Please enter a new password.', ['s-newpass']); return; }
-            if (newpass.length < 6) { showErr('student-err', 'Password must be at least 6 characters.', ['s-newpass', 's-confirmpass']); return; }
-            if (newpass !== confpass) { showErr('student-err', 'Passwords do not match.', ['s-newpass', 's-confirmpass']); return; }
-
-            if (btn) { btn.disabled = true; btn.textContent = '⏳ Saving & Logging In...'; }
-
-            await fetch(scriptURL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify({ action: 'setpassword', sen: sen, newPassword: newpass })
-            });
-
-            var alResp = await fetch(scriptURL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify({ action: 'login', sen: sen, password: newpass })
-            });
-            var alResult = await alResp.json();
-
-            if (alResult && alResult.status === 'success' && alResult.student) {
-                currentStudent = alResult.student;
-                executePhaseShift(currentStudent);
-            } else {
-                showOk('student-ok', '✓ Password created! Please sign in with your new password.');
-                resetStudentLoginUI();
-                var senEl = document.getElementById('s-sen');
-                if (senEl) senEl.value = sen;
-            }
-            return;
-        }
-
-        var passInput = (document.getElementById('s-pass') || {}).value || '';
-        if (btn) { btn.disabled = true; btn.textContent = '⏳ Signing in…'; }
-
+        var passInput = document.getElementById('s-pass')?.value || document.getElementById('student-pass')?.value || '';
+        
         var response = await fetch(scriptURL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
@@ -182,44 +132,90 @@ window.studentLoginStep = async function () {
         var result = await response.json();
 
         if (result && result.status === 'success' && result.student) {
-            currentStudent = result.student;
-            executePhaseShift(currentStudent);
+            window.loadStudentDashboard(result.student);
         } else if (result && (result.status === 'first_time' || (result.message && result.message.toLowerCase().includes('first')))) {
-            isNewUser = true;
-            var pf = document.getElementById('s-pass-field');
-            var nf = document.getElementById('s-newpass-fields');
-            if (pf) pf.style.display = 'none';
-            if (nf) nf.style.display = 'block';
-            if (btn) btn.textContent = 'Create Password & Login →';
-            showOk('student-ok', result.message || 'First-time login detected. Please create your password below.');
-        } else if (result && result.status === 'error') {
-            showErr('student-err', '⚠ ' + (result.message || 'Login failed.'), ['s-pass']);
+            let newPass = prompt("🔐 First-time login or password reset. Enter your new permanent password (min 6 characters):");
+            if (!newPass || newPass.length < 6) {
+                alert("❌ Password must be at least 6 characters.");
+                if (btn) btn.disabled = false;
+                return;
+            }
+
+            let setRes = await fetch(scriptURL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({ action: 'setpassword', sen: sen, newPassword: newPass })
+            });
+            let setJson = await setRes.json();
+
+            if (setJson.status === 'success') {
+                alert("✅ Password created successfully! Logging you in...");
+                window.loadStudentDashboardAfterCloudAuth(sen);
+            } else {
+                alert(`❌ Error: ${setJson.message}`);
+            }
+        } else {
+            showErr('student-err', '⚠ ' + (result.message || 'Incorrect password.'));
         }
     } catch (err) {
         console.error('Login error:', err);
-        showErr('student-err', '✗ Could not reach the server. Check your connection.');
+        showErr('student-err', '✗ Cloud connection error. Check your internet.');
     } finally {
-        if (btn && btn.innerHTML !== "✅ Access Granted") {
-            btn.disabled = false;
-            btn.textContent = isNewUser ? 'Create Password & Login →' : '🎓 Sign In →';
-        }
+        if (btn) btn.disabled = false;
     }
 };
 
-// --- CLOUD-CONNECTED ADMIN PASSWORD CLEAR ---
+window.loadStudentDashboardAfterCloudAuth = async function(sen) {
+    try {
+        let res = await fetch(scriptURL + "?action=load");
+        let students = await res.json();
+        let student = students.find(s => String(s.sen).toUpperCase() === sen);
+        if (student) window.loadStudentDashboard(student);
+        else window.location.reload();
+    } catch(e) { window.location.reload(); }
+};
+
+window.loadStudentDashboard = function(student) {
+    window.currentStudent = student;
+    document.querySelectorAll('.page, .login-container, #student-login-container').forEach(el => el.style.display = 'none');
+    
+    const dash = document.getElementById('student-dash') || document.getElementById('student-dashboard');
+    if (dash) dash.style.display = 'block';
+
+    let name = student.name || 'Student';
+    let sen = student.sen || '';
+    let cgpa = student.cgpa || 'N/A';
+    let credits = student.totalCredits || '0';
+
+    document.querySelectorAll('#dash-name, .student-name').forEach(el => el.textContent = `${name} (${sen})`);
+    document.querySelectorAll('#dash-cgpa, .cgpa-val').forEach(el => el.textContent = cgpa);
+    document.querySelectorAll('#dash-ce, .credits-val').forEach(el => el.textContent = credits);
+
+    let tbody = document.getElementById('courses-tbody') || document.querySelector('table tbody');
+    if (tbody && student.courses) {
+        tbody.innerHTML = student.courses.map(c => `
+            <tr style="border-bottom:1px solid #e2e8f0;">
+                <td style="padding:10px; font-weight:bold;">${esc(c.code)}</td>
+                <td style="padding:10px;">${esc(c.name)}</td>
+                <td style="padding:10px;">${esc(c.type || 'Core')}</td>
+                <td style="padding:10px;">${esc(c.credits)}</td>
+                <td style="padding:10px;">${esc(c.marks)}</td>
+                <td style="padding:10px; font-weight:bold; color:#2563eb;">${esc(c.grade)}</td>
+            </tr>
+        `).join('');
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  ADMIN PASSWORD CLEARING & FILTERS
+// ═══════════════════════════════════════════════════════════════════════════════
+
 window.clearStudentPassword = async function(senInputId) {
     let inputEl = document.getElementById(senInputId) || document.querySelector('input[placeholder*="SEN"], input[id*="sen"], input[type="text"]');
     let sen = inputEl ? inputEl.value.trim().toUpperCase() : "";
     
-    if (!sen) {
-        alert("⚠️ Please enter a valid Student Enrollment Number (SEN).");
-        return;
-    }
-
-    if (!confirm(`Are you sure you want to clear the password for student ${sen} in the Cloud Database?`)) return;
-
-    let btn = event ? event.target : null;
-    if (btn) { btn.innerHTML = "⏳ Clearing..."; btn.disabled = true; }
+    if (!sen) { alert("⚠️ Please enter a valid SEN number."); return; }
+    if (!confirm(`Clear password for student ${sen}?`)) return;
 
     try {
         let response = await fetch(scriptURL, {
@@ -228,58 +224,43 @@ window.clearStudentPassword = async function(senInputId) {
             body: JSON.stringify({ action: 'clearpassword', sen: sen })
         });
         let result = await response.json();
-
-        if (result && result.status === 'success') {
-            alert(`✅ Cloud Database: Password successfully cleared for student ${sen}.\nColumn G is now cleared. The student can now log in to set a new password.`);
+        if (result.status === 'success') {
+            alert(`✅ Password successfully cleared for ${sen}. Column G is now empty.`);
             if (inputEl) inputEl.value = "";
         } else {
             alert(`❌ Error: ${result.message}`);
         }
-    } catch (err) {
-        console.error("Cloud clear error:", err);
-        alert("❌ Network error connecting to Google Sheet backend.");
-    } finally {
-        if (btn) { btn.innerHTML = "✓ Cleared"; btn.disabled = false; }
-    }
+    } catch (err) { alert("❌ Network error connecting to backend."); }
 };
 
-window.clearPassword = function() { return window.clearStudentParameter || window.clearStudentPassword('reset-sen-input'); };
-
-// --- ADMIN LOGIN ---
-window.adminLogin = async function() {
-    const emailInput = document.querySelector('input[type="email"]') || document.querySelectorAll('input')[0];
-    const passInput = document.querySelector('input[type="password"]') || document.querySelectorAll('input')[1];
-
-    const email = emailInput ? emailInput.value.trim() : "";
-    const password = passInput ? passInput.value.trim() : "";
-    const btn = document.querySelector('button');
+window.applyAdminFilters = async function() {
+    var tbody = document.getElementById('admin-tbody');
+    if (!tbody) return;
 
     try {
-        const response = await fetch(scriptURL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({ action: 'verifyadmin', password: password })
-        });
-        const data = await response.json();
+        var res = await fetch(scriptURL + "?action=load");
+        var data = await res.json();
+        var students = Array.isArray(data) ? data : (data.students || []);
 
-        if (data.status === 'success') {
-            window.currentAdminPassword = password;
-            sessionStorage.setItem('coe_admin_auth', password);
-            showPage('admin-dash');
-            if (typeof applyAdminFilters === 'function') applyAdminFilters();
-        } else {
-            alert(`⚠ ${data.message}`);
-        }
+        tbody.innerHTML = students.map((s, i) => `
+            <tr style="border-bottom:1px solid #e2e8f0;">
+                <td style="padding:10px;">${i + 1}</td>
+                <td style="font-weight:bold;">${esc(s.sen)}</td>
+                <td>${esc(s.name)}</td>
+                <td>${s.program || 'N/A'}</td>
+                <td style="font-weight:bold; color:#3b82f6;">${s.cgpa || 'N/A'}</td>
+                <td>${s.totalCredits || '0'}</td>
+                <td><button style="background:#0ea5e9; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer;" onclick="window.openAdminStudentView('${esc(s.sen)}')">Details</button></td>
+            </tr>
+        `).join('');
     } catch (err) {
-        alert(`⚠ Network Error: Check your connection.`);
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:red;">Failed to load student directory.</td></tr>`;
     }
 };
 
 document.addEventListener('click', function(e) {
     const btn = e.target.closest('button');
     if (!btn) return;
-
-    // Direct binding for single student password clear button in admin-hidden.html
     if (btn.textContent.includes('Clear Password') && !btn.textContent.includes('ALL')) {
         e.preventDefault();
         window.clearStudentPassword('reset-sen-input');

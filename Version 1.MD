@@ -1,118 +1,360 @@
-# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 9.2 (Explicit Button Action Handlers)
+# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 9.3 (Full Cloud Optimization & Action Binding)
 
-You are updating a static GitHub Pages site (`script.js`, `admin-hidden.html`, `index.html`). We are explicitly binding the Faculty Sign-In, Admin navigation tabs, and Admin Logout buttons via direct `onclick` handlers and robust script functions, updating version tags to **Ver 9.2**, and creating `VERSION9.2.md`.
+You are updating a static GitHub Pages site (`script.js`, `admin-hidden.html`, `index.html`) and Google Apps Script (`Code.gs`). We are fixing the faculty sign-in and student sign-in click actions, optimizing performance so the cloud database loads instantly without local storage lags, making curriculum sub-categories fully display their course lists inside the admin manager, and populating enrolled student lists from the Google Sheet backend, updating version tags to **Ver 9.3**, and creating `VERSION9.3.md`.
 
 Please execute the following strict updates:
 
 ## 1. Global Versioning Update
+
 * **File:** `index.html`, `admin-hidden.html`
-  * Change all version tags in the top left corners to `Ver 9.2`.
+* Change all version tags in the top left corners to `Ver 9.3`.
 
-## 2. Direct HTML Action Bindings
-* **File:** `index.html` (Faculty Sign-In Button)
-  * Update the Faculty Sign-In button to explicitly trigger `window.facultyLoginStep()`:
-    ```html
-    <button onclick="window.facultyLoginStep()" id="f-login-btn">Faculty Sign In →</button>
-    ```
-* **File:** `admin-hidden.html` (Admin Navigation & Logout Buttons)
-  * Ensure the top navigation buttons call `switchAdminTab`:
-    ```html
-    <button onclick="window.switchAdminTab('tab-upload', this)">1. Upload Results & System</button>
-    <button onclick="window.switchAdminTab('tab-curriculum', this)">2. Manage Curriculum</button>
-    <button onclick="window.switchAdminTab('tab-students', this)">3. Student Directory & Passwords</button>
-    <button onclick="window.switchAdminTab('tab-faculty', this)">4. Faculty Assignments & Deadlines</button>
-    ```
-  * Ensure the Logout button calls `window.logoutPortal()`:
-    ```html
-    <button onclick="window.logoutPortal()">Logout</button>
-    ```
 
-## 3. Explicit Handler Engine (`script.js`)
+
+## 2. Optimized Cloud & UI Engine (`script.js`)
+
 * **File:** `script.js`
-  * Add these explicit global functions to handle faculty login, admin tab switching, and logout:
+* Replace your entire `script.js` file with this lightning-fast cloud-synchronized master version:
+```javascript
+/**
+ * script.js — AIIT COE Result Portal
+ * Master Script Engine (Ver 9.3 - High-Speed Cloud Optimization & Action Binding)
+ */
 
-    ```javascript
-    /**
-     * script.js — AIIT COE Result Portal
-     * Master Script Engine (Ver 9.2 - Explicit Handlers)
-     */
+'use strict';
 
-    'use strict';
+const scriptURL = "https://script.google.com/macros/s/AKfycby0xTAEjyfcN-IrEVaEzQuFFAfCQD1wWhpTJ5dlv9S7jBIT48RY8PxH76mW2Mci0rCGCw/exec";
 
-    const scriptURL = "[https://script.google.com/macros/s/AKfycby0xTAEjyfcN-IrEVaEzQuFFAfCQD1wWhpTJ5dlv9S7jBIT48RY8PxH76mW2Mci0rCGCw/exec](https://script.google.com/macros/s/AKfycby0xTAEjyfcN-IrEVaEzQuFFAfCQD1wWhpTJ5dlv9S7jBIT48RY8PxH76mW2Mci0rCGCw/exec)";
+window.STUDENTS = [];
+window.CURRICULUM_RULES = {};
+window.SYSTEM_PROGRAMS = [];
 
-    window.facultyLoginStep = async function() {
-        var emailInput = document.getElementById('f-email') || document.querySelector('input[type="email"]');
-        var passInput = document.getElementById('f-pass') || document.querySelector('input[type="password"]');
-        var email = emailInput ? emailInput.value.trim().toLowerCase() : "";
-        var pass = passInput ? passInput.value : "";
+function sanitize(str) {
+  return String(str || '').replace(/[<>"'`;\\&\/]/g, '').trim().substring(0, 200);
+}
 
-        if (!email || !pass) {
-            alert("Please enter both institutional email and password.");
-            return;
+function esc(str) {
+  if (str === null || str === undefined) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+window.esc = esc;
+
+// --- 1. LIGHTNING-FAST CLOUD BOOTLOADER ---
+window.initializeCloudPortal = async function() {
+    try {
+        let [stuRes, curRes] = await Promise.all([
+            fetch(scriptURL + "?action=load"),
+            fetch(scriptURL + "?action=getCurriculum")
+        ]);
+
+        let stuData = await stuRes.json();
+        window.STUDENTS = Array.isArray(stuData) ? stuData : (stuData.students || []);
+
+        let progMap = new Map();
+        window.STUDENTS.forEach(s => {
+            if (s.batch && s.program) {
+                progMap.set(`${s.batch}_${s.program}`, { batch: s.batch, program: s.program });
+            }
+        });
+        window.SYSTEM_PROGRAMS = Array.from(progMap.values());
+        if (window.SYSTEM_PROGRAMS.length === 0) {
+            window.SYSTEM_PROGRAMS = [{ batch: "2024", program: "MCA" }, { batch: "2025", program: "MCA" }, { batch: "2024", program: "B.C.A" }];
         }
 
-        const authorizedFaculty = [
-            "chandrashekharbn@blr.amity.edu", "gopalr@blr.amity.edu", "krishnachalithakc@blr.amity.edu",
-            "mbhan@blr.amity.edu", "mkirmani@blr.amity.edu", "pramamurthy@blr.amity.edu",
-            "pchakraborty@blr.amity.edu", "skumar2@blr.amity.edu", "vramamoorthy@blr.amity.edu",
-            "geethav@blr.amity.edu", "nkumar@blr.amity.edu", "ntressa@blr.amity.edu", "sspattu@blr.amity.edu"
-        ];
+        let curText = await curRes.text();
+        if (curText && curText.trim().startsWith("{")) {
+            let parsed = JSON.parse(curText);
+            window.CURRICULUM_RULES = parsed.rules || parsed;
+            if (parsed.courses) window.CUSTOM_COURSE_DICT = parsed.courses;
+        }
+    } catch (err) {
+        console.warn("Cloud sync warning:", err);
+    }
 
-        if (authorizedFaculty.includes(email) || email === 'faculty@123') {
-            alert("✅ Faculty Verified Successfully! Loading Portal...");
-            window.currentFacultyEmail = email;
-            let fLogin = document.getElementById('faculty-login-container') || document.getElementById('faculty-login');
-            let fDash = document.getElementById('faculty-dash') || document.querySelector('.faculty-section');
-            if (fLogin) fLogin.style.display = 'none';
-            if (fDash) {
-                fDash.style.display = 'block';
-                if (typeof window.renderFacultyPortal === 'function') window.renderFacultyPortal(email);
+    if (typeof window.renderSystemPrograms === 'function') window.renderSystemPrograms();
+    if (typeof window.applyAdminFilters === 'function') window.applyAdminFilters();
+    if (typeof window.loadCurriculumEditor === 'function') window.loadCurriculumEditor();
+};
+
+// --- 2. EXPLICIT LOGIN & SIGN-IN BINDINGS ---
+window.studentLoginStep = async function () {
+    var rawSen = document.getElementById('s-sen')?.value || document.getElementById('student-sen')?.value || document.querySelector('input[placeholder*="SEN"]')?.value;
+    var sen = String(rawSen || '').toUpperCase().trim();
+    var passInput = document.getElementById('s-pass')?.value || document.getElementById('student-pass')?.value || document.querySelector('input[type="password"]')?.value || '';
+
+    if (!sen || !passInput) {
+        alert("Please enter both SEN and password.");
+        return;
+    }
+
+    try {
+        var response = await fetch(scriptURL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ action: 'login', sen: sen, password: passInput.trim() })
+        });
+        var result = await response.json();
+
+        if (result && result.status === 'success' && result.student) {
+            window.loadStudentDashboard(result.student);
+        } else if (result && (result.status === 'first_time' || (result.message && result.message.toLowerCase().includes('first')))) {
+            let newPass = prompt("🔐 First-time login. Enter new permanent password (min 6 characters):");
+            if (!newPass || newPass.length < 6) {
+                alert("❌ Password must be at least 6 characters.");
+                return;
+            }
+
+            let setRes = await fetch(scriptURL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({ action: 'setpassword', sen: sen, newPassword: newPass })
+            });
+            let setJson = await setRes.json();
+
+            if (setJson.status === 'success') {
+                alert("✅ Password created successfully! Logging in...");
+                window.loadStudentDashboardAfterCloudAuth(sen);
             } else {
-                location.reload();
+                alert(`❌ Error: ${setJson.message}`);
             }
         } else {
-            alert("❌ Invalid Faculty Credentials or Email not authorized.");
+            alert("⚠ " + (result.message || 'Incorrect password.'));
         }
-    };
+    } catch (err) {
+        alert("✗ Cloud connection error. Check your network.");
+    }
+};
 
-    window.switchAdminTab = function(tabId, btnElement) {
-        ['tab-upload', 'tab-curriculum', 'tab-students', 'tab-faculty'].forEach(id => {
-            let el = document.getElementById(id);
-            if (el) el.style.display = 'none';
+window.facultyLoginStep = async function () {
+    var emailInput = document.getElementById('f-email') || document.querySelector('input[type="email"]');
+    var passInput = document.getElementById('f-pass') || document.querySelector('input[type="password"]');
+    var email = emailInput ? emailInput.value.trim().toLowerCase() : "";
+    var pass = passInput ? passInput.value : "";
+
+    if (!email || !pass) {
+        alert("Please enter both email and password.");
+        return;
+    }
+
+    const authorizedFaculty = [
+        "chandrashekharbn@blr.amity.edu", "gopalr@blr.amity.edu", "krishnachalithakc@blr.amity.edu",
+        "mbhan@blr.amity.edu", "mkirmani@blr.amity.edu", "pramamurthy@blr.amity.edu",
+        "pchakraborty@blr.amity.edu", "skumar2@blr.amity.edu", "vramamoorthy@blr.amity.edu",
+        "geethav@blr.amity.edu", "nkumar@blr.amity.edu", "ntressa@blr.amity.edu", "sspattu@blr.amity.edu"
+    ];
+
+    if (authorizedFaculty.includes(email) || email === 'faculty@123') {
+        alert("✅ Faculty Verified Successfully! Loading Portal...");
+        window.currentFacultyEmail = email;
+        let fLogin = document.getElementById('faculty-login-container') || document.getElementById('faculty-login');
+        let fDash = document.getElementById('faculty-dash') || document.querySelector('.faculty-section');
+        if (fLogin) fLogin.style.display = 'none';
+        if (fDash) {
+            fDash.style.display = 'block';
+            if (typeof window.renderFacultyPortal === 'function') window.renderFacultyPortal(email);
+        } else {
+            location.reload();
+        }
+    } else {
+        alert("❌ Invalid Faculty Credentials or Email not authorized.");
+    }
+};
+
+// --- 3. ADMIN STUDENT DIRECTORY & FILTERS ---
+window.applyAdminFilters = async function() {
+    var tbody = document.getElementById('admin-tbody');
+    var totalStu = document.getElementById('total-stu');
+    if (!tbody) return;
+
+    if (window.STUDENTS.length === 0) {
+        await window.initializeCloudPortal();
+    }
+
+    if (totalStu) totalStu.textContent = window.STUDENTS.length;
+
+    if (window.STUDENTS.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px; color:#64748b;">No student records found in Cloud DB.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = window.STUDENTS.map((s, i) => `
+        <tr style="border-bottom:1px solid #e2e8f0;">
+            <td style="padding:10px;">${i + 1}</td>
+            <td style="font-weight:bold;">${esc(s.sen)}</td>
+            <td>${esc(s.name)}</td>
+            <td>${esc(s.program || 'N/A')}</td>
+            <td style="font-weight:bold; color:#3b82f6;">${s.cgpa || 'N/A'}</td>
+            <td>${s.totalCredits || '0'}</td>
+            <td><button style="background:#0ea5e9; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer;" onclick="window.openAdminStudentView('${esc(s.sen)}')">Details</button></td>
+        </tr>
+    `).join('');
+};
+
+// --- 4. ADMIN CURRICULUM EDITOR (Full Table Structure with Sub-Categories & Courses) ---
+window.loadCurriculumEditor = function() {
+    const dropdown = document.getElementById('curriculum-edit-key') || document.querySelector('select[id*="curr"]');
+    const container = document.getElementById('curriculum-gui-container') || document.querySelector('.curriculum-container') || document.getElementById('tab-curriculum');
+
+    let sysProgs = window.SYSTEM_PROGRAMS.length > 0 ? window.SYSTEM_PROGRAMS : [{ batch: "2024", program: "MCA" }];
+
+    if (dropdown && dropdown.options.length <= 1) {
+        dropdown.innerHTML = sysProgs.map(p => {
+            let key = `${p.batch}_${p.program}`;
+            return `<option value="${key}">${p.batch} ${p.program}</option>`;
+        }).join('');
+    }
+
+    window.triggerLoadCurriculum = function() {
+        let selectedKey = dropdown ? dropdown.value : "2024_MCA";
+        window.currentEditingKey = selectedKey;
+
+        let rules = window.CURRICULUM_RULES[selectedKey] || [
+            { category: "1. School Core", minCredits: 10, subCategories: [{ name: "General Courses", minCredits: 10, codes: ["ENG5001"] }] }
+        ];
+
+        let targetContainer = document.getElementById('curriculum-gui-container');
+        if (!targetContainer && container) {
+            targetContainer = document.createElement('div');
+            targetContainer.id = 'curriculum-gui-container';
+            targetContainer.style.cssText = 'margin-top:20px;';
+            container.appendChild(targetContainer);
+        }
+        if (!targetContainer) return;
+
+        let html = `
+        <div style="background:white; padding:20px; border-radius:8px; border:1px solid #cbd5e1; margin-top:15px;">
+            <h3 style="color:#0f172a; margin-top:0;">📋 Curriculum Table Editor: ${selectedKey.replace('_', ' ')}</h3>`;
+
+        rules.forEach((main, mIdx) => {
+            html += `
+            <div style="margin-bottom:20px; border:1px solid #cbd5e1; border-radius:8px; overflow:hidden;">
+                <div style="background:#f8fafc; padding:12px 15px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #cbd5e1;">
+                    <strong>📁 ${esc(main.category)} (Min Credits: ${main.minCredits})</strong>
+                    <div style="display:flex; gap:8px;">
+                        <button onclick="window.adminRenameMainCat(${mIdx})" style="background:#0ea5e9; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-weight:bold;">Rename Category</button>
+                        <button onclick="window.adminEditMainCreds(${mIdx})" style="background:#3b82f6; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-weight:bold;">Edit Credits</button>
+                    </div>
+                </div>`;
+
+            (main.subCategories || []).forEach((sub, sIdx) => {
+                html += `
+                <div style="padding:15px; background:white; border-bottom:1px solid #e2e8f0;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                        <span style="font-weight:bold; color:#334155;">📄 Sub-Category: ${esc(sub.name)} (Min: ${sub.minCredits} Cr)</span>
+                        <div style="display:flex; gap:6px;">
+                            <button onclick="window.adminRenameSubCat(${mIdx}, ${sIdx})" style="background:#64748b; color:white; border:none; padding:3px 8px; border-radius:4px; cursor:pointer;">Rename Sub</button>
+                            <button onclick="window.adminEditSubCreds(${mIdx}, ${sIdx})" style="background:#64748b; color:white; border:none; padding:3px 8px; border-radius:4px; cursor:pointer;">Edit Sub Cr</button>
+                        </div>
+                    </div>
+                    <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                        <thead>
+                            <tr style="background:#f1f5f9; color:#475569; text-align:left;">
+                                <th style="padding:8px;">Course Code</th>
+                                <th style="padding:8px; text-align:right;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${(sub.codes || []).length > 0 ? (sub.codes || []).map((code, cIdx) => `
+                            <tr style="border-bottom:1px solid #f1f5f9;">
+                                <td style="padding:8px; font-weight:bold; color:#0f172a;">${esc(code)}</td>
+                                <td style="padding:8px; text-align:right;"><button onclick="window.adminRemoveCourse('${selectedKey}',${mIdx}, ${sIdx},${cIdx})" style="background:#ef4444; color:white; border:none; padding:3px 8px; border-radius:4px; cursor:pointer;">Remove</button></td>
+                            </tr>`).join('') : `<tr><td colspan="2" style="padding:10px; color:#64748b; text-align:center;">No courses in this sub-category yet.</td></tr>`}
+                        </tbody>
+                    </table>
+                    <button onclick="window.adminAddCourse('${selectedKey}', ${mIdx}, ${sIdx})" style="margin-top:10px; background:#10b981; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-weight:bold;">+ Add Course Code</button>
+                </div>`;
+            });
+            html += `</div>`;
         });
 
-        document.querySelectorAll('.admin-section, .admin-tab-content').forEach(sec => {
-            if (sec) sec.style.display = 'none';
-        });
-
-        let target = document.getElementById(tabId);
-        if (target) target.style.display = 'block';
-
-        document.querySelectorAll('button').forEach(b => {
-            b.style.background = '';
-            b.style.color = '';
-        });
-
-        if (btnElement) {
-            btnElement.style.background = '#2563eb';
-            btnElement.style.color = '#ffffff';
-        }
-
-        if (tabId === 'tab-students' && typeof window.applyAdminFilters === 'function') {
-            window.applyAdminFilters();
-        } else if (tabId === 'tab-curriculum' && typeof window.loadCurriculumEditor === 'function') {
-            window.loadCurriculumEditor();
-        }
+        html += `</div>`;
+        targetContainer.innerHTML = html;
     };
 
-    window.logoutPortal = function() {
-        sessionStorage.clear();
-        localStorage.clear();
-        document.body.classList.remove('overlay-active');
-        window.location.href = window.location.pathname;
-    };
-    ```
+    document.querySelectorAll('button').forEach(b => {
+        if (b.textContent.trim().toUpperCase() === 'LOAD CURRICULUM') {
+            b.onclick = function(e) {
+                e.preventDefault();
+                window.triggerLoadCurriculum();
+            };
+        }
+    });
+};
 
-## 4. Create `VERSION9.2.md`
-* Create a file named `VERSION9.2.md` in your project root containing the release notes for Ver 9.2.
+window.adminRenameMainCat = function(mIdx) {
+    let key = window.currentEditingKey || "2024_MCA";
+    let newName = prompt("Enter new Main Category name:");
+    if (newName) {
+        window.CURRICULUM_RULES[key][mIdx].category = newName;
+        localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(window.CURRICULUM_RULES));
+        window.triggerLoadCurriculum();
+    }
+};
+
+window.adminEditMainCreds = function(mIdx) {
+    let key = window.currentEditingKey || "2024_MCA";
+    let creds = prompt("Enter minimum credits for this category:");
+    if (creds !== null && !isNaN(creds)) {
+        window.CURRICULUM_RULES[key][mIdx].minCredits = parseFloat(creds);
+        localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(window.CURRICULUM_RULES));
+        window.triggerLoadCurriculum();
+    }
+};
+
+window.adminRenameSubCat = function(mIdx, sIdx) {
+    let key = window.currentEditingKey || "2024_MCA";
+    let newName = prompt("Enter new Sub-Category name:");
+    if (newName) {
+        window.CURRICULUM_RULES[key][mIdx].subCategories[sIdx].name = newName;
+        localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(window.CURRICULUM_RULES));
+        window.triggerLoadCurriculum();
+    }
+};
+
+window.adminEditSubCreds = function(mIdx, sIdx) {
+    let key = window.currentEditingKey || "2024_MCA";
+    let creds = prompt("Enter minimum credits for this sub-category:");
+    if (creds !== null && !isNaN(creds)) {
+        window.CURRICULUM_RULES[key][mIdx].subCategories[sIdx].minCredits = parseFloat(creds);
+        localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(window.CURRICULUM_RULES));
+        window.triggerLoadCurriculum();
+    }
+};
+
+window.adminAddCourse = function(key, mIdx, sIdx) {
+    let code = prompt("Enter Course Code (e.g., CSE5001):");
+    if (code) {
+        let clean = code.toUpperCase().trim();
+        if (!window.CURRICULUM_RULES[key][mIdx].subCategories[sIdx].codes.includes(clean)) {
+            window.CURRICULUM_RULES[key][mIdx].subCategories[sIdx].codes.push(clean);
+            localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(window.CURRICULUM_RULES));
+            window.triggerLoadCurriculum();
+        }
+    }
+};
+
+window.adminRemoveCourse = function(key, mIdx, sIdx, cIdx) {
+    if (confirm("Remove this course code?")) {
+        window.CURRICULUM_RULES[key][mIdx].subCategories[sIdx].codes.splice(cIdx, 1);
+        localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(window.CURRICULUM_RULES));
+        window.triggerLoadCurriculum();
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    window.initializeCloudPortal();
+});
+
+```
+
+
+
+
+
+## 3. Create `VERSION9.3.md`
+
+* Create a file named `VERSION9.3.md` in your project root containing the release notes for Ver 9.3.
+
+```
+
+```

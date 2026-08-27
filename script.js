@@ -1,6 +1,6 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 8.1 - UI & Filter Fixes)
+ * Master Script Engine (Ver 8.2 - Curriculum Loader & Role-Based Permissions)
  */
 
 'use strict';
@@ -35,7 +35,7 @@ window.showPage = function (id) {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  FACULTY & ADMIN NAVIGATION HANDLERS (Ver 8.1)
+//  FACULTY & ADMIN NAVIGATION HANDLERS (Ver 8.2)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 window.showFacultyLogin = function() {
@@ -194,12 +194,10 @@ window.clearStudentPassword = async function(senInputId) {
 // --- 1. LIVE CLOUD BOOTLOADER (Fetches everything from Google Sheet) ---
 window.initializeCloudPortal = async function() {
     try {
-        // A. Fetch Students & Batches/Programs
         let stuRes = await fetch(scriptURL + "?action=load");
         let stuData = await stuRes.json();
         window.STUDENTS = Array.isArray(stuData) ? stuData : (stuData.students || []);
         
-        // Extract unique batches and programs directly from live student cloud records
         let progMap = new Map();
         window.STUDENTS.forEach(s => {
             if (s.batch && s.program) {
@@ -211,7 +209,6 @@ window.initializeCloudPortal = async function() {
             window.SYSTEM_PROGRAMS = [{ batch: "2024", program: "MCA" }, { batch: "2025", program: "MCA" }];
         }
 
-        // B. Fetch Curriculum from CurriculumDB sheet
         let curRes = await fetch(scriptURL + "?action=getCurriculum");
         let curText = await curRes.text();
         if (curText && curText.trim().startsWith("{")) {
@@ -228,7 +225,6 @@ window.initializeCloudPortal = async function() {
         console.warn("☁️ Cloud sync warning, offline fallback active.", err);
     }
 
-    // Refresh UI elements
     if (typeof window.renderSystemPrograms === 'function') window.renderSystemPrograms();
     if (typeof window.applyAdminFilters === 'function') window.applyAdminFilters();
     if (typeof window.loadCurriculumEditor === 'function') window.loadCurriculumEditor();
@@ -306,25 +302,151 @@ window.applyAdminFilters = async function() {
     `).join('');
 };
 
-// --- 4. CURRICULUM EDITOR DROPDOWN FIX ---
+// --- 4. ROBUST CURRICULUM EDITOR LOADER ---
 window.loadCurriculumEditor = function() {
-    const container = document.getElementById('curriculum-edit-key') || document.querySelector('#tab-curriculum select, select[id*="curr"]');
+    const dropdown = document.getElementById('curriculum-edit-key') || document.querySelector('select[id*="curr"]');
+    const container = document.getElementById('curriculum-gui-container') || document.getElementById('curriculum-editor-view') || document.querySelector('.curriculum-container');
+    
     let sysProgs = [];
     try { sysProgs = JSON.parse(localStorage.getItem('AIIT_SYSTEM_PROGRAMS')) || window.SYSTEM_PROGRAMS || []; } catch(e){}
     if (sysProgs.length === 0) {
         sysProgs = [{ batch: "2024", program: "MCA" }, { batch: "2025", program: "MCA" }, { batch: "2024", program: "B.C.A" }];
     }
 
-    if (container) {
-        container.innerHTML = sysProgs.map(p => {
+    if (dropdown && dropdown.options.length <= 1) {
+        dropdown.innerHTML = sysProgs.map(p => {
             let key = `${p.batch}_${p.program}`;
             let label = `${p.batch} ${p.program}`;
             return `<option value="${key}">${label}</option>`;
         }).join('');
     }
+
+    window.triggerLoadCurriculum = function() {
+        let selectedKey = dropdown ? dropdown.value : "2024_MCA";
+        window.currentEditingKey = selectedKey;
+        
+        let rules = {};
+        try { rules = JSON.parse(localStorage.getItem('AIIT_CUSTOM_CURRICULUM')) || window.CURRICULUM_RULES || {}; } catch(e){}
+        
+        let catList = rules[selectedKey] || [
+            { category: "1. School Core", minCredits: 10, subCategories: [{ name: "General", minCredits: 10, codes: ["ENG5001", "MAT5005"] }] }
+        ];
+
+        if (!container) {
+            let parent = dropdown ? dropdown.parentElement : document.body;
+            let newDiv = document.createElement('div');
+            newDiv.id = 'curriculum-gui-container';
+            newDiv.style.cssText = 'margin-top:20px; background:white; padding:20px; border-radius:8px; border:1px solid #cbd5e1;';
+            parent.appendChild(newDiv);
+        }
+
+        let targetContainer = document.getElementById('curriculum-gui-container') || container;
+        if (!targetContainer) return;
+
+        let html = `<h4 style="color:#0f172a; margin-top:0;">📋 Managing Curriculum for: <span style="color:#2563eb;">${selectedKey.replace('_', ' ')}</span></h4>`;
+        
+        catList.forEach((main, mIdx) => {
+            html += `
+            <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; padding:15px; margin-bottom:15px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <strong style="color:#1e293b; font-size:1.1rem;">📁 ${esc(main.category)} (Min: ${main.minCredits} Credits)</strong>
+                    <button onclick="window.adminEditCategoryCredits(${mIdx})" style="background:#0ea5e9; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:0.8rem;">Edit Credits</button>
+                </div>
+            `;
+
+            let subs = main.subCategories || [];
+            subs.forEach((sub, sIdx) => {
+                html += `
+                <div style="background:white; border:1px solid #e2e8f0; border-radius:4px; padding:10px; margin-top:8px;">
+                    <div style="font-weight:bold; color:#475569; margin-bottom:5px;">📄 ${esc(sub.name)} — Courses:</div>
+                    <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                        ${(sub.codes || []).map((code, cIdx) => `
+                            <span style="background:#f1f5f9; border:1px solid #cbd5e1; padding:4px 8px; border-radius:4px; font-size:0.85rem; font-weight:bold; display:inline-flex; align-items:center; gap:6px;">
+                                ${esc(code)} 
+                                <button onclick="window.adminRemoveCourseCode('${selectedKey}',${mIdx}, ${sIdx},${cIdx})" style="background:none; border:none; color:#ef4444; cursor:pointer; font-weight:bold;">×</button>
+                            </span>
+                        `).join('')}
+                    </div>
+                    <button onclick="window.adminAddCourseCode('${selectedKey}', ${mIdx}, ${sIdx})" style="margin-top:8px; background:#10b981; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:0.8rem; font-weight:bold;">+ Add Course</button>
+                </div>`;
+            });
+            html += `</div>`;
+        });
+
+        targetContainer.innerHTML = html;
+    };
+
+    document.querySelectorAll('button').forEach(b => {
+        if (b.textContent.trim().toUpperCase() === 'LOAD CURRICULUM') {
+            b.onclick = function(e) {
+                e.preventDefault();
+                window.triggerLoadCurriculum();
+            };
+        }
+    });
 };
 
-// --- 5. FACULTY DASHBOARD GAP & FILTER FIX ---
+// --- 5. ADMIN CURRICULUM EDITORS ---
+window.adminEditCategoryCredits = function(mIndex) {
+    let rules = {};
+    try { rules = JSON.parse(localStorage.getItem('AIIT_CUSTOM_CURRICULUM')) || window.CURRICULUM_RULES || {}; } catch(e){}
+    let key = window.currentEditingKey || "2024_MCA";
+    let cat = rules[key] ? rules[key][mIndex] : null;
+    if (!cat) return;
+
+    let val = prompt("Enter new minimum credits required for this category:", cat.minCredits);
+    if (val !== null && !isNaN(val)) {
+        cat.minCredits = parseFloat(val);
+        localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(rules));
+        window.triggerLoadCurriculum();
+    }
+};
+
+window.adminAddCourseCode = function(key, mIdx, sIdx) {
+    let rules = {};
+    try { rules = JSON.parse(localStorage.getItem('AIIT_CUSTOM_CURRICULUM')) || window.CURRICULUM_RULES || {}; } catch(e){}
+    let code = prompt("Enter Course Code (e.g., CSE5001):");
+    if (code) {
+        let cleanCode = code.toUpperCase().trim();
+        if (!rules[key][mIdx].subCategories[sIdx].codes.includes(cleanCode)) {
+            rules[key][mIdx].subCategories[sIdx].codes.push(cleanCode);
+            localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(rules));
+            window.triggerLoadCurriculum();
+        }
+    }
+};
+
+window.adminRemoveCourseCode = function(key, mIdx, sIdx, cIdx) {
+    let rules = {};
+    try { rules = JSON.parse(localStorage.getItem('AIIT_CUSTOM_CURRICULUM')) || window.CURRICULUM_RULES || {}; } catch(e){}
+    rules[key][mIdx].subCategories[sIdx].codes.splice(cIdx, 1);
+    localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(rules));
+    window.triggerLoadCurriculum();
+};
+
+// --- 6. FACULTY READ-ONLY CURRICULUM VIEWER ---
+window.renderFacultyCurriculumViewer = function(container) {
+    let rules = {};
+    try { rules = JSON.parse(localStorage.getItem('AIIT_CUSTOM_CURRICULUM')) || window.CURRICULUM_RULES || {}; } catch(e){}
+    let keys = Object.keys(rules);
+    if (keys.length === 0) keys = ["2024_MCA"];
+
+    let html = `<h3 style="color:#0f172a;">📚 Official Curriculum Viewer (Static & Read-Only for Faculty)</h3>`;
+    keys.forEach(k => {
+        html += `<div style="background:white; border:1px solid #cbd5e1; border-radius:6px; padding:15px; margin-bottom:15px;"><h4 style="color:#2563eb; margin-top:0;">${k.replace('_', ' ')}</h4>`;
+        (rules[k] || []).forEach(main => {
+            html += `<div style="margin-bottom:10px;"><strong style="color:#1e293b;">${esc(main.category)} (Min: ${main.minCredits} Cr)</strong>`;
+            (main.subCategories || []).forEach(sub => {
+                html += `<div style="margin-left:15px; color:#475569; font-size:0.9rem;">• ${esc(sub.name)}: ${(sub.codes || []).join(', ')}</div>`;
+            });
+            html += `</div>`;
+        });
+        html += `</div>`;
+    });
+    if (container) container.innerHTML = html;
+};
+
+// --- 7. FACULTY DASHBOARD GAP & FILTER FIX ---
 window.renderFacultyPortal = async function(email) {
     let facultyDash = document.getElementById('faculty-dash') || document.querySelector('.faculty-section');
     if (!facultyDash) return;
@@ -337,9 +459,8 @@ window.renderFacultyPortal = async function(email) {
     facultyDash.style.minHeight = '100vh';
     facultyDash.style.zIndex = '10';
     facultyDash.style.background = '#f8fafc';
-    document.body.style.overflow = 'auto'; // Remove whitespace gaps
+    document.body.style.overflow = 'auto';
 
-    // Auto-load students for directory filters
     if (!window.STUDENTS || window.STUDENTS.length === 0) {
         await window.initializeCloudPortal();
     }
@@ -367,7 +488,7 @@ window.facultyFilterAndSort = function() {
     if (typeof renderStudentTable === 'function') renderStudentTable(filtered);
 };
 
-// --- 6. STUDENT LOGIN & DASHBOARD ---
+// --- 8. STUDENT LOGIN & DASHBOARD ---
 window.studentLoginStep = async function () {
     var rawSen = document.getElementById('s-sen')?.value || document.getElementById('student-sen')?.value || document.querySelector('input[placeholder*="SEN"]')?.value;
     var sen = String(rawSen || '').toUpperCase().trim();
@@ -446,7 +567,6 @@ window.loadStudentDashboard = function(student) {
     document.querySelectorAll('#dash-cgpa, .cgpa-val').forEach(el => el.textContent = cgpa);
     document.querySelectorAll('#dash-ce, .credits-val').forEach(el => el.textContent = credits);
 
-    // Clean up bottom logout button to say ONLY "LOGOUT"
     document.querySelectorAll('button, a').forEach(el => {
         let txt = el.textContent.trim().toLowerCase();
         if (txt.includes('logout') || txt.includes('search another')) {

@@ -1,24 +1,24 @@
-# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 9.3 (Full Cloud Optimization & Action Binding)
+# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 9.4 (Master Cloud Synchronization & Full Table Curriculum Editor)
 
-You are updating a static GitHub Pages site (`script.js`, `admin-hidden.html`, `index.html`) and Google Apps Script (`Code.gs`). We are fixing the faculty sign-in and student sign-in click actions, optimizing performance so the cloud database loads instantly without local storage lags, making curriculum sub-categories fully display their course lists inside the admin manager, and populating enrolled student lists from the Google Sheet backend, updating version tags to **Ver 9.3**, and creating `VERSION9.3.md`.
+You are updating a static GitHub Pages site (`script.js`, `admin-hidden.html`, `index.html`) and Google Apps Script (`Code.gs`). We are fixing the batch and program tags renderer (`renderSystemPrograms`), making the curriculum editor fully display structured sub-categories and course code tables directly in the UI with live editing, resetting, and bulk Excel uploading, ensuring student directories load correctly, updating version tags to **Ver 9.4**, and creating `VERSION9.4.md`.
 
 Please execute the following strict updates:
 
 ## 1. Global Versioning Update
 
 * **File:** `index.html`, `admin-hidden.html`
-* Change all version tags in the top left corners to `Ver 9.3`.
+* Change all version tags in the top left corners to `Ver 9.4`.
 
 
 
-## 2. Optimized Cloud & UI Engine (`script.js`)
+## 2. Master Curriculum Table & System Setup Engine (`script.js`)
 
 * **File:** `script.js`
-* Replace your entire `script.js` file with this lightning-fast cloud-synchronized master version:
+* Replace your entire `script.js` file with this fully integrated, high-speed master engine:
 ```javascript
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 9.3 - High-Speed Cloud Optimization & Action Binding)
+ * Master Script Engine (Ver 9.4 - Master Cloud Sync & Full Table Curriculum Editor)
  */
 
 'use strict';
@@ -58,7 +58,12 @@ window.initializeCloudPortal = async function() {
         });
         window.SYSTEM_PROGRAMS = Array.from(progMap.values());
         if (window.SYSTEM_PROGRAMS.length === 0) {
-            window.SYSTEM_PROGRAMS = [{ batch: "2024", program: "MCA" }, { batch: "2025", program: "MCA" }, { batch: "2024", program: "B.C.A" }];
+            window.SYSTEM_PROGRAMS = [
+                { batch: "2024", program: "MCA" }, 
+                { batch: "2025", program: "MCA" }, 
+                { batch: "2024", program: "B.C.A" }, 
+                { batch: "2025", program: "B.C.A" }
+            ];
         }
 
         let curText = await curRes.text();
@@ -69,6 +74,12 @@ window.initializeCloudPortal = async function() {
         }
     } catch (err) {
         console.warn("Cloud sync warning:", err);
+        window.SYSTEM_PROGRAMS = [
+            { batch: "2024", program: "MCA" }, 
+            { batch: "2025", program: "MCA" }, 
+            { batch: "2024", program: "B.C.A" }, 
+            { batch: "2025", program: "B.C.A" }
+        ];
     }
 
     if (typeof window.renderSystemPrograms === 'function') window.renderSystemPrograms();
@@ -76,121 +87,56 @@ window.initializeCloudPortal = async function() {
     if (typeof window.loadCurriculumEditor === 'function') window.loadCurriculumEditor();
 };
 
-// --- 2. EXPLICIT LOGIN & SIGN-IN BINDINGS ---
-window.studentLoginStep = async function () {
-    var rawSen = document.getElementById('s-sen')?.value || document.getElementById('student-sen')?.value || document.querySelector('input[placeholder*="SEN"]')?.value;
-    var sen = String(rawSen || '').toUpperCase().trim();
-    var passInput = document.getElementById('s-pass')?.value || document.getElementById('student-pass')?.value || document.querySelector('input[type="password"]')?.value || '';
-
-    if (!sen || !passInput) {
-        alert("Please enter both SEN and password.");
-        return;
-    }
-
-    try {
-        var response = await fetch(scriptURL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({ action: 'login', sen: sen, password: passInput.trim() })
-        });
-        var result = await response.json();
-
-        if (result && result.status === 'success' && result.student) {
-            window.loadStudentDashboard(result.student);
-        } else if (result && (result.status === 'first_time' || (result.message && result.message.toLowerCase().includes('first')))) {
-            let newPass = prompt("🔐 First-time login. Enter new permanent password (min 6 characters):");
-            if (!newPass || newPass.length < 6) {
-                alert("❌ Password must be at least 6 characters.");
-                return;
-            }
-
-            let setRes = await fetch(scriptURL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify({ action: 'setpassword', sen: sen, newPassword: newPass })
-            });
-            let setJson = await setRes.json();
-
-            if (setJson.status === 'success') {
-                alert("✅ Password created successfully! Logging in...");
-                window.loadStudentDashboardAfterCloudAuth(sen);
-            } else {
-                alert(`❌ Error: ${setJson.message}`);
-            }
-        } else {
-            alert("⚠ " + (result.message || 'Incorrect password.'));
-        }
-    } catch (err) {
-        alert("✗ Cloud connection error. Check your network.");
-    }
-};
-
-window.facultyLoginStep = async function () {
-    var emailInput = document.getElementById('f-email') || document.querySelector('input[type="email"]');
-    var passInput = document.getElementById('f-pass') || document.querySelector('input[type="password"]');
-    var email = emailInput ? emailInput.value.trim().toLowerCase() : "";
-    var pass = passInput ? passInput.value : "";
-
-    if (!email || !pass) {
-        alert("Please enter both email and password.");
-        return;
-    }
-
-    const authorizedFaculty = [
-        "chandrashekharbn@blr.amity.edu", "gopalr@blr.amity.edu", "krishnachalithakc@blr.amity.edu",
-        "mbhan@blr.amity.edu", "mkirmani@blr.amity.edu", "pramamurthy@blr.amity.edu",
-        "pchakraborty@blr.amity.edu", "skumar2@blr.amity.edu", "vramamoorthy@blr.amity.edu",
-        "geethav@blr.amity.edu", "nkumar@blr.amity.edu", "ntressa@blr.amity.edu", "sspattu@blr.amity.edu"
+// --- 2. SYSTEM PROGRAMS RENDERER (Batches & Programs) ---
+window.renderSystemPrograms = function() {
+    let sysProgs = window.SYSTEM_PROGRAMS.length > 0 ? window.SYSTEM_PROGRAMS : [
+        { batch: "2024", program: "MCA" }, { batch: "2025", program: "MCA" }, { batch: "2024", program: "B.C.A" }
     ];
 
-    if (authorizedFaculty.includes(email) || email === 'faculty@123') {
-        alert("✅ Faculty Verified Successfully! Loading Portal...");
-        window.currentFacultyEmail = email;
-        let fLogin = document.getElementById('faculty-login-container') || document.getElementById('faculty-login');
-        let fDash = document.getElementById('faculty-dash') || document.querySelector('.faculty-section');
-        if (fLogin) fLogin.style.display = 'none';
-        if (fDash) {
-            fDash.style.display = 'block';
-            if (typeof window.renderFacultyPortal === 'function') window.renderFacultyPortal(email);
-        } else {
-            location.reload();
-        }
-    } else {
-        alert("❌ Invalid Faculty Credentials or Email not authorized.");
+    const container = document.getElementById('active-system-programs');
+    if (container) {
+        container.innerHTML = sysProgs.map((p, i) => `
+            <span style="background: #334155; padding: 6px 12px; border-radius: 6px; color: white; font-weight:bold; display:inline-block; margin:4px;">
+                ${esc(p.batch)} ${esc(p.program)} 
+                <button onclick="window.removeSystemProgram(${i})" style="background:none; border:none; color:#ef4444; cursor:pointer; margin-left:8px; font-weight:bold;">✖</button>
+            </span>
+        `).join('');
+    }
+
+    // Populate curriculum dropdown with ALL available batches & programs
+    const dropdown = document.getElementById('curriculum-edit-key') || document.querySelector('select[id*="curr"]');
+    if (dropdown) {
+        const currentVal = dropdown.value;
+        dropdown.innerHTML = sysProgs.map(p => {
+            let key = `${p.batch}_${p.program}`;
+            return `<option value="${key}">${p.batch} ${p.program}</option>`;
+        }).join('');
+        if (currentVal) dropdown.value = currentVal;
     }
 };
 
-// --- 3. ADMIN STUDENT DIRECTORY & FILTERS ---
-window.applyAdminFilters = async function() {
-    var tbody = document.getElementById('admin-tbody');
-    var totalStu = document.getElementById('total-stu');
-    if (!tbody) return;
+window.addSystemProgram = function() {
+    const b = document.getElementById('new-batch-input')?.value.trim();
+    const p = document.getElementById('new-program-input')?.value.trim();
+    if (!b || !p) { alert("Please enter both Batch and Program."); return; }
 
-    if (window.STUDENTS.length === 0) {
-        await window.initializeCloudPortal();
+    if (!window.SYSTEM_PROGRAMS.some(x => x.batch === b && x.program === p)) {
+        window.SYSTEM_PROGRAMS.push({ batch: b, program: p });
+        localStorage.setItem('AIIT_SYSTEM_PROGRAMS', JSON.stringify(window.SYSTEM_PROGRAMS));
+        window.renderSystemPrograms();
+        alert(`✅ Added ${b} ${p} to system!`);
     }
-
-    if (totalStu) totalStu.textContent = window.STUDENTS.length;
-
-    if (window.STUDENTS.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px; color:#64748b;">No student records found in Cloud DB.</td></tr>`;
-        return;
-    }
-
-    tbody.innerHTML = window.STUDENTS.map((s, i) => `
-        <tr style="border-bottom:1px solid #e2e8f0;">
-            <td style="padding:10px;">${i + 1}</td>
-            <td style="font-weight:bold;">${esc(s.sen)}</td>
-            <td>${esc(s.name)}</td>
-            <td>${esc(s.program || 'N/A')}</td>
-            <td style="font-weight:bold; color:#3b82f6;">${s.cgpa || 'N/A'}</td>
-            <td>${s.totalCredits || '0'}</td>
-            <td><button style="background:#0ea5e9; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer;" onclick="window.openAdminStudentView('${esc(s.sen)}')">Details</button></td>
-        </tr>
-    `).join('');
 };
 
-// --- 4. ADMIN CURRICULUM EDITOR (Full Table Structure with Sub-Categories & Courses) ---
+window.removeSystemProgram = function(index) {
+    if (confirm("Remove this batch and program?")) {
+        window.SYSTEM_PROGRAMS.splice(index, 1);
+        localStorage.setItem('AIIT_SYSTEM_PROGRAMS', JSON.stringify(window.SYSTEM_PROGRAMS));
+        window.renderSystemPrograms();
+    }
+};
+
+// --- 3. MASTER CURRICULUM TABLE EDITOR (Fully Detailed & Editable) ---
 window.loadCurriculumEditor = function() {
     const dropdown = document.getElementById('curriculum-edit-key') || document.querySelector('select[id*="curr"]');
     const container = document.getElementById('curriculum-gui-container') || document.querySelector('.curriculum-container') || document.getElementById('tab-curriculum');
@@ -209,7 +155,13 @@ window.loadCurriculumEditor = function() {
         window.currentEditingKey = selectedKey;
 
         let rules = window.CURRICULUM_RULES[selectedKey] || [
-            { category: "1. School Core", minCredits: 10, subCategories: [{ name: "General Courses", minCredits: 10, codes: ["ENG5001"] }] }
+            { 
+                category: "1. School Core", 
+                minCredits: 10, 
+                subCategories: [
+                    { name: "General Courses", minCredits: 10, codes: ["ENG5001", "MAT5005"] }
+                ] 
+            }
         ];
 
         let targetContainer = document.getElementById('curriculum-gui-container');
@@ -272,10 +224,16 @@ window.loadCurriculumEditor = function() {
     };
 
     document.querySelectorAll('button').forEach(b => {
-        if (b.textContent.trim().toUpperCase() === 'LOAD CURRICULUM') {
+        let txt = b.textContent.trim().toUpperCase();
+        if (txt === 'LOAD CURRICULUM') {
             b.onclick = function(e) {
                 e.preventDefault();
                 window.triggerLoadCurriculum();
+            };
+        } else if (txt.includes('RESET TO DEFAULT')) {
+            b.onclick = function(e) {
+                e.preventDefault();
+                window.resetCurriculumEditor();
             };
         }
     });
@@ -341,6 +299,45 @@ window.adminRemoveCourse = function(key, mIdx, sIdx, cIdx) {
     }
 };
 
+window.resetCurriculumEditor = function() {
+    if (confirm("Reset curriculum rules to defaults?")) {
+        localStorage.removeItem('AIIT_CUSTOM_CURRICULUM');
+        window.CURRICULUM_RULES = {};
+        window.loadCurriculumEditor();
+        alert("Curriculum reset successfully.");
+    }
+};
+
+// --- 4. ADMIN STUDENT DIRECTORY (Enrolled Students Count Fix) ---
+window.applyAdminFilters = async function() {
+    var tbody = document.getElementById('admin-tbody');
+    var totalStu = document.getElementById('total-stu');
+    if (!tbody) return;
+
+    if (window.STUDENTS.length === 0) {
+        await window.initializeCloudPortal();
+    }
+
+    if (totalStu) totalStu.textContent = window.STUDENTS.length;
+
+    if (window.STUDENTS.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px; color:#64748b;">No student records found in Cloud DB.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = window.STUDENTS.map((s, i) => `
+        <tr style="border-bottom:1px solid #e2e8f0;">
+            <td style="padding:10px;">${i + 1}</td>
+            <td style="font-weight:bold;">${esc(s.sen)}</td>
+            <td>${esc(s.name)}</td>
+            <td>${esc(s.program || 'N/A')}</td>
+            <td style="font-weight:bold; color:#3b82f6;">${s.cgpa || 'N/A'}</td>
+            <td>${s.totalCredits || '0'}</td>
+            <td><button style="background:#0ea5e9; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer;" onclick="window.openAdminStudentView('${esc(s.sen)}')">Details</button></td>
+        </tr>
+    `).join('');
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     window.initializeCloudPortal();
 });
@@ -351,9 +348,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
-## 3. Create `VERSION9.3.md`
+## 3. Create `VERSION9.4.md`
 
-* Create a file named `VERSION9.3.md` in your project root containing the release notes for Ver 9.3.
+* Create a file named `VERSION9.4.md` in your project root containing the release notes for Ver 9.4.
 
 ```
 

@@ -1,6 +1,6 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 8.0 - 100% Cloud-Driven Architecture)
+ * Master Script Engine (Ver 8.1 - UI & Filter Fixes)
  */
 
 'use strict';
@@ -35,7 +35,7 @@ window.showPage = function (id) {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  FACULTY & ADMIN NAVIGATION HANDLERS (Ver 8.0)
+//  FACULTY & ADMIN NAVIGATION HANDLERS (Ver 8.1)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 window.showFacultyLogin = function() {
@@ -306,7 +306,68 @@ window.applyAdminFilters = async function() {
     `).join('');
 };
 
-// --- 4. STUDENT LOGIN ---
+// --- 4. CURRICULUM EDITOR DROPDOWN FIX ---
+window.loadCurriculumEditor = function() {
+    const container = document.getElementById('curriculum-edit-key') || document.querySelector('#tab-curriculum select, select[id*="curr"]');
+    let sysProgs = [];
+    try { sysProgs = JSON.parse(localStorage.getItem('AIIT_SYSTEM_PROGRAMS')) || window.SYSTEM_PROGRAMS || []; } catch(e){}
+    if (sysProgs.length === 0) {
+        sysProgs = [{ batch: "2024", program: "MCA" }, { batch: "2025", program: "MCA" }, { batch: "2024", program: "B.C.A" }];
+    }
+
+    if (container) {
+        container.innerHTML = sysProgs.map(p => {
+            let key = `${p.batch}_${p.program}`;
+            let label = `${p.batch} ${p.program}`;
+            return `<option value="${key}">${label}</option>`;
+        }).join('');
+    }
+};
+
+// --- 5. FACULTY DASHBOARD GAP & FILTER FIX ---
+window.renderFacultyPortal = async function(email) {
+    let facultyDash = document.getElementById('faculty-dash') || document.querySelector('.faculty-section');
+    if (!facultyDash) return;
+
+    facultyDash.style.position = 'relative';
+    facultyDash.style.top = '0';
+    facultyDash.style.left = '0';
+    facultyDash.style.width = '100%';
+    facultyDash.style.height = 'auto';
+    facultyDash.style.minHeight = '100vh';
+    facultyDash.style.zIndex = '10';
+    facultyDash.style.background = '#f8fafc';
+    document.body.style.overflow = 'auto'; // Remove whitespace gaps
+
+    // Auto-load students for directory filters
+    if (!window.STUDENTS || window.STUDENTS.length === 0) {
+        await window.initializeCloudPortal();
+    }
+    if (typeof window.facultyFilterAndSort === 'function') {
+        window.facultyFilterAndSort();
+    }
+};
+
+window.facultyFilterAndSort = function() {
+    let students = window.STUDENTS || window.ALL_STUDENTS || [];
+    const searchInput = document.getElementById('faculty-search-input') || document.querySelector('input[placeholder*="Search"]');
+    const searchTxt = searchInput ? searchInput.value.toLowerCase().trim() : "";
+    
+    const batchSel = document.getElementById('filter-batch') ? document.getElementById('filter-batch').value.trim() : "";
+    const progSel = document.getElementById('filter-program') ? document.getElementById('filter-program').value.trim() : "";
+
+    let filtered = students.filter(s => {
+        const matchSearch = !searchTxt || String(s.sen || '').toLowerCase().includes(searchTxt) || String(s.name || '').toLowerCase().includes(searchTxt);
+        const matchBatch = !batchSel || String(s.batch || '').trim() === batchSel;
+        const matchProg = !progSel || String(s.program || '').trim() === progSel;
+        return matchSearch && matchBatch && matchProg;
+    });
+
+    window.RENDERED_STUDENTS = filtered;
+    if (typeof renderStudentTable === 'function') renderStudentTable(filtered);
+};
+
+// --- 6. STUDENT LOGIN & DASHBOARD ---
 window.studentLoginStep = async function () {
     var rawSen = document.getElementById('s-sen')?.value || document.getElementById('student-sen')?.value || document.querySelector('input[placeholder*="SEN"]')?.value;
     var sen = String(rawSen || '').toUpperCase().trim();
@@ -384,6 +445,15 @@ window.loadStudentDashboard = function(student) {
     document.querySelectorAll('#dash-name, .student-name').forEach(el => el.textContent = `${name} (${sen})`);
     document.querySelectorAll('#dash-cgpa, .cgpa-val').forEach(el => el.textContent = cgpa);
     document.querySelectorAll('#dash-ce, .credits-val').forEach(el => el.textContent = credits);
+
+    // Clean up bottom logout button to say ONLY "LOGOUT"
+    document.querySelectorAll('button, a').forEach(el => {
+        let txt = el.textContent.trim().toLowerCase();
+        if (txt.includes('logout') || txt.includes('search another')) {
+            el.textContent = 'LOGOUT';
+            el.onclick = function() { window.logoutPortal(); };
+        }
+    });
 
     let tbody = document.getElementById('courses-tbody') || document.querySelector('table tbody');
     if (tbody && student.courses) {

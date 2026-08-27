@@ -1,27 +1,38 @@
-# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 6.2 (Native Routing & Unhindered Authentication Fix)
+# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 6.3 (Direct Button & Navigation Action Binding)
 
-You are updating a static GitHub Pages site (`script.js`, `admin-hidden.html`, `index.html`). We are fixing the click routing for the top-right **"ADMIN LOGIN"** and **"FACULTY LOGIN"** header buttons, restoring explicit form submission bindings, updating version tags to **Ver 6.2**, and creating `VERSION6.2.md`.
+You are updating a static GitHub Pages site (`script.js`, `admin-hidden.html`, `index.html`). We are fixing the click routing for the top-right **"ADMIN LOGIN"** and **"FACULTY LOGIN"** buttons by directly binding their `onclick` attributes and event listeners, ensuring they never fail to open their respective login portals. Version tags are updated to **Ver 6.3**, and `VERSION6.3.md` is created.
 
 Please execute the following strict updates:
 
 ## 1. Global Versioning Update
 
 * **File:** `index.html`, `admin-hidden.html`
-* Change all version tags in the top left corners to `Ver 6.2`.
+* Change all version tags in the top left corners to `Ver 6.3`.
 
 
 
-## 2. Unhindered Click Routing & Login Engine (`script.js`)
+## 2. Direct HTML Action Bindings (`index.html`)
+
+* **File:** `index.html`
+* Locate the top-right header buttons and add explicit `onclick` attributes so they work instantly without needing event delegation:
+* Change the Admin Login button to: `<button onclick="window.location.href='admin-hidden.html'">ADMIN LOGIN</button>`
+* Change the Faculty Login button to: `<button onclick="window.showFacultyLogin()">FACULTY LOGIN</button>`
+
+
+
+
+
+## 3. Direct Routing & Login Engine (`script.js`)
 
 * **File:** `script.js`
-* Replace your routing and login click handlers with this explicit version that guarantees header buttons and form submit buttons trigger their target functions without obstruction:
+* Add the robust global handlers for faculty login, admin login, and direct button routing:
 
 
 
 ```javascript
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 6.2 - Unhindered UI & Native Routing Fix)
+ * Master Script Engine (Ver 6.3 - Direct Button Action Binding)
  */
 
 'use strict';
@@ -55,84 +66,20 @@ window.showPage = function (id) {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  EXPLICIT HEADER BUTTON ROUTING (Ver 6.2)
+//  FACULTY & ADMIN NAVIGATION HANDLERS (Ver 6.3)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-document.addEventListener('click', function(e) {
-    const btn = e.target.closest('button, a');
-    if (!btn) return;
-
-    let text = (btn.textContent || '').trim().toUpperCase();
-
-    // 1. Top Right Admin Login Button
-    if (text === 'ADMIN LOGIN') {
-        e.preventDefault();
-        window.location.href = 'admin-hidden.html';
-        return;
-    }
-
-    // 2. Top Right Faculty Login Button
-    if (text === 'FACULTY LOGIN') {
-        e.preventDefault();
-        if (typeof window.showFacultyLogin === 'function') {
-            window.showFacultyLogin();
-        } else {
-            let fContainer = document.getElementById('faculty-login-container') || document.getElementById('faculty-login');
-            let sContainer = document.getElementById('student-login-container') || document.getElementById('landing');
-            if (sContainer) sContainer.style.display = 'none';
-            if (fContainer) fContainer.style.display = 'block';
-        }
-        return;
-    }
-
-    // 3. Admin Dashboard Tab Switcher
-    if (text.includes('1. UPLOAD RESULTS') || text.includes('UPLOAD RESULTS')) {
-        e.preventDefault();
-        window.switchAdminTab('tab-upload', btn);
-    } else if (text.includes('2. MANAGE CURRICULUM') || text.includes('MANAGE CURRICULUM')) {
-        e.preventDefault();
-        window.switchAdminTab('tab-curriculum', btn);
-    } else if (text.includes('3. STUDENT DIRECTORY') || text.includes('STUDENT DIRECTORY')) {
-        e.preventDefault();
-        window.switchAdminTab('tab-students', btn);
-    } else if (text.includes('4. FACULTY ASSIGNMENTS') || text.includes('FACULTY ASSIGNMENTS')) {
-        e.preventDefault();
-        window.switchAdminTab('tab-faculty', btn);
-    }
-});
-
-window.switchAdminTab = function (tabId, btnElement) {
-    document.querySelectorAll('.admin-section, .admin-tab-content, div[id^="tab-"], section[id^="tab-"]').forEach(sec => {
-        if (sec) sec.style.display = 'none';
-    });
-
-    document.querySelectorAll('.admin-tab-btn, .nav-btn, .dashboard-nav button').forEach(b => {
-        if (b) {
-            b.classList.remove('active', 'bg-blue-600', 'text-white');
-            b.style.background = '';
-            b.style.color = '';
-        }
-    });
-
-    var target = document.getElementById(tabId) || document.querySelector('.' + tabId);
-    if (target) {
-        target.style.display = 'block';
-    }
-
-    if (btnElement) {
-        btnElement.classList.add('active');
-        btnElement.style.background = '#2563eb';
-        btnElement.style.color = '#ffffff';
-    }
-
-    if (tabId === 'tab-students' || tabId === 'student-directory') {
-        if (typeof window.applyAdminFilters === 'function') window.applyAdminFilters();
+window.showFacultyLogin = function() {
+    let sContainer = document.getElementById('student-login-container') || document.querySelector('.landing-container');
+    let fContainer = document.getElementById('faculty-login-container') || document.getElementById('faculty-login');
+    
+    if (sContainer) sContainer.style.display = 'none';
+    if (fContainer) {
+        fContainer.style.display = 'block';
+    } else {
+        alert("Faculty login section is loading or unavailable.");
     }
 };
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  ADMIN LOGIN SUBMISSION (Ver 6.2)
-// ═══════════════════════════════════════════════════════════════════════════════
 
 window.adminLogin = async function() {
     const passInput = document.querySelector('input[type="password"]') || document.querySelectorAll('input')[1];
@@ -154,8 +101,11 @@ window.adminLogin = async function() {
         if (data.status === 'success') {
             window.currentAdminPassword = password;
             sessionStorage.setItem('coe_admin_auth', password);
-            window.showPage('admin-dash');
-            if (typeof applyAdminFilters === 'function') applyAdminFilters();
+            if (typeof window.showPage === 'function') {
+                window.showPage('admin-dash');
+            } else {
+                location.reload();
+            }
         } else {
             alert(`⚠ ${data.message || 'Incorrect Admin Password'}`);
         }
@@ -166,14 +116,14 @@ window.adminLogin = async function() {
 
 ```
 
-## 3. Create `VERSION6.2.md`
+## 4. Create `VERSION6.3.md`
 
-* Create a file named `VERSION6.2.md` in your project root containing the following release notes:
+* Create a file named `VERSION6.3.md` in your project root containing the following release notes:
 
 ```markdown
-# Release Notes: AIIT Version 6.2
+# Release Notes: AIIT Version 6.3
 
-* **Header Routing Engine:** Explicitly mapped top-right "ADMIN LOGIN" and "FACULTY LOGIN" buttons to instantly open their respective portals.
-* **Authentication Interceptor:** Restored seamless form submission for admin credentials and unblocked interactive elements across the dashboard.
+* **Direct Button Integration:** Bound `onclick` actions directly to top-level "ADMIN LOGIN" and "FACULTY LOGIN" header buttons, resolving unresponsive click states.
+* **Streamlined Authentication:** Cleaned and optimized login execution endpoints for faculty and admin portals.
 
 ```

@@ -1,27 +1,57 @@
-# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 4.7 (Self-Healing Global State & Bulletproof Reset Engine)
+# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 5.0 (Built-in Fallback Database & Zero-Failure Login Engine)
 
-You are updating a static GitHub Pages site (`script.js`, `admin-hidden.html`, `index.html`). We are establishing a self-healing database loader that guarantees student records are always present in memory across all pages, fixing the admin-clear reset prompt trigger, updating version tags to **Ver 4.7**, and creating `VERSION4.7.md`.
+You are updating a static GitHub Pages site (`script.js`, `index.html`, `admin-hidden.html`). We are embedding a permanent built-in student fallback dataset inside `script.js` so student records and logins work instantly even in Incognito mode or new browsers without requiring re-uploads, updating version tags to **Ver 5.0**, and creating `VERSION5.0.md`.
 
 Please execute the following strict updates:
 
 ## 1. Global Versioning Update
 * **File:** `index.html` & `admin-hidden.html`
-  * Change all version tags in the top left corners to `Ver 4.7`.
+  * Change all version tags in the top left corners to `Ver 5.0`.
 
-## 2. Self-Healing State Engine (`script.js`)
+## 2. Built-In Fallback Database & Secure Login Engine (`script.js`)
 * **File:** `script.js`
-  * Add this global database initializer and update `clearStudentPassword` and `verifyStudentLogin`:
+  * Replace your entire data loader and login verification logic with this bulletproof version:
 
     ```javascript
-    // Self-healing global database loader
+    // Permanent Built-in Student Dataset (Works instantly in Incognito / New Devices)
+    window.getDefaultStudentDatabase = function() {
+        return [
+            {
+                sen: "A869145024002",
+                name: "PAVAN KUMAR H G",
+                program: "B.C.A",
+                cgpa: "7.58",
+                earnedCredits: "66",
+                courses: [
+                    { code: "CHE1001", title: "Environmental Studies", type: "T", credits: 3, marks: 58, grade: "P", gradePoints: "-", earnedCredits: 3 },
+                    { code: "CSE1016", title: "Introduction to Information Technology", type: "ELT", credits: 3, marks: "-", grade: "B", gradePoints: "-", earnedCredits: 3 },
+                    { code: "CSE1019", title: "Programming in C", type: "L", credits: 2, marks: 85, grade: "A", gradePoints: "-", earnedCredits: 2 }
+                ]
+            },
+            {
+                sen: "A86904824004",
+                name: "PAVAN KUMAR H G",
+                program: "B.C.A",
+                cgpa: "7.58",
+                earnedCredits: "66",
+                courses: [
+                    { code: "CHE1001", title: "Environmental Studies", type: "T", credits: 3, marks: 58, grade: "P", gradePoints: "-", earnedCredits: 3 },
+                    { code: "CSE1016", title: "Introduction to Information Technology", type: "ELT", credits: 3, marks: "-", grade: "B", gradePoints: "-", earnedCredits: 3 },
+                    { code: "CSE1019", title: "Programming in C", type: "L", credits: 2, marks: 85, grade: "A", gradePoints: "-", earnedCredits: 2 }
+                ]
+            }
+        ];
+    };
+
     window.loadMasterDatabase = function() {
         let master = [];
         try { master = JSON.parse(localStorage.getItem('AIIT_STUDENTS_DATA')) || []; } catch(e){}
         if (master.length === 0) {
             try { master = JSON.parse(localStorage.getItem('AIIT_UPLOADED_STUDENTS')) || []; } catch(e){}
         }
-        if (master.length === 0 && window.STUDENTS) {
-            master = window.STUDENTS;
+        if (master.length === 0) {
+            master = window.getDefaultStudentDatabase();
+            try { localStorage.setItem('AIIT_STUDENTS_DATA', JSON.stringify(master)); } catch(e){}
         }
         window.STUDENTS = master;
         return master;
@@ -55,7 +85,6 @@ Please execute the following strict updates:
                 }
             });
             localStorage.setItem('AIIT_STUDENTS_DATA', JSON.stringify(master));
-            localStorage.setItem('AIIT_UPLOADED_STUDENTS', JSON.stringify(master));
         } catch (err) {
             console.error("Clear error:", err);
         }
@@ -76,7 +105,6 @@ Please execute the following strict updates:
             return;
         }
 
-        // Always use self-healing loader
         let masterStudents = window.loadMasterDatabase();
 
         let student = masterStudents.find(s => {
@@ -86,14 +114,14 @@ Please execute the following strict updates:
         });
 
         if (!student) {
-            showErr('student-err', '❌ SEN not found in active database. Please verify result upload.');
+            showErr('student-err', '❌ SEN not found in active database.');
             return;
         }
 
         let forceResetFlag = localStorage.getItem(`AIIT_FORCE_RESET_${sen}`) === 'true';
         let permanentPass = localStorage.getItem(`AIIT_STUDENT_PASS_${sen}`);
 
-        // IF ADMIN CLEARED PASSWORD OR NO PASS EXISTS: Any input triggers prompt
+        // IF ADMIN CLEARED PASSWORD OR NO PASS EXISTS: ANY password typed opens prompt
         if (forceResetFlag || !permanentPass) {
             let newPass = prompt("🔐 Enter your new permanent password (min 6 characters):");
             if (!newPass || newPass.length < 6) {
@@ -112,7 +140,6 @@ Please execute the following strict updates:
             student.password = newPass;
             
             localStorage.setItem('AIIT_STUDENTS_DATA', JSON.stringify(masterStudents));
-            localStorage.setItem('AIIT_UPLOADED_STUDENTS', JSON.stringify(masterStudents));
 
             // Clear reset flags permanently
             localStorage.removeItem(`AIIT_FORCE_RESET_${sen}`);
@@ -140,5 +167,5 @@ Please execute the following strict updates:
     };
     ```
 
-## 3. Create `VERSION4.7.md`
-* Create a file named `VERSION4.7.md` in your project root containing the release notes for Ver 4.7.
+## 3. Create `VERSION5.0.md`
+* Create a file named `VERSION5.0.md` in your project root containing the release notes for Ver 5.0.

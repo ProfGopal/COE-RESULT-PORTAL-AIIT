@@ -1,6 +1,6 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 9.4 - Master Cloud Sync & Full Table Curriculum Editor)
+ * Master Script Engine (Ver 9.5 - Master Curriculum & Bulk Excel Parser)
  */
 
 'use strict';
@@ -11,6 +11,7 @@ const GAS_URL = scriptURL;
 window.STUDENTS = [];
 window.CURRICULUM_RULES = {};
 window.SYSTEM_PROGRAMS = [];
+window.CUSTOM_COURSE_DICT = {};
 
 function sanitize(str) {
   return String(str || '').replace(/[<>"'`;\\&\/]/g, '').trim().substring(0, 200);
@@ -67,13 +68,188 @@ window.initializeCloudPortal = async function() {
         ];
     }
 
+    // Load from localStorage if present
+    try {
+        let localCur = localStorage.getItem('AIIT_CUSTOM_CURRICULUM');
+        if (localCur) {
+            let parsed = JSON.parse(localCur);
+            if (parsed && Object.keys(parsed).length > 0) {
+                window.CURRICULUM_RULES = parsed;
+            }
+        }
+        let localCourses = localStorage.getItem('AIIT_CUSTOM_COURSES');
+        if (localCourses) {
+            let parsedCourses = JSON.parse(localCourses);
+            if (parsedCourses && Object.keys(parsedCourses).length > 0) {
+                window.CUSTOM_COURSE_DICT = Object.assign({}, window.CUSTOM_COURSE_DICT, parsedCourses);
+            }
+        }
+    } catch (e) {
+        console.warn("Error loading from localStorage:", e);
+    }
+
     if (typeof window.renderSystemPrograms === 'function') window.renderSystemPrograms();
     if (typeof window.applyAdminFilters === 'function') window.applyAdminFilters();
     if (typeof window.loadCurriculumEditor === 'function') window.loadCurriculumEditor();
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-//  2. SYSTEM PROGRAMS RENDERER (Batches & Programs)
+//  2. BULK EXCEL CURRICULUM PARSER & UPLOADER (Ver 9.5)
+// ═══════════════════════════════════════════════════════════════════════
+window.handleBulkCurriculumUpload = function (event) {
+    try {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const keyDropdown = document.getElementById('curriculum-edit-key') || document.querySelector('select[id*="curr"]');
+        if (!keyDropdown || !keyDropdown.value) {
+            alert("❌ ERROR: Please select Batch & Program from dropdown first!");
+            event.target.value = '';
+            return;
+        }
+        let targetKey = keyDropdown.value;
+        window.currentEditingKey = targetKey;
+
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const rows = XLSX.utils.sheet_to_json(sheet);
+
+                if (!rows || rows.length === 0) {
+                    alert("❌ Excel file is empty or formatted incorrectly.");
+                    event.target.value = '';
+                    return;
+                }
+
+                let mainMap = {};
+                if (!window.CUSTOM_COURSE_DICT) window.CUSTOM_COURSE_DICT = {};
+
+                rows.forEach(row => {
+                    // Flexible key mapping
+                    const cleanRow = {};
+                    for (let key in row) {
+                        cleanRow[key.toString().replace(/[^a-zA-Z0-9]/g, '').toLowerCase()] = row[key];
+                    }
+
+                    const mainCat = cleanRow['maincategory'] || cleanRow['category'];
+                    if (!mainCat) return;
+
+                    const safeNum = (val, def) => {
+                        if (val === undefined || val === null || String(val).trim() === '') return def;
+                        return isNaN(parseFloat(val)) ? def : parseFloat(val);
+                    };
+
+                    const mainCreds = safeNum(cleanRow['maincredits'] || cleanRow['mincredits'], 0);
+                    const subCat = (cleanRow['subcategory'] && String(cleanRow['subcategory']).trim() !== "" && String(cleanRow['subcategory']).toLowerCase() !== 'nan') ? String(cleanRow['subcategory']).trim() : "General Courses";
+                    let subCreds = safeNum(cleanRow['subcredits'], null);
+                    if (subCreds === null || subCreds === 0) subCreds = (subCat === "General Courses") ? mainCreds : 0;
+
+                    const code = String(cleanRow['coursecode'] || cleanRow['code'] || "").trim().toUpperCase();
+                    const courseName = String(cleanRow['coursename'] || cleanRow['name'] || "").trim();
+                    const courseCreds = safeNum(cleanRow['credits'] || cleanRow['credit'] || cleanRow['coursecredits'], 3);
+
+                    if (code && code !== "UNDEFINED" && code !== "NAN") {
+                        window.CUSTOM_COURSE_DICT[code] = {
+                            name: (courseName && courseName !== "Course Title") ? courseName : code,
+                            credits: courseCreds
+                        };
+                    }
+
+                    if (!mainMap[mainCat]) {
+                        mainMap[mainCat] = { category: mainCat, minCredits: mainCreds, subCategories: {} };
+                    }
+                    if (!mainMap[mainCat].subCategories[subCat]) {
+                        mainMap[mainCat].subCategories[subCat] = { name: subCat, minCredits: subCreds, codes: [] };
+                    }
+                    if (code && code !== "UNDEFINED" && code !== "NAN") {
+                        if (!mainMap[mainCat].subCategories[subCat].codes.includes(code)) {
+                            mainMap[mainCat].subCategories[subCat].codes.push(code);
+                        }
+                    }
+                });
+
+                let newRules = Object.values(mainMap).map(main => ({
+                    category: main.category,
+                    minCredits: main.minCredits,
+                    subCategories: Object.values(main.subCategories)
+                }));
+
+                if (!window.CURRICULUM_RULES) window.CURRICULUM_RULES = {};
+                window.CURRICULUM_RULES[targetKey] = newRules;
+
+                // Save to localStorage & Master Dictionary
+                localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(window.CURRICULUM_RULES));
+                localStorage.setItem('AIIT_CUSTOM_COURSES', JSON.stringify(window.CUSTOM_COURSE_DICT));
+
+                if (typeof window.loadCurriculumEditor === 'function') {
+                    window.loadCurriculumEditor();
+                }
+                if (typeof window.saveCurriculumToCloud === 'function') {
+                    window.saveCurriculumToCloud();
+                }
+
+                alert(`✅ SUCCESS! Bulk Curriculum uploaded for ${targetKey}. ${newRules.length} Main Categories and all courses registered successfully.`);
+                event.target.value = '';
+            } catch (err) {
+                alert("❌ Excel Parse Error: " + err.message);
+                event.target.value = '';
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    } catch (err) {
+        alert("❌ CRITICAL ERROR: " + err.message);
+        event.target.value = '';
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+//  3. COMPLETE RESET TO DEFAULT & CLOUD SAVE UTILITIES
+// ═══════════════════════════════════════════════════════════════════════
+window.resetCurriculumEditor = function() {
+    if (confirm("⚠️ Are you sure you want to completely clear and reset the curriculum to defaults?")) {
+        const keyDropdown = document.getElementById('curriculum-edit-key') || document.querySelector('select[id*="curr"]');
+        let selectedKey = keyDropdown ? keyDropdown.value : "2024_MCA";
+
+        if (window.CURRICULUM_RULES && window.CURRICULUM_RULES[selectedKey]) {
+            delete window.CURRICULUM_RULES[selectedKey];
+        }
+        localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(window.CURRICULUM_RULES));
+
+        if (typeof window.loadCurriculumEditor === 'function') {
+            window.loadCurriculumEditor();
+        }
+        if (typeof window.saveCurriculumToCloud === 'function') {
+            window.saveCurriculumToCloud();
+        }
+
+        alert(`✅ Curriculum for ${selectedKey} has been completely reset.`);
+    }
+};
+
+window.saveCurriculumToCloud = async function() {
+    try {
+        const payload = {
+            rules: window.CURRICULUM_RULES,
+            courses: window.CUSTOM_COURSE_DICT
+        };
+        await fetch(scriptURL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({
+                action: 'saveCurriculum',
+                curriculumData: JSON.stringify(payload)
+            })
+        });
+    } catch (e) {
+        console.warn("Cloud save warning:", e);
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+//  4. SYSTEM PROGRAMS RENDERER (Batches & Programs)
 // ═══════════════════════════════════════════════════════════════════════
 window.renderSystemPrograms = function() {
     let sysProgs = window.SYSTEM_PROGRAMS.length > 0 ? window.SYSTEM_PROGRAMS : [
@@ -124,7 +300,7 @@ window.removeSystemProgram = function(index) {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-//  3. MASTER CURRICULUM TABLE EDITOR (Fully Detailed & Editable)
+//  5. MASTER CURRICULUM TABLE EDITOR (Fully Detailed & Editable)
 // ═══════════════════════════════════════════════════════════════════════
 window.loadCurriculumEditor = function() {
     const dropdown = document.getElementById('curriculum-edit-key') || document.querySelector('select[id*="curr"]');
@@ -288,17 +464,8 @@ window.adminRemoveCourse = function(key, mIdx, sIdx, cIdx) {
     }
 };
 
-window.resetCurriculumEditor = function() {
-    if (confirm("Reset curriculum rules to defaults?")) {
-        localStorage.removeItem('AIIT_CUSTOM_CURRICULUM');
-        window.CURRICULUM_RULES = {};
-        window.loadCurriculumEditor();
-        alert("Curriculum reset successfully.");
-    }
-};
-
 // ═══════════════════════════════════════════════════════════════════════
-//  4. ADMIN STUDENT DIRECTORY (Enrolled Students Count Fix)
+//  6. ADMIN STUDENT DIRECTORY (Enrolled Students Count Fix)
 // ═══════════════════════════════════════════════════════════════════════
 window.applyAdminFilters = async function() {
     var tbody = document.getElementById('admin-tbody');
@@ -330,7 +497,7 @@ window.applyAdminFilters = async function() {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-//  5. PAGE NAVIGATION & LOGIN HANDLERS
+//  7. PAGE NAVIGATION & LOGIN HANDLERS
 // ═══════════════════════════════════════════════════════════════════════
 window.showPage = function (id) {
   document.querySelectorAll('.page, .admin-section, .admin-tab-content, .login-container').forEach(function (p) { 
@@ -474,7 +641,7 @@ window.adminLogin = async function() {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-//  6. FACULTY PORTAL & STUDENT DASHBOARD RENDERING
+//  8. FACULTY PORTAL & STUDENT DASHBOARD RENDERING
 // ═══════════════════════════════════════════════════════════════════════
 window.renderFacultyPortal = async function(email) {
     let facultyDash = document.getElementById('faculty-dash') || document.querySelector('.faculty-section');
@@ -677,7 +844,7 @@ window.loadStudentDashboard = function(student) {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-//  7. ADMIN NAVIGATION & UTILITIES
+//  9. ADMIN NAVIGATION & UTILITIES
 // ═══════════════════════════════════════════════════════════════════════
 window.switchAdminTab = function(tabId, btnElement) {
     ['tab-upload', 'tab-curriculum', 'tab-students', 'tab-faculty'].forEach(id => {
@@ -734,6 +901,36 @@ window.logoutPortal = function() {
     window.location.href = window.location.pathname;
 };
 
+// ═══════════════════════════════════════════════════════════════════════
+//  10. DOM LOAD INITIALIZATION & EXPLICIT BUTTON WIRING
+// ═══════════════════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
     window.initializeCloudPortal();
+
+    // Wire Bulk Upload File Input if not already present in DOM
+    let fileInput = document.getElementById('bulk-curriculum-file-input');
+    if (!fileInput) {
+        fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.id = 'bulk-curriculum-file-input';
+        fileInput.accept = '.xlsx, .xls, .csv';
+        fileInput.style.display = 'none';
+        fileInput.onchange = window.handleBulkCurriculumUpload;
+        document.body.appendChild(fileInput);
+    }
+
+    document.querySelectorAll('button').forEach(b => {
+        let txt = b.textContent.trim().toUpperCase();
+        if (txt.includes('BULK UPLOAD EXCEL CURRICULUM') || txt.includes('BULK UPLOAD')) {
+            b.onclick = function(e) {
+                e.preventDefault();
+                fileInput.click();
+            };
+        } else if (txt.includes('RESET TO DEFAULT')) {
+            b.onclick = function(e) {
+                e.preventDefault();
+                window.resetCurriculumEditor();
+            };
+        }
+    });
 });

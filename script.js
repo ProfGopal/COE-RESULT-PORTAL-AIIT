@@ -1,6 +1,6 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 10.0 - 100% Cloud-Synced Curriculum & Degree Audit)
+ * Master Script Engine (Ver 11.0 - Enterprise Faculty Security & Audit Suite)
  */
 
 'use strict';
@@ -78,7 +78,6 @@ window.initializeCloudPortal = async function() {
         console.warn("Cloud sync warning:", err);
     }
 
-    // Load from localStorage as secondary cache
     try {
         let localCur = localStorage.getItem('AIIT_CUSTOM_CURRICULUM');
         if (localCur) {
@@ -127,7 +126,145 @@ window.saveCurriculumToCloud = function() {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-//  3. BULK EXCEL CURRICULUM PARSER & UPLOADER
+//  3. ENTERPRISE FACULTY AUTHENTICATION & FIRST-TIME SECURITY (Ver 11.0)
+// ═══════════════════════════════════════════════════════════════════════
+window.facultyLoginStep = async function () {
+    var emailInput = document.getElementById('f-email') || document.querySelector('input[type="email"]');
+    var passInput = document.getElementById('f-pass') || document.querySelector('input[type="password"]');
+    var email = emailInput ? emailInput.value.trim().toLowerCase() : "";
+    var pass = passInput ? passInput.value : "";
+
+    if (!email || !pass) {
+        alert("Please enter both institutional email and password.");
+        return;
+    }
+
+    try {
+        var response = await fetch(scriptURL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ action: 'verifyfaculty', email: email, password: pass })
+        });
+        var result = await response.json();
+
+        if (result && result.status === 'first_time') {
+            let newPass = prompt("🔐 First-time login using default password. Enter your new permanent password (min 6 characters):");
+            if (!newPass || newPass.length < 6) {
+                alert("❌ Password must be at least 6 characters.");
+                return;
+            }
+
+            let setRes = await fetch(scriptURL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({ action: 'setfacultypassword', email: email, password: newPass })
+            });
+            let setJson = await setRes.json();
+
+            if (setJson.status === 'success') {
+                alert("✅ Password updated successfully! Please sign in with your new password.");
+                if (passInput) passInput.value = "";
+            } else {
+                alert(`❌ Error: ${setJson.message}`);
+            }
+            return;
+        }
+
+        if (result && result.status === 'success') {
+            alert("✅ Faculty Verified Successfully! Loading Portal...");
+            window.currentFacultyEmail = email;
+            let fLogin = document.getElementById('faculty-login-container') || document.getElementById('faculty-login');
+            let fDash = document.getElementById('faculty-dash') || document.querySelector('.faculty-section');
+            if (fLogin) fLogin.style.display = 'none';
+            if (fDash) {
+                fDash.style.display = 'block';
+                if (typeof window.renderFacultyPortal === 'function') window.renderFacultyPortal(email);
+            } else {
+                location.reload();
+            }
+        } else {
+            alert("❌ " + (result.message || 'Invalid Faculty Credentials or Email not authorized.'));
+        }
+    } catch (err) {
+        alert("✗ Network error connecting to faculty authentication backend.");
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+//  4. ADMIN FACULTY AUDIT DASHBOARD RENDERER
+// ═══════════════════════════════════════════════════════════════════════
+window.renderAdminFacultyAudit = async function() {
+    let container = document.getElementById('admin-faculty-audit-container');
+    if (!container) {
+        let tabFac = document.getElementById('tab-faculty');
+        if (tabFac) {
+            container = document.createElement('div');
+            container.id = 'admin-faculty-audit-container';
+            container.style.cssText = 'margin-top:20px; background:white; padding:20px; border-radius:8px; border:1px solid #cbd5e1;';
+            tabFac.appendChild(container);
+        }
+    }
+    if (!container) return;
+
+    try {
+        let res = await fetch(scriptURL + "?action=getFacultyAudit");
+        let auditList = await res.json();
+
+        let rowsHTML = "";
+        (auditList || []).forEach(item => {
+            rowsHTML += `
+            <tr style="border-bottom:1px solid #e2e8f0;">
+                <td style="padding:10px; font-weight:bold; color:#0f172a;">${esc(item.email)}</td>
+                <td style="padding:10px; text-align:center;"><span style="background:#dcfce3; color:#16a34a; padding:4px 8px; border-radius:4px; font-weight:bold;">${item.count} logins</span></td>
+                <td style="padding:10px; color:#475569;">${new Date(item.timestamp).toLocaleString()}</td>
+                <td style="padding:10px; text-align:right;">
+                    <button onclick="window.adminResetFacultyPwd('${esc(item.email)}')" style="background:#ef4444; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-weight:bold;">Reset Password</button>
+                </td>
+            </tr>`;
+        });
+
+        container.innerHTML = `
+            <h3 style="color:#0f172a; margin-top:0;">📊 Faculty Login Audit & Security Dashboard</h3>
+            <p style="color:#475569; font-size:0.9rem;">Tracks faculty login frequency, last active timestamps, and allows resetting passwords back to default (faculty@123).</p>
+            <table style="width:100%; border-collapse:collapse; margin-top:15px; font-size:0.9rem;">
+                <thead>
+                    <tr style="background:#f8fafc; border-bottom:2px solid #cbd5e1; color:#334155; text-align:left;">
+                        <th style="padding:10px;">Faculty Email</th>
+                        <th style="padding:10px; text-align:center;">Login Count</th>
+                        <th style="padding:10px;">Last Timestamp</th>
+                        <th style="padding:10px; text-align:right;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>${rowsHTML || `<tr><td colspan="4" style="text-align:center; padding:20px; color:#64748b;">No faculty login audits recorded yet.</td></tr>`}</tbody>
+            </table>
+        `;
+    } catch(e) {
+        console.warn("Faculty audit load error:", e);
+    }
+};
+
+window.adminResetFacultyPwd = async function(email) {
+    if (!confirm(`Are you sure you want to reset password for ${email} back to default (faculty@123)?`)) return;
+    try {
+        let res = await fetch(scriptURL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ action: 'setfacultypassword', email: email, password: 'faculty@123' })
+        });
+        let json = await res.json();
+        if (json.status === 'success') {
+            alert(`✅ Password for ${email} successfully reset to faculty@123.`);
+            window.renderAdminFacultyAudit();
+        } else {
+            alert(`❌ Error: ${json.message}`);
+        }
+    } catch(err) {
+        alert("❌ Network error.");
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+//  5. BULK EXCEL CURRICULUM PARSER & UPLOADER
 // ═══════════════════════════════════════════════════════════════════════
 window.handleBulkCurriculumUpload = function (event) {
     try {
@@ -252,7 +389,7 @@ window.resetCurriculumEditor = function() {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-//  4. SYSTEM PROGRAMS RENDERER (Batches & Programs)
+//  6. SYSTEM PROGRAMS RENDERER (Batches & Programs)
 // ═══════════════════════════════════════════════════════════════════════
 window.renderSystemPrograms = function() {
     let sysProgs = window.SYSTEM_PROGRAMS.length > 0 ? window.SYSTEM_PROGRAMS : [
@@ -302,7 +439,7 @@ window.removeSystemProgram = function(index) {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-//  5. ADMIN CURRICULUM TABLE EDITOR (Code, Name, Credits, Edit, Remove)
+//  7. ADMIN CURRICULUM TABLE EDITOR
 // ═══════════════════════════════════════════════════════════════════════
 window.loadCurriculumEditor = function() {
     const dropdown = document.getElementById('curriculum-edit-key') || document.querySelector('select[id*="curr"]');
@@ -495,7 +632,7 @@ window.loadCurriculumEditor = function() {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-//  6. STUDENT PORTAL DEGREE AUDIT ENGINE (Cross-Verifies Baskets)
+//  8. STUDENT PORTAL DEGREE AUDIT ENGINE
 // ═══════════════════════════════════════════════════════════════════════
 window.evaluateDegree = function(student) {
     let studentBatch = String(student.batch || "").trim();
@@ -609,7 +746,7 @@ window.evaluateDegree = function(student) {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-//  7. ADMIN STUDENT DIRECTORY (Enrolled Students Count Fix)
+//  9. ADMIN STUDENT DIRECTORY (Enrolled Students Count Fix)
 // ═══════════════════════════════════════════════════════════════════════
 window.applyAdminFilters = async function() {
     var tbody = document.getElementById('admin-tbody');
@@ -641,7 +778,7 @@ window.applyAdminFilters = async function() {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-//  8. PAGE NAVIGATION & LOGIN HANDLERS
+//  10. PAGE NAVIGATION & LOGIN HANDLERS
 // ═══════════════════════════════════════════════════════════════════════
 window.showPage = function (id) {
   document.querySelectorAll('.page, .admin-section, .admin-tab-content, .login-container').forEach(function (p) { 
@@ -720,41 +857,6 @@ window.studentLoginStep = async function () {
     }
 };
 
-window.facultyLoginStep = async function () {
-    var emailInput = document.getElementById('f-email') || document.querySelector('input[type="email"]');
-    var passInput = document.getElementById('f-pass') || document.querySelector('input[type="password"]');
-    var email = emailInput ? emailInput.value.trim().toLowerCase() : "";
-    var pass = passInput ? passInput.value : "";
-
-    if (!email || !pass) {
-        alert("Please enter both email and password.");
-        return;
-    }
-
-    const authorizedFaculty = [
-        "chandrashekharbn@blr.amity.edu", "gopalr@blr.amity.edu", "krishnachalithakc@blr.amity.edu",
-        "mbhan@blr.amity.edu", "mkirmani@blr.amity.edu", "pramamurthy@blr.amity.edu",
-        "pchakraborty@blr.amity.edu", "skumar2@blr.amity.edu", "vramamoorthy@blr.amity.edu",
-        "geethav@blr.amity.edu", "nkumar@blr.amity.edu", "ntressa@blr.amity.edu", "sspattu@blr.amity.edu"
-    ];
-
-    if (authorizedFaculty.includes(email) || email === 'faculty@123') {
-        alert("✅ Faculty Verified Successfully! Loading Portal...");
-        window.currentFacultyEmail = email;
-        let fLogin = document.getElementById('faculty-login-container') || document.getElementById('faculty-login');
-        let fDash = document.getElementById('faculty-dash') || document.querySelector('.faculty-section');
-        if (fLogin) fLogin.style.display = 'none';
-        if (fDash) {
-            fDash.style.display = 'block';
-            if (typeof window.renderFacultyPortal === 'function') window.renderFacultyPortal(email);
-        } else {
-            location.reload();
-        }
-    } else {
-        alert("❌ Invalid Faculty Credentials or Email not authorized.");
-    }
-};
-
 window.adminLogin = async function() {
     const passInput = document.querySelector('input[type="password"]') || document.querySelectorAll('input')[1];
     const password = passInput ? passInput.value.trim() : "";
@@ -785,7 +887,7 @@ window.adminLogin = async function() {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-//  9. FACULTY PORTAL & STUDENT DASHBOARD RENDERING
+//  11. FACULTY PORTAL & STUDENT DASHBOARD RENDERING
 // ═══════════════════════════════════════════════════════════════════════
 window.renderFacultyPortal = async function(email) {
     let facultyDash = document.getElementById('faculty-dash') || document.querySelector('.faculty-section');
@@ -988,7 +1090,7 @@ window.loadStudentDashboard = function(student) {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-//  10. ADMIN NAVIGATION & UTILITIES
+//  12. ADMIN NAVIGATION & UTILITIES
 // ═══════════════════════════════════════════════════════════════════════
 window.switchAdminTab = function(tabId, btnElement) {
     ['tab-upload', 'tab-curriculum', 'tab-students', 'tab-faculty'].forEach(id => {
@@ -1015,6 +1117,8 @@ window.switchAdminTab = function(tabId, btnElement) {
         window.applyAdminFilters();
     } else if (tabId === 'tab-curriculum' && typeof window.loadCurriculumEditor === 'function') {
         window.loadCurriculumEditor();
+    } else if (tabId === 'tab-faculty' && typeof window.renderAdminFacultyAudit === 'function') {
+        window.renderAdminFacultyAudit();
     }
 };
 
@@ -1046,10 +1150,14 @@ window.logoutPortal = function() {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-//  11. DOM LOAD INITIALIZATION & EXPLICIT BUTTON WIRING
+//  13. DOM LOAD INITIALIZATION & EXPLICIT BUTTON WIRING
 // ═══════════════════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
     window.initializeCloudPortal();
+
+    if (document.getElementById('tab-faculty')) {
+        window.renderAdminFacultyAudit();
+    }
 
     // Wire Bulk Upload File Input if not already present in DOM
     let fileInput = document.getElementById('bulk-curriculum-file-input');

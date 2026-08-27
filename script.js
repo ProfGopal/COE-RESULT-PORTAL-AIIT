@@ -1,6 +1,6 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Restored & Cloud-Enforced Ver 4.5)
+ * Master Script Engine (Restored & Cloud-Enforced Ver 4.6)
  */
 
 'use strict';
@@ -646,14 +646,14 @@ window.studentLoginStep = async function () {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  3b. STRICT STATE-MACHINE AUTHENTICATION ENGINE — Ver 4.5
+//  3b. ABSOLUTE ADMIN-RESET FLAG ENGINE — Ver 4.6
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * clearStudentPassword — Ver 4.5
- * Strict Admin Clear Engine:
+ * clearStudentPassword — Ver 4.6
+ * Absolute Admin Reset Engine:
  * - Removes permanent password key AIIT_STUDENT_PASS_<SEN> from localStorage.
- * - Sets explicit admin reset flag AIIT_ADMIN_RESET_<SEN> = "true".
+ * - Sets absolute force-reset flag AIIT_FORCE_RESET_<SEN> = 'true'.
  * - Updates AIIT_CLEARED_PASSWORDS array and wipes data array properties.
  */
 window.clearStudentPassword = async function(senInputId) {
@@ -668,11 +668,11 @@ window.clearStudentPassword = async function(senInputId) {
     if (!confirm(`Are you sure you want to clear the password for student ${sen}?`)) return;
 
     try {
-        // 1. Remove permanent password key
+        // 1. Remove old permanent password key
         localStorage.removeItem(`AIIT_STUDENT_PASS_${sen}`);
         
-        // 2. SET STRICT ADMIN RESET FLAG TO TRUE
-        localStorage.setItem(`AIIT_ADMIN_RESET_${sen}`, "true");
+        // 2. SET ABSOLUTE FORCE-RESET FLAG
+        localStorage.setItem(`AIIT_FORCE_RESET_${sen}`, 'true');
 
         // 3. Update cleared list array
         let clearedList = [];
@@ -680,7 +680,7 @@ window.clearStudentPassword = async function(senInputId) {
         if (!clearedList.includes(sen)) clearedList.push(sen);
         localStorage.setItem('AIIT_CLEARED_PASSWORDS', JSON.stringify(clearedList));
 
-        // Clear properties in data arrays
+        // Clear custom password properties in local databases
         ['AIIT_STUDENTS_DATA', 'AIIT_UPLOADED_STUDENTS'].forEach(key => {
             let list = JSON.parse(localStorage.getItem(key)) || [];
             list.forEach(s => {
@@ -700,10 +700,10 @@ window.clearStudentPassword = async function(senInputId) {
 };
 
 /**
- * verifyStudentLogin — Ver 4.5
- * Strict State-Machine Authentication Engine:
- * - Checks exact AIIT_ADMIN_RESET_<SEN> flag and permanent password existence.
- * - IF ADMIN CLEARED: Prompts for New Password & Confirm Password, saves permanently, and wipes reset flag permanently.
+ * verifyStudentLogin — Ver 4.6
+ * Absolute Admin-Reset Flag Engine:
+ * - Checks AIIT_FORCE_RESET_<SEN> flag set by Admin or absence of permanent password.
+ * - IF ADMIN CLEARED: Prompts for New Password & Confirm Password, saves permanently, and wipes reset flag.
  * - NORMAL LOGIN: Validates strictly against permanent stored password. Incorrect password displays "⚠ Incorrect password.".
  */
 window.verifyStudentLogin = function() {
@@ -739,12 +739,12 @@ window.verifyStudentLogin = function() {
         return;
     }
 
-    // 2. CHECK EXACT ADMIN RESET FLAG
-    let adminResetFlag = localStorage.getItem(`AIIT_ADMIN_RESET_${sen}`) === "true";
+    // 2. CHECK FORCE RESET FLAG SET BY ADMIN
+    let forceResetFlag = localStorage.getItem(`AIIT_FORCE_RESET_${sen}`) === 'true';
     let permanentPass = localStorage.getItem(`AIIT_STUDENT_PASS_${sen}`);
 
-    // 3. IF ADMIN HAS CLEARED THE PASSWORD:
-    if (adminResetFlag || !permanentPass) {
+    // 3. IF ADMIN CLEARED THE PASSWORD (Flag is true OR no permanent password exists):
+    if (forceResetFlag || !permanentPass) {
         let newPass = prompt("🔐 Enter your new permanent password (min 6 characters):");
         if (!newPass || newPass.length < 6) {
             alert("❌ Password must be at least 6 characters.");
@@ -767,8 +767,8 @@ window.verifyStudentLogin = function() {
             localStorage.setItem('AIIT_UPLOADED_STUDENTS', JSON.stringify(masterStudents));
         } catch(e){}
 
-        // WIPE ADMIN RESET FLAG SO IT NEVER OPENS AGAIN UNLESS ADMIN CLEARS IT
-        localStorage.removeItem(`AIIT_ADMIN_RESET_${sen}`);
+        // REMOVE FORCE RESET FLAG SO IT NEVER OPENS AGAIN UNLESS ADMIN CLEARS IT
+        localStorage.removeItem(`AIIT_FORCE_RESET_${sen}`);
         try {
             let clearedList = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || [];
             clearedList = clearedList.filter(s => s !== sen);

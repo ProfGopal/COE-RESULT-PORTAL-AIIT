@@ -1,17 +1,20 @@
-# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 4.5 (Strict Admin-Flag State Machine & Clean Student Login)
+# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 4.6 (HTML UI Cleaner & Absolute Reset Flag Engine)
 
-You are updating a static GitHub Pages site (`script.js`, `index.html`, `admin-hidden.html`). We are fixing the student authentication lifecycle so that the password reset prompt opens **only** if the admin has explicitly cleared the password in the admin panel. Once configured, the reset flag is wiped, and subsequent logins strictly validate the password or show "Incorrect password". We also remove the "Forgot Password?" link and version up to **Ver 4.5**.
+You are updating a static GitHub Pages site (`script.js`, `index.html`, `admin-hidden.html`). We are completely removing the "Forgot Password?" element from `index.html`, ensuring clean UI text, and locking down the student login verification to use an explicit local storage reset flag (`AIIT_FORCE_RESET_<SEN>`), updating version tags to **Ver 4.6**, and creating `VERSION4.6.md`.
 
 Please execute the following strict updates:
 
-## 1. Global Versioning Update
-* **File:** `index.html` & `admin-hidden.html`
-  * Change all version tags in the top left corners to `Ver 4.5`.
-  * Remove any "Forgot Password?" links or text elements from the student login form UI.
+## 1. Global Versioning & UI HTML Cleanup
+* **File:** `index.html`
+  * Update the version tag in the top left corner to `Ver 4.6`.
+  * Locate and **completely delete** any anchor tag or text containing `FORGOT PASSWORD?` or links pointing to password recovery.
+  * Update the instruction text under "Student Login" to simply: `Enter your SEN and password.` (removing any mention of `pwd`).
+* **File:** `admin-hidden.html`
+  * Update version tags to `Ver 4.6`.
 
-## 2. Strict State-Machine Authentication Engine (`script.js`)
+## 2. Absolute Admin-Reset Flag Engine (`script.js`)
 * **File:** `script.js`
-  * Replace your `clearStudentPassword` and `verifyStudentLogin` functions with this clean state-machine version:
+  * Replace your `clearStudentPassword` and `verifyStudentLogin` functions with this clean implementation:
 
     ```javascript
     window.clearStudentPassword = async function(senInputId) {
@@ -26,11 +29,11 @@ Please execute the following strict updates:
         if (!confirm(`Are you sure you want to clear the password for student ${sen}?`)) return;
 
         try {
-            // 1. Remove permanent password key
+            // 1. Remove old permanent password key
             localStorage.removeItem(`AIIT_STUDENT_PASS_${sen}`);
             
-            // 2. SET STRICT ADMIN RESET FLAG TO TRUE
-            localStorage.setItem(`AIIT_ADMIN_RESET_${sen}`, "true");
+            // 2. SET ABSOLUTE FORCE-RESET FLAG
+            localStorage.setItem(`AIIT_FORCE_RESET_${sen}`, 'true');
 
             // 3. Update cleared list array
             let clearedList = [];
@@ -38,7 +41,7 @@ Please execute the following strict updates:
             if (!clearedList.includes(sen)) clearedList.push(sen);
             localStorage.setItem('AIIT_CLEARED_PASSWORDS', JSON.stringify(clearedList));
 
-            // Clear properties in data arrays
+            // Clear custom password properties in local databases
             ['AIIT_STUDENTS_DATA', 'AIIT_UPLOADED_STUDENTS'].forEach(key => {
                 let list = JSON.parse(localStorage.getItem(key)) || [];
                 list.forEach(s => {
@@ -90,12 +93,12 @@ Please execute the following strict updates:
             return;
         }
 
-        // 2. CHECK EXACT ADMIN RESET FLAG
-        let adminResetFlag = localStorage.getItem(`AIIT_ADMIN_RESET_${sen}`) === "true";
+        // 2. CHECK FORCE RESET FLAG SET BY ADMIN
+        let forceResetFlag = localStorage.getItem(`AIIT_FORCE_RESET_${sen}`) === 'true';
         let permanentPass = localStorage.getItem(`AIIT_STUDENT_PASS_${sen}`);
 
-        // 3. IF ADMIN HAS CLEARED THE PASSWORD:
-        if (adminResetFlag || !permanentPass) {
+        // 3. IF ADMIN CLEARED THE PASSWORD (Flag is true OR no permanent password exists):
+        if (forceResetFlag || !permanentPass) {
             let newPass = prompt("🔐 Enter your new permanent password (min 6 characters):");
             if (!newPass || newPass.length < 6) {
                 alert("❌ Password must be at least 6 characters.");
@@ -118,8 +121,8 @@ Please execute the following strict updates:
                 localStorage.setItem('AIIT_UPLOADED_STUDENTS', JSON.stringify(masterStudents));
             } catch(e){}
 
-            // WIPE ADMIN RESET FLAG SO IT NEVER OPENS AGAIN UNLESS ADMIN CLEARS IT
-            localStorage.removeItem(`AIIT_ADMIN_RESET_${sen}`);
+            // REMOVE FORCE RESET FLAG SO IT NEVER OPENS AGAIN UNLESS ADMIN CLEARS IT
+            localStorage.removeItem(`AIIT_FORCE_RESET_${sen}`);
             try {
                 let clearedList = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || [];
                 clearedList = clearedList.filter(s => s !== sen);
@@ -144,5 +147,5 @@ Please execute the following strict updates:
     };
     ```
 
-## 3. Create `VERSION4.5.md`
-* Create a file named `VERSION4.5.md` in your project root containing the release notes for Ver 4.5.
+## 3. Create `VERSION4.6.md`
+* Create a file named `VERSION4.6.md` in your project root containing the release notes for Ver 4.6.

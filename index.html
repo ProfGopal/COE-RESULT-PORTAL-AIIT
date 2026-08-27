@@ -1324,7 +1324,7 @@
     <header>
       <div class="header-left">
         <span style="color: var(--text); font-size: 0.9rem; font-weight: 500;">Developed by <strong style="color: var(--accent2);">Dr. GOPAL RAJENDRAN</strong></span>
-        <span style="font-size: 0.75rem; color: var(--muted); font-family: var(--mono);">Ver 4.5</span>
+        <span style="font-size: 0.75rem; color: var(--muted); font-family: var(--mono);">Ver 4.6</span>
       </div>
       <div class="header-center">
         <div style="font-size: 0.8rem; font-weight: 700; letter-spacing: 2px; color: var(--gold); margin-bottom: 8px; text-transform: uppercase; font-family: var(--mono);">
@@ -1356,8 +1356,7 @@
     <div id="student-login-container">
       <div id="loginSection" class="login-box" style="margin: 0 auto 1.5rem auto; text-align: left; width: 100%; max-width: 440px;">
         <h2 class="login-title" id="s-login-title" style="text-align: center; margin-bottom: 0.4rem;">Student Login</h2>
-        <p class="login-sub" id="student-login-hint" style="text-align: center;">Enter your SEN and password. First time? Use password <strong
-            style="color:var(--accent);font-family:var(--mono)">pwd</strong> to set a new one.</p>
+        <p class="login-sub" id="student-login-hint" style="text-align: center;">Enter your SEN and password.</p>
         <div class="alert err" id="student-err"></div>
         <div class="alert ok" id="student-ok"></div>
         <div class="field">
@@ -1366,10 +1365,7 @@
             onkeydown="if(event.key==='Enter')studentLoginStep()">
         </div>
         <div class="field" id="s-pass-field">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <label for="s-pass">Password</label>
-            <button onclick="requestOtpReset()" style="background:none; border:none; color:var(--accent); font-family:var(--mono); font-size:0.65rem; cursor:pointer; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:0.45rem;">Forgot Password?</button>
-          </div>
+          <label for="s-pass">Password</label>
           <input type="password" id="s-pass" placeholder="Your password" autocomplete="current-password"
             onkeydown="if(event.key==='Enter')studentLoginStep()">
         </div>

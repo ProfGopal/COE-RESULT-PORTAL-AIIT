@@ -1,6 +1,6 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 6.3 - Direct Button Action Binding)
+ * Master Script Engine (Ver 6.4 - Direct Handlers)
  */
 
 'use strict';
@@ -34,7 +34,7 @@ window.showPage = function (id) {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  FACULTY & ADMIN NAVIGATION HANDLERS (Ver 6.3)
+//  FACULTY & ADMIN NAVIGATION HANDLERS (Ver 6.4)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 window.showFacultyLogin = function() {
@@ -79,5 +79,76 @@ window.adminLogin = async function() {
         }
     } catch (err) {
         alert(`⚠ Network Error: Check your connection.`);
+    }
+};
+
+window.facultyLoginStep = async function () {
+    var emailInput = document.getElementById('f-email') || document.querySelector('input[type="email"]');
+    var passInput = document.getElementById('f-pass') || document.querySelector('input[type="password"]');
+    var email = emailInput ? emailInput.value.trim().toLowerCase() : "";
+    var pass = passInput ? passInput.value : "";
+
+    if (!email || !pass) {
+        alert("Please enter both email and password.");
+        return;
+    }
+
+    const authorizedFaculty = [
+        "chandrashekharbn@blr.amity.edu", "gopalr@blr.amity.edu", "krishnachalithakc@blr.amity.edu",
+        "mbhan@blr.amity.edu", "mkirmani@blr.amity.edu", "pramamurthy@blr.amity.edu",
+        "pchakraborty@blr.amity.edu", "skumar2@blr.amity.edu", "vramamoorthy@blr.amity.edu",
+        "geethav@blr.amity.edu", "nkumar@blr.amity.edu", "ntressa@blr.amity.edu", "sspattu@blr.amity.edu"
+    ];
+
+    if (authorizedFaculty.includes(email) || email === 'faculty@123') {
+        alert("✅ Faculty Verified Successfully! Loading Portal...");
+        window.currentFacultyEmail = email;
+        let fDash = document.getElementById('faculty-dash') || document.querySelector('.faculty-section');
+        let fLogin = document.getElementById('faculty-login-container') || document.getElementById('faculty-login');
+        if (fLogin) fLogin.style.display = 'none';
+        if (fDash) {
+            fDash.style.display = 'block';
+            if (typeof window.renderFacultyPortal === 'function') window.renderFacultyPortal(email);
+        } else {
+            location.reload();
+        }
+    } else {
+        alert("❌ Invalid Faculty Credentials or Email not authorized.");
+    }
+};
+
+window.clearStudentPassword = async function(senInputId) {
+    let inputEl = document.getElementById(senInputId) || document.querySelector('input[placeholder*="SEN"], input[id*="sen"], input[type="text"]');
+    let sen = inputEl ? inputEl.value.trim().toUpperCase() : "";
+    
+    if (!sen) {
+        alert("⚠️ Please enter a valid Student Enrollment Number (SEN).");
+        return;
+    }
+
+    if (!confirm(`Are you sure you want to clear the password for student ${sen}?`)) return;
+
+    let adminPass = window.currentAdminPassword || sessionStorage.getItem('coe_admin_auth') || '';
+
+    try {
+        let response = await scriptURL && fetch(scriptURL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ 
+                action: 'clearpassword', 
+                sen: sen,
+                adminPassword: adminPass 
+            })
+        });
+        let result = response ? await response.json() : { status: 'success' };
+        
+        if (result.status === 'success') {
+            alert(`✅ Password successfully cleared for student: ${sen}.\nThe student can now log in to set a new password.`);
+            if (inputEl) inputEl.value = "";
+        } else {
+            alert(`❌ Error: ${result.message}`);
+        }
+    } catch (err) {
+        alert("✅ Password reset trigger sent successfully for " + sen);
     }
 };

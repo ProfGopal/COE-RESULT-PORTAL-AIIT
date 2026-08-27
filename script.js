@@ -1,6 +1,6 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 11.0 - Enterprise Faculty Security & Audit Suite)
+ * Master Script Engine (Ver 12.0 - Faculty Dashboard, Filters, Details & Curriculum Loader Repair)
  */
 
 'use strict';
@@ -40,7 +40,7 @@ window.getCourseInfo = function(code) {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-//  2. CLOUD SYNC & BOOTLOADER
+//  2. LIGHTNING-FAST CLOUD BOOTLOADER
 // ═══════════════════════════════════════════════════════════════════════
 window.initializeCloudPortal = async function() {
     try {
@@ -126,7 +126,7 @@ window.saveCurriculumToCloud = function() {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-//  3. ENTERPRISE FACULTY AUTHENTICATION & FIRST-TIME SECURITY (Ver 11.0)
+//  3. FACULTY PORTAL (Gap Removal, Filters, Details & Logout Fix)
 // ═══════════════════════════════════════════════════════════════════════
 window.facultyLoginStep = async function () {
     var emailInput = document.getElementById('f-email') || document.querySelector('input[type="email"]');
@@ -173,15 +173,7 @@ window.facultyLoginStep = async function () {
         if (result && result.status === 'success') {
             alert("✅ Faculty Verified Successfully! Loading Portal...");
             window.currentFacultyEmail = email;
-            let fLogin = document.getElementById('faculty-login-container') || document.getElementById('faculty-login');
-            let fDash = document.getElementById('faculty-dash') || document.querySelector('.faculty-section');
-            if (fLogin) fLogin.style.display = 'none';
-            if (fDash) {
-                fDash.style.display = 'block';
-                if (typeof window.renderFacultyPortal === 'function') window.renderFacultyPortal(email);
-            } else {
-                location.reload();
-            }
+            window.renderFacultyPortal(email);
         } else {
             alert("❌ " + (result.message || 'Invalid Faculty Credentials or Email not authorized.'));
         }
@@ -190,8 +182,106 @@ window.facultyLoginStep = async function () {
     }
 };
 
+window.renderFacultyPortal = async function(email) {
+    let facultyDash = document.getElementById('faculty-dash') || document.querySelector('.faculty-section') || document.getElementById('faculty-dashboard');
+    
+    // Hide all login containers and landing screens to remove layout whitespace gaps
+    document.querySelectorAll('.page, .login-container, #student-login-container, .landing-container, #faculty-login-container').forEach(el => {
+        if (el) el.style.display = 'none';
+    });
+
+    if (facultyDash) {
+        facultyDash.style.display = 'block';
+        facultyDash.style.position = 'relative';
+        facultyDash.style.top = '0';
+        facultyDash.style.left = '0';
+        facultyDash.style.width = '100%';
+        facultyDash.style.height = 'auto';
+        facultyDash.style.minHeight = '100vh';
+        facultyDash.style.background = '#f8fafc';
+        facultyDash.style.zIndex = '99';
+    }
+    document.body.style.overflow = 'auto';
+
+    if (window.STUDENTS.length === 0) {
+        await window.initializeCloudPortal();
+    }
+    window.facultyFilterAndSort();
+
+    // Wire Logout buttons across faculty view
+    document.querySelectorAll('button, a').forEach(el => {
+        let txt = el.textContent.trim().toLowerCase();
+        if (txt === 'logout' || txt.includes('log out')) {
+            el.onclick = function(e) {
+                e.preventDefault();
+                window.logoutPortal();
+            };
+        }
+    });
+};
+
+window.facultyFilterAndSort = function() {
+    let students = window.STUDENTS || [];
+    const searchInput = document.getElementById('faculty-search-input') || document.querySelector('input[placeholder*="Search"]');
+    const searchTxt = searchInput ? searchInput.value.toLowerCase().trim() : "";
+    
+    const batchSel = document.getElementById('filter-batch') ? document.getElementById('filter-batch').value.trim() : "";
+    const progSel = document.getElementById('filter-program') ? document.getElementById('filter-program').value.trim() : "";
+
+    let filtered = students.filter(s => {
+        const matchSearch = !searchTxt || String(s.sen || '').toLowerCase().includes(searchTxt) || String(s.name || '').toLowerCase().includes(searchTxt);
+        const matchBatch = !batchSel || String(s.batch || '').trim() === batchSel;
+        const matchProg = !progSel || String(s.program || '').trim() === progSel;
+        return matchSearch && matchBatch && matchProg;
+    });
+
+    window.RENDERED_STUDENTS = filtered;
+    window.renderFacultyStudentTable(filtered);
+};
+
+window.facultyViewAll = async function() {
+    if (window.STUDENTS.length === 0) await window.initializeCloudPortal();
+    window.RENDERED_STUDENTS = window.STUDENTS;
+    window.renderFacultyStudentTable(window.STUDENTS);
+};
+
+window.renderFacultyStudentTable = function(students) {
+    var tbody = document.getElementById('faculty-dir-tbody') || document.querySelector('#faculty-dash tbody') || document.querySelector('table tbody');
+    var badge = document.querySelector('#faculty-dash .badge') || document.getElementById('faculty-dir-badge') || document.querySelector('.student-count-badge');
+    
+    if (badge) badge.textContent = `${students.length} students`;
+    if (!tbody) return;
+
+    if (!students || students.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:2rem;color:#64748b;">No matching student records found.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = students.map(s => {
+        let activeBacklogs = window.getActiveBacklogs ? window.getActiveBacklogs(s.courses).length : 0;
+        return `
+        <tr style="border-bottom:1px solid #e2e8f0;">
+            <td style="padding:12px; font-weight:bold;">${esc(s.sen)}</td>
+            <td style="padding:12px;">${esc(s.name)}</td>
+            <td style="padding:12px; font-weight:bold; color:#3b82f6;">${s.cgpa || 'N/A'}</td>
+            <td style="padding:12px; font-weight:bold;">${s.totalCredits || '0'}</td>
+            <td style="padding:12px;"><span style="padding:4px 8px; border-radius:4px; font-weight:bold; background:${activeBacklogs > 0 ? '#fee2e2' : '#dcfce3'}; color:${activeBacklogs > 0 ? '#dc2626' : '#16a34a'};">${activeBacklogs}</span></td>
+            <td style="padding:12px;"><button style="background:#0ea5e9; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer;" onclick="window.openFacultyStudentView('${esc(s.sen)}')">Details</button></td>
+        </tr>`;
+    }).join('');
+};
+
+window.openFacultyStudentView = function(sen) {
+    let student = window.STUDENTS.find(s => String(s.sen).toUpperCase() === String(sen).toUpperCase());
+    if (!student) {
+        alert("Student record not found.");
+        return;
+    }
+    window.loadStudentDashboard(student);
+};
+
 // ═══════════════════════════════════════════════════════════════════════
-//  4. ADMIN FACULTY AUDIT DASHBOARD RENDERER
+//  4. ADMIN FACULTY AUDIT DASHBOARD RENDERER (Tab 4)
 // ═══════════════════════════════════════════════════════════════════════
 window.renderAdminFacultyAudit = async function() {
     let container = document.getElementById('admin-faculty-audit-container');
@@ -439,19 +529,23 @@ window.removeSystemProgram = function(index) {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-//  7. ADMIN CURRICULUM TABLE EDITOR
+//  7. ADMIN CURRICULUM EDITOR & LOAD BUTTON FIX
 // ═══════════════════════════════════════════════════════════════════════
 window.loadCurriculumEditor = function() {
     const dropdown = document.getElementById('curriculum-edit-key') || document.querySelector('select[id*="curr"]');
     const container = document.getElementById('curriculum-gui-container') || document.querySelector('.curriculum-container') || document.getElementById('tab-curriculum');
     
-    let sysProgs = window.SYSTEM_PROGRAMS.length > 0 ? window.SYSTEM_PROGRAMS : [{ batch: "2024", program: "MCA" }];
+    let sysProgs = window.SYSTEM_PROGRAMS.length > 0 ? window.SYSTEM_PROGRAMS : [
+        { batch: "2024", program: "MCA" }, { batch: "2025", program: "MCA" }, { batch: "2024", program: "B.C.A" }
+    ];
 
-    if (dropdown && dropdown.options.length <= 1) {
+    if (dropdown) {
+        const curVal = dropdown.value;
         dropdown.innerHTML = sysProgs.map(p => {
             let key = `${p.batch}_${p.program}`;
             return `<option value="${key}">${p.batch} ${p.program}</option>`;
         }).join('');
+        if (curVal) dropdown.value = curVal;
     }
 
     window.triggerLoadCurriculum = function() {
@@ -513,7 +607,7 @@ window.loadCurriculumEditor = function() {
                         </thead>
                         <tbody>
                             ${(sub.codes || []).length > 0 ? (sub.codes || []).map((code, cIdx) => {
-                                let info = window.getCourseInfo(code);
+                                let info = window.getCourseInfo ? window.getCourseInfo(code) : { name: code, credits: 3 };
                                 return `
                                 <tr style="border-bottom:1px solid #f1f5f9;">
                                     <td style="padding:8px; font-weight:bold; color:#0f172a;">${esc(code)}</td>
@@ -629,6 +723,17 @@ window.loadCurriculumEditor = function() {
             window.triggerLoadCurriculum();
         }
     };
+
+    // Direct binding for Load Curriculum button
+    document.querySelectorAll('button').forEach(b => {
+        let txt = b.textContent.trim().toUpperCase();
+        if (txt === 'LOAD CURRICULUM') {
+            b.onclick = function(e) {
+                e.preventDefault();
+                window.triggerLoadCurriculum();
+            };
+        }
+    });
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -678,7 +783,7 @@ window.evaluateDegree = function(student) {
             (sub.codes || []).forEach(reqCode => {
                 let cleanReq = cleanString(reqCode);
                 let match = earnedCourses.find(c => c.cleanCode === cleanReq && isPass(c.grade));
-                let info = window.getCourseInfo(reqCode);
+                let info = window.getCourseInfo ? window.getCourseInfo(reqCode) : { name: reqCode, credits: 3 };
 
                 if (match) {
                     let cr = parseFloat(match.credits || info.credits || 3);
@@ -746,7 +851,7 @@ window.evaluateDegree = function(student) {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-//  9. ADMIN STUDENT DIRECTORY (Enrolled Students Count Fix)
+//  9. ADMIN STUDENT DIRECTORY
 // ═══════════════════════════════════════════════════════════════════════
 window.applyAdminFilters = async function() {
     var tbody = document.getElementById('admin-tbody');
@@ -887,95 +992,8 @@ window.adminLogin = async function() {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-//  11. FACULTY PORTAL & STUDENT DASHBOARD RENDERING
+//  11. STUDENT DASHBOARD RENDERING
 // ═══════════════════════════════════════════════════════════════════════
-window.renderFacultyPortal = async function(email) {
-    let facultyDash = document.getElementById('faculty-dash') || document.querySelector('.faculty-section');
-    if (!facultyDash) return;
-
-    facultyDash.style.position = 'relative';
-    facultyDash.style.top = '0';
-    facultyDash.style.left = '0';
-    facultyDash.style.width = '100%';
-    facultyDash.style.height = 'auto';
-    facultyDash.style.minHeight = '100vh';
-    facultyDash.style.background = '#f8fafc';
-    document.body.style.overflow = 'auto';
-
-    if (window.STUDENTS.length === 0) {
-        await window.initializeCloudPortal();
-    }
-    window.facultyFilterAndSort();
-};
-
-window.facultyFilterAndSort = function() {
-    let students = window.STUDENTS || [];
-    const searchInput = document.getElementById('faculty-search-input') || document.querySelector('input[placeholder*="Search"]');
-    const searchTxt = searchInput ? searchInput.value.toLowerCase().trim() : "";
-    
-    const batchSel = document.getElementById('filter-batch') ? document.getElementById('filter-batch').value.trim() : "";
-    const progSel = document.getElementById('filter-program') ? document.getElementById('filter-program').value.trim() : "";
-
-    let filtered = students.filter(s => {
-        const matchSearch = !searchTxt || String(s.sen || '').toLowerCase().includes(searchTxt) || String(s.name || '').toLowerCase().includes(searchTxt);
-        const matchBatch = !batchSel || String(s.batch || '').trim() === batchSel;
-        const matchProg = !progSel || String(s.program || '').trim() === progSel;
-        return matchSearch && matchBatch && matchProg;
-    });
-
-    window.RENDERED_STUDENTS = filtered;
-    renderStudentTable(filtered);
-};
-
-window.facultyViewAll = async function() {
-    if (window.STUDENTS.length === 0) await window.initializeCloudPortal();
-    window.RENDERED_STUDENTS = window.STUDENTS;
-    renderStudentTable(window.STUDENTS);
-};
-
-function renderStudentTable(students) {
-    var tbody = document.getElementById('faculty-dir-tbody') || document.querySelector('#faculty-dash tbody') || document.querySelector('table tbody');
-    var badge = document.querySelector('#faculty-dash .badge') || document.getElementById('faculty-dir-badge');
-    
-    if (badge) badge.textContent = `${students.length} students`;
-    if (!tbody) return;
-
-    if (!students || students.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:2rem;color:#64748b;">No matching student records found.</td></tr>`;
-        return;
-    }
-
-    tbody.innerHTML = students.map(s => {
-        let activeBacklogs = window.getActiveBacklogs ? window.getActiveBacklogs(s.courses).length : 0;
-        return `
-        <tr style="border-bottom:1px solid #e2e8f0;">
-            <td style="padding:12px; font-weight:bold;">${esc(s.sen)}</td>
-            <td style="padding:12px;">${esc(s.name)}</td>
-            <td style="padding:12px; font-weight:bold; color:#3b82f6;">${s.cgpa || 'N/A'}</td>
-            <td style="padding:12px; font-weight:bold;">${s.totalCredits || '0'}</td>
-            <td style="padding:12px;"><span style="padding:4px 8px; border-radius:4px; font-weight:bold; background:${activeBacklogs > 0 ? '#fee2e2' : '#dcfce3'}; color:${activeBacklogs > 0 ? '#dc2626' : '#16a34a'};">${activeBacklogs}</span></td>
-            <td style="padding:12px;"><button style="background:#0ea5e9; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer;" onclick="openFacultyStudentView('${esc(s.sen)}')">Details</button></td>
-        </tr>`;
-    }).join('');
-}
-
-window.getActiveBacklogs = function(courses) {
-    let history = {};
-    (courses || []).forEach(c => {
-        if (!c.code || c.code === 'NAN') return;
-        let code = String(c.code).toUpperCase().trim();
-        if (!history[code]) history[code] = { passed: false, latest: c };
-        let isFail = ['F', 'AB', 'DE', 'I', 'U'].includes(String(c.grade).toUpperCase().trim());
-        if (!isFail) history[code].passed = true;
-        else if (!history[code].passed) history[code].latest = c;
-    });
-    let backlogs = [];
-    for (let code in history) {
-        if (!history[code].passed) backlogs.push(history[code].latest);
-    }
-    return backlogs;
-};
-
 window.loadStudentDashboard = function(student) {
     window.currentStudent = student;
     document.querySelectorAll('.page, .login-container, #student-login-container, .landing-container').forEach(el => {
@@ -993,7 +1011,7 @@ window.loadStudentDashboard = function(student) {
     let cgpa = student.cgpa || 'N/A';
     let credits = student.totalCredits || '0';
     let validCourses = (student.courses || []).filter(c => c && c.code && c.code !== 'NAN');
-    let activeBacklogs = window.getActiveBacklogs(validCourses);
+    let activeBacklogs = window.getActiveBacklogs ? window.getActiveBacklogs(validCourses) : [];
 
     document.querySelectorAll('#dash-name, .student-name').forEach(el => el.textContent = `${name} (${sen})`);
     document.querySelectorAll('#dash-cgpa, .cgpa-val').forEach(el => el.textContent = cgpa);
@@ -1159,7 +1177,6 @@ document.addEventListener('DOMContentLoaded', () => {
         window.renderAdminFacultyAudit();
     }
 
-    // Wire Bulk Upload File Input if not already present in DOM
     let fileInput = document.getElementById('bulk-curriculum-file-input');
     if (!fileInput) {
         fileInput = document.createElement('input');

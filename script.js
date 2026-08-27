@@ -1,6 +1,6 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 9.0 - Full Feature & Curriculum Suite)
+ * Master Script Engine (Ver 9.1 - Direct Login Button Action Binding)
  */
 
 'use strict';
@@ -21,6 +21,113 @@ function esc(str) {
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 }
 window.esc = esc;
+
+window.showPage = function (id) {
+  document.querySelectorAll('.page, .admin-section, .admin-tab-content, .login-container').forEach(function (p) { 
+      if (p) p.style.display = 'none';
+  });
+  var target = document.getElementById(id);
+  if (target) {
+      target.style.display = 'block';
+  }
+  window.scrollTo(0, 0);
+};
+
+// --- EXPLICIT NAVIGATION & LOGIN HANDLERS ---
+window.showFacultyLogin = function() {
+    let sContainer = document.getElementById('student-login-container') || document.querySelector('.landing-container') || document.getElementById('landing');
+    let fContainer = document.getElementById('faculty-login-container') || document.getElementById('faculty-login');
+    if (sContainer) sContainer.style.display = 'none';
+    if (fContainer) {
+        fContainer.style.display = 'block';
+    } else {
+        alert("Faculty login portal view loading...");
+    }
+};
+
+window.showStudentLoginUI = function() {
+    let sContainer = document.getElementById('student-login-container') || document.querySelector('.landing-container') || document.getElementById('landing');
+    let fContainer = document.getElementById('faculty-login-container') || document.getElementById('faculty-login');
+    if (fContainer) fContainer.style.display = 'none';
+    if (sContainer) sContainer.style.display = 'block';
+};
+
+window.studentLoginStep = async function () {
+    var rawSen = document.getElementById('s-sen')?.value || document.getElementById('student-sen')?.value || document.querySelector('input[placeholder*="SEN"]')?.value;
+    var sen = String(rawSen || '').toUpperCase().trim();
+    var passInput = document.getElementById('s-pass')?.value || document.getElementById('student-pass')?.value || document.querySelector('input[type="password"]')?.value || '';
+    
+    if (!sen || !passInput) {
+        alert("Please enter both SEN and password.");
+        return;
+    }
+
+    try {
+        var response = await fetch(scriptURL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ action: 'login', sen: sen, password: passInput.trim() })
+        });
+        var result = await response.json();
+
+        if (result && result.status === 'success' && result.student) {
+            window.loadStudentDashboard(result.student);
+        } else if (result && (result.status === 'first_time' || (result.message && result.message.toLowerCase().includes('first')))) {
+            let newPass = prompt("🔐 First-time login. Enter new permanent password (min 6 characters):");
+            if (!newPass || newPass.length < 6) {
+                alert("❌ Password must be at least 6 characters.");
+                return;
+            }
+
+            let setRes = await fetch(scriptURL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({ action: 'setpassword', sen: sen, newPassword: newPass })
+            });
+            let setJson = await setRes.json();
+
+            if (setJson.status === 'success') {
+                alert("✅ Password created successfully! Logging in...");
+                window.loadStudentDashboardAfterCloudAuth(sen);
+            } else {
+                alert(`❌ Error: ${setJson.message}`);
+            }
+        } else {
+            alert("⚠ " + (result.message || 'Incorrect password.'));
+        }
+    } catch (err) {
+        alert("✗ Cloud connection error. Check your network.");
+    }
+};
+
+window.adminLogin = async function() {
+    const passInput = document.querySelector('input[type="password"]') || document.querySelectorAll('input')[1];
+    const password = passInput ? passInput.value.trim() : "";
+
+    if (!scriptURL || scriptURL.includes("YOUR_WEB_APP_URL_HERE")) {
+        alert("⚠ ERROR: scriptURL is missing.");
+        return;
+    }
+
+    try {
+        const response = await fetch(scriptURL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ action: 'verifyadmin', password: password })
+        });
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            window.currentAdminPassword = password;
+            sessionStorage.setItem('coe_admin_auth', password);
+            window.showPage('admin-dash');
+        } else {
+            alert(`⚠ ${data.message || 'Incorrect Admin Password'}`);
+        }
+    } catch (err) {
+        alert(`⚠ Network Error: Check your connection.`);
+    }
+};
 
 // --- 1. CLOUD BOOTLOADER ---
 window.initializeCloudPortal = async function() {

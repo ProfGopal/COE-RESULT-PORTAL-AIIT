@@ -640,7 +640,7 @@
   <!-- VERSION TAG -->
   <div
     style="position:fixed;top:0;left:0;z-index:300;padding:0.35rem 1rem;font-size:0.68rem;color:var(--muted);pointer-events:none;font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-right-radius:6px;">
-    Version <strong style="color:var(--accent)">Ver 9.0</strong>
+    Version <strong style="color:var(--accent)">Ver 9.1</strong>
   </div>
 
   <!-- DEVELOPER CREDIT -->
@@ -660,14 +660,14 @@
         <div class="field">
           <label for="a-email">Admin Email</label>
           <input type="email" id="a-email" placeholder="e.g. itsgopalmail@gmail.com"
-            onkeydown="if(event.key==='Enter')adminLogin()">
+            onkeydown="if(event.key==='Enter')window.adminLogin()">
         </div>
         <div class="field">
           <label for="a-pass">Admin Password</label>
           <input type="password" id="a-pass" placeholder="Enter admin password"
-            onkeydown="if(event.key==='Enter')adminLogin()">
+            onkeydown="if(event.key==='Enter')window.adminLogin()">
         </div>
-        <button class="btn-primary" id="admin-login-btn" onclick="adminLogin()">Login →</button>
+        <button class="btn-primary" id="admin-login-btn" onclick="window.adminLogin()">Login →</button>
       </div>
     </div>
   </div>

@@ -1324,7 +1324,7 @@
     <header>
       <div class="header-left">
         <span style="color: var(--text); font-size: 0.9rem; font-weight: 500;">Developed by <strong style="color: var(--accent2);">Dr. GOPAL RAJENDRAN</strong></span>
-        <span style="font-size: 0.75rem; color: var(--muted); font-family: var(--mono);">Ver 9.0</span>
+        <span style="font-size: 0.75rem; color: var(--muted); font-family: var(--mono);">Ver 9.1</span>
       </div>
       <div class="header-center">
         <div style="font-size: 0.8rem; font-weight: 700; letter-spacing: 2px; color: var(--gold); margin-bottom: 8px; text-transform: uppercase; font-family: var(--mono);">
@@ -1362,23 +1362,23 @@
         <div class="field">
           <label for="s-sen">SEN Number</label>
           <input type="text" id="s-sen" placeholder="e.g. A869145024001" autocomplete="username" oninput="onSenInput()"
-            onkeydown="if(event.key==='Enter')studentLoginStep()">
+            onkeydown="if(event.key==='Enter')window.studentLoginStep()">
         </div>
         <div class="field" id="s-pass-field">
           <label for="s-pass">Password</label>
           <input type="password" id="s-pass" placeholder="Your password" autocomplete="current-password"
-            onkeydown="if(event.key==='Enter')studentLoginStep()">
+            onkeydown="if(event.key==='Enter')window.studentLoginStep()">
         </div>
         <div id="s-newpass-fields" style="display:none">
           <div class="field">
             <label for="s-newpass">Create Password</label>
             <input type="password" id="s-newpass" placeholder="Min 6 characters"
-              onkeydown="if(event.key==='Enter')studentLoginStep()">
+              onkeydown="if(event.key==='Enter')window.studentLoginStep()">
           </div>
           <div class="field">
             <label for="s-confirmpass">Confirm Password</label>
             <input type="password" id="s-confirmpass" placeholder="Repeat password"
-              onkeydown="if(event.key==='Enter')studentLoginStep()">
+              onkeydown="if(event.key==='Enter')window.studentLoginStep()">
           </div>
         </div>
         
@@ -1401,7 +1401,7 @@
           </div>
         </div>
 
-        <button class="btn-primary premium-btn" id="s-login-btn" onclick="studentLoginStep()">🎓 Sign In &rarr;</button>
+        <button class="btn-primary premium-btn" id="s-login-btn" onclick="window.studentLoginStep()">🎓 Sign In &rarr;</button>
 
         <div id="s-otp-buttons" style="display:none; gap:0.5rem; margin-top:0.5rem;">
           <button class="btn-primary" id="s-otp-submit-btn" onclick="otpResetStep()" style="flex:1;">Reset Password &rarr;</button>

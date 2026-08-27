@@ -1,6 +1,6 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Restored & Cloud-Enforced Ver 5.0)
+ * Master Script Engine (Restored & Cloud-Enforced Ver 5.2)
  */
 
 'use strict';
@@ -646,71 +646,18 @@ window.studentLoginStep = async function () {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  3b. BUILT-IN FALLBACK DATABASE & ZERO-FAILURE LOGIN ENGINE — Ver 5.0
+//  3b. DIRECT APPS SCRIPT CLOUD INTEGRATION — Ver 5.2
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/**
- * getDefaultStudentDatabase — Ver 5.0
- * Permanent Built-in Student Dataset:
- * - Works instantly in Incognito / New Devices without requiring re-uploads.
- * - Returns hardcoded student records as the ultimate fallback.
- */
-window.getDefaultStudentDatabase = function() {
-    return [
-        {
-            sen: "A869145024002",
-            name: "PAVAN KUMAR H G",
-            program: "B.C.A",
-            cgpa: "7.58",
-            earnedCredits: "66",
-            courses: [
-                { code: "CHE1001", title: "Environmental Studies", type: "T", credits: 3, marks: 58, grade: "P", gradePoints: "-", earnedCredits: 3 },
-                { code: "CSE1016", title: "Introduction to Information Technology", type: "ELT", credits: 3, marks: "-", grade: "B", gradePoints: "-", earnedCredits: 3 },
-                { code: "CSE1019", title: "Programming in C", type: "L", credits: 2, marks: 85, grade: "A", gradePoints: "-", earnedCredits: 2 }
-            ]
-        },
-        {
-            sen: "A86904824004",
-            name: "PAVAN KUMAR H G",
-            program: "B.C.A",
-            cgpa: "7.58",
-            earnedCredits: "66",
-            courses: [
-                { code: "CHE1001", title: "Environmental Studies", type: "T", credits: 3, marks: 58, grade: "P", gradePoints: "-", earnedCredits: 3 },
-                { code: "CSE1016", title: "Introduction to Information Technology", type: "ELT", credits: 3, marks: "-", grade: "B", gradePoints: "-", earnedCredits: 3 },
-                { code: "CSE1019", title: "Programming in C", type: "L", credits: 2, marks: 85, grade: "A", gradePoints: "-", earnedCredits: 2 }
-            ]
-        }
-    ];
-};
+// Google Apps Script Web App URL for Cloud Database Sync
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby0xTAEjyfcN-IrEVaEzQuFFAfCQD1wWhpTJ5dlv9S7jBIT48RY8PxH76mW2Mci0rCGCw/exec";
 
 /**
- * loadMasterDatabase — Ver 5.0
- * Self-healing global database loader with built-in fallback:
- * - Loads from AIIT_STUDENTS_DATA, falls back to AIIT_UPLOADED_STUDENTS.
- * - Final fallback: getDefaultStudentDatabase() (auto-persists to localStorage).
- * - Guarantees window.STUDENTS is always populated.
- */
-window.loadMasterDatabase = function() {
-    let master = [];
-    try { master = JSON.parse(localStorage.getItem('AIIT_STUDENTS_DATA')) || []; } catch(e){}
-    if (master.length === 0) {
-        try { master = JSON.parse(localStorage.getItem('AIIT_UPLOADED_STUDENTS')) || []; } catch(e){}
-    }
-    if (master.length === 0) {
-        master = window.getDefaultStudentDatabase();
-        try { localStorage.setItem('AIIT_STUDENTS_DATA', JSON.stringify(master)); } catch(e){}
-    }
-    window.STUDENTS = master;
-    return master;
-};
-
-/**
- * clearStudentPassword — Ver 5.0
- * Bulletproof Admin Reset Engine:
- * - Removes permanent password key and sets AIIT_FORCE_RESET_<SEN> = 'true'.
- * - Uses loadMasterDatabase() for self-healing data access.
- * - Wipes password properties and syncs to AIIT_STUDENTS_DATA.
+ * clearStudentPassword — Ver 5.2
+ * Cloud-Connected Admin Reset Engine:
+ * - Sends clearpassword action to Google Apps Script backend.
+ * - Requires Admin Password confirmation before clearing.
+ * - Syncs password clear directly to Google Sheets.
  */
 window.clearStudentPassword = async function(senInputId) {
     let inputEl = document.getElementById(senInputId) || document.querySelector('input[placeholder*="SEN"], input[id*="sen"], input[type="text"]');
@@ -721,42 +668,42 @@ window.clearStudentPassword = async function(senInputId) {
         return;
     }
 
-    if (!confirm(`Are you sure you want to clear the password for student ${sen}?`)) return;
+    if (!confirm(`Are you sure you want to clear the password for student ${sen} in the Cloud Database?`)) return;
+
+    let adminPass = prompt("🔐 Enter Admin Password to confirm password clear:") || "";
 
     try {
-        localStorage.removeItem(`AIIT_STUDENT_PASS_${sen}`);
-        localStorage.setItem(`AIIT_FORCE_RESET_${sen}`, 'true');
-
-        let clearedList = [];
-        try { clearedList = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || []; } catch(e){}
-        if (!clearedList.includes(sen)) clearedList.push(sen);
-        localStorage.setItem('AIIT_CLEARED_PASSWORDS', JSON.stringify(clearedList));
-
-        let master = window.loadMasterDatabase();
-        master.forEach(s => {
-            if (s && String(s.sen || s.SEN || s.enrollment || '').toUpperCase().trim() === sen) {
-                s.customPassword = "";
-                s.password = "";
-            }
+        let response = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+                action: 'clearpassword',
+                sen: sen,
+                adminPassword: adminPass
+            })
         });
-        localStorage.setItem('AIIT_STUDENTS_DATA', JSON.stringify(master));
-    } catch (err) {
-        console.error("Clear error:", err);
-    }
+        let result = await response.json();
 
-    alert(`✅ Password successfully cleared for student: ${sen}.\nThe student can now log in to set a new password.`);
-    if (inputEl) inputEl.value = "";
+        if (result.status === 'success') {
+            alert(`✅ Cloud Database: Password successfully cleared for student ${sen}.`);
+            if (inputEl) inputEl.value = "";
+        } else {
+            alert(`❌ Error: ${result.message}`);
+        }
+    } catch (err) {
+        console.error("Cloud clear error:", err);
+        alert("❌ Network error connecting to Google Sheet backend.");
+    }
 };
 
 /**
- * verifyStudentLogin — Ver 5.0
- * Zero-Failure Login Engine:
- * - Uses loadMasterDatabase() with built-in fallback for guaranteed data access.
- * - Checks AIIT_FORCE_RESET_<SEN> flag or absence of permanent password.
- * - IF ADMIN CLEARED: ANY password typed triggers New Password & Confirm Password prompt.
- * - NORMAL LOGIN: Validates strictly against permanent stored password.
+ * verifyStudentLogin — Ver 5.2
+ * Cloud-Connected Login Engine:
+ * - Authenticates against Google Apps Script backend.
+ * - Handles first-time / admin-cleared password setup via cloud (Column G).
+ * - On success, loads student dashboard from backend response.
+ * - On network error, shows cloud connection error.
  */
-window.verifyStudentLogin = function() {
+window.verifyStudentLogin = async function() {
     let senInput = document.getElementById('student-sen') || document.querySelector('input[placeholder*="SEN"], input[id*="sen"], input[type="text"]');
     let passInput = document.getElementById('student-pass') || document.querySelector('input[type="password"]');
     
@@ -768,65 +715,85 @@ window.verifyStudentLogin = function() {
         return;
     }
 
-    let masterStudents = window.loadMasterDatabase();
+    try {
+        // 1. Attempt login against Google Sheet Backend
+        let response = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+                action: 'login',
+                sen: sen,
+                password: pass
+            })
+        });
+        let result = await response.json();
 
-    let student = masterStudents.find(s => {
-        if (!s) return false;
-        let candidate = String(s.sen || s.SEN || s.enrollment || s.ENROLLMENT || s.id || '').toUpperCase().trim();
-        return candidate === sen || candidate.includes(sen) || sen.includes(candidate);
-    });
+        // 2. If Column G is empty (First-time user or cleared by admin)
+        if (result.status === 'first_time' || result.message?.includes("First-time")) {
+            let newPass = prompt("🔐 Enter your new permanent password (min 6 characters):");
+            if (!newPass || newPass.length < 6) {
+                alert("❌ Password must be at least 6 characters.");
+                return;
+            }
 
-    if (!student) {
-        showErr('student-err', '❌ SEN not found in active database.');
-        return;
-    }
+            let confirmPass = prompt("🔐 Confirm your new permanent password:");
+            if (newPass !== confirmPass) {
+                alert("❌ Passwords do not match.");
+                return;
+            }
 
-    let forceResetFlag = localStorage.getItem(`AIIT_FORCE_RESET_${sen}`) === 'true';
-    let permanentPass = localStorage.getItem(`AIIT_STUDENT_PASS_${sen}`);
+            // Send new password to Apps Script to save in Column G
+            let setRes = await fetch(APPS_SCRIPT_URL, {
+                method: 'POST',
+                body: JSON.stringify({
+                    action: 'setpassword',
+                    sen: sen,
+                    newPassword: newPass
+                })
+            });
+            let setJson = await setRes.json();
 
-    // IF ADMIN CLEARED PASSWORD OR NO PASS EXISTS: ANY password typed opens prompt
-    if (forceResetFlag || !permanentPass) {
-        let newPass = prompt("🔐 Enter your new permanent password (min 6 characters):");
-        if (!newPass || newPass.length < 6) {
-            alert("❌ Password must be at least 6 characters.");
+            if (setJson.status === 'success') {
+                alert("✅ Password created successfully! Loading your dashboard...");
+                // Fetch student record details
+                window.loadStudentDashboardAfterCloudAuth(sen);
+            } else {
+                alert(`❌ Error saving password: ${setJson.message}`);
+            }
             return;
         }
 
-        let confirmPass = prompt("🔐 Confirm your new permanent password:");
-        if (newPass !== confirmPass) {
-            alert("❌ Passwords do not match. Please try logging in again.");
-            return;
+        if (result.status === 'success') {
+            window.loadStudentDashboard(result.student);
+        } else {
+            showErr('student-err', `⚠ ${result.message || 'Incorrect password.'}`);
+            if (passInput) passInput.value = "";
         }
-
-        localStorage.setItem(`AIIT_STUDENT_PASS_${sen}`, newPass);
-        student.customPassword = newPass;
-        student.password = newPass;
-        
-        localStorage.setItem('AIIT_STUDENTS_DATA', JSON.stringify(masterStudents));
-
-        // Clear reset flags permanently
-        localStorage.removeItem(`AIIT_FORCE_RESET_${sen}`);
-        try {
-            let clearedList = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || [];
-            clearedList = clearedList.filter(s => s !== sen);
-            localStorage.setItem('AIIT_CLEARED_PASSWORDS', JSON.stringify(clearedList));
-        } catch(e){}
-
-        if (passInput) passInput.value = "";
-
-        alert("✅ Password successfully configured! Loading dashboard...");
-        window.loadStudentDashboard(student);
-        return;
+    } catch (err) {
+        console.error("Login fetch error:", err);
+        showErr('student-err', '⚠ Cloud connection error. Please check your network.');
     }
+};
 
-    // NORMAL LOGIN VALIDATION
-    if (pass !== permanentPass) {
-        showErr('student-err', '⚠ Incorrect password.');
-        if (passInput) passInput.value = "";
-        return;
+/**
+ * loadStudentDashboardAfterCloudAuth — Ver 5.2
+ * Post-Cloud-Auth Dashboard Loader:
+ * - Fetches full student list from Apps Script backend after password setup.
+ * - Finds the student by SEN and loads dashboard.
+ * - Falls back to page reload if student not found.
+ */
+window.loadStudentDashboardAfterCloudAuth = async function(sen) {
+    try {
+        let res = await fetch(`${APPS_SCRIPT_URL}?action=load`);
+        let students = await res.json();
+        let student = students.find(s => String(s.sen).toUpperCase() === sen);
+        if (student) {
+            window.loadStudentDashboard(student);
+        } else {
+            window.location.reload();
+        }
+    } catch(e) {
+        window.location.reload();
     }
-
-    window.loadStudentDashboard(student);
 };
 
 /**

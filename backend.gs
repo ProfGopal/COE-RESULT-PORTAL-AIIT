@@ -97,7 +97,7 @@ function doPost(e) {
         var found = false;
         for (var i = 1; i < rows.length; i++) {
           if (String(rows[i][0]).trim().toUpperCase() === sen) {
-            sheet.getRange(i + 1, 7).clearContent(); // Clears Column G completely
+            sheet.getRange(i + 1, 7).clearContent(); // Clears Column G
             found = true;
             break;
           }

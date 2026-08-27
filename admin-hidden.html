@@ -640,7 +640,7 @@
   <!-- VERSION TAG -->
   <div
     style="position:fixed;top:0;left:0;z-index:300;padding:0.35rem 1rem;font-size:0.68rem;color:var(--muted);pointer-events:none;font-family:var(--mono);background:rgba(6,11,20,0.6);border-bottom-right-radius:6px;">
-    Version <strong style="color:var(--accent)">Ver 9.1</strong>
+    Version <strong style="color:var(--accent)">Ver 9.2</strong>
   </div>
 
   <!-- DEVELOPER CREDIT -->
@@ -680,7 +680,7 @@
         <span style="font-size:0.72rem;color:var(--muted)">Developed by <strong style="color:var(--sub)">Dr. GOPAL
             RAJENDRAN</strong></span>
         <span>Administrator</span>
-        <button class="btn-sm" onclick="adminLogout()">Logout</button>
+        <button class="btn-sm" onclick="window.logoutPortal()">Logout</button>
       </div>
     </div>
 
@@ -697,13 +697,13 @@
       </style>
 
       <div class="admin-tab-nav">
-        <button class="admin-tab-btn active" onclick="switchAdminTab('tab-results', this)">📊 1. Upload Results &amp; System</button>
-        <button class="admin-tab-btn" onclick="switchAdminTab('tab-curriculum', this)">📚 2. Manage Curriculum</button>
-        <button class="admin-tab-btn" onclick="switchAdminTab('tab-students', this)">👥 3. Student Directory &amp; Passwords</button>
-        <button class="admin-tab-btn" onclick="switchAdminTab('tab-faculty', this)">📋 4. Faculty Assignments &amp; Deadlines</button>
+        <button class="admin-tab-btn active" onclick="window.switchAdminTab('tab-upload', this)">📊 1. Upload Results &amp; System</button>
+        <button class="admin-tab-btn" onclick="window.switchAdminTab('tab-curriculum', this)">📚 2. Manage Curriculum</button>
+        <button class="admin-tab-btn" onclick="window.switchAdminTab('tab-students', this)">👥 3. Student Directory &amp; Passwords</button>
+        <button class="admin-tab-btn" onclick="window.switchAdminTab('tab-faculty', this)">📋 4. Faculty Assignments &amp; Deadlines</button>
       </div>
 
-      <div id="tab-results" class="admin-tab-content active">
+      <div id="tab-upload" class="admin-tab-content active">
       <!-- Batch & Program Manager (V1.0) -->
       <div class="admin-panel-section" style="margin-bottom: 20px; padding: 20px; background: var(--s2); border-radius: 8px; border: 1px solid var(--border);">
         <h2 style="color: #00d2ff; margin-top: 0;">⚙️ System Setup: Manage Batches &amp; Programs</h2>
@@ -733,7 +733,7 @@
           <!-- MASTER UPLOAD BUTTON (Hidden until files are staged) -->
           <button id="process-uploads-btn" onclick="uploadStagedFiles()" style="display:none; width: 100%; margin-top: 20px; padding: 15px; background: #10b981; color: white; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.3);">🚀 Upload All Files to Cloud DB</button>
       </div>
-      </div><!-- /tab-results -->
+      </div><!-- /tab-upload -->
 
       <div id="tab-curriculum" class="admin-tab-content">
       <!-- Dynamic Curriculum Manager (V19.0) -->

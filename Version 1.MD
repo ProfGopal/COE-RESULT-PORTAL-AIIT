@@ -1,199 +1,109 @@
-# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 9.1 (Direct Login Button Action Binding)
+# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 9.2 (Explicit Button Action Handlers)
 
-You are updating a static GitHub Pages site (`script.js`, `admin-hidden.html`, `index.html`). We are explicitly binding the Student Sign-In, Faculty Login, and Admin Login buttons to their respective handlers, updating version tags to **Ver 9.1**, and creating `VERSION9.1.md`.
+You are updating a static GitHub Pages site (`script.js`, `admin-hidden.html`, `index.html`). We are explicitly binding the Faculty Sign-In, Admin navigation tabs, and Admin Logout buttons via direct `onclick` handlers and robust script functions, updating version tags to **Ver 9.2**, and creating `VERSION9.2.md`.
 
 Please execute the following strict updates:
 
 ## 1. Global Versioning Update
 * **File:** `index.html`, `admin-hidden.html`
-  * Change all version tags in the top left corners to `Ver 9.1`.
+  * Change all version tags in the top left corners to `Ver 9.2`.
 
 ## 2. Direct HTML Action Bindings
-* **File:** `index.html`
-  * Ensure the top-right **Faculty Login** button has an explicit onclick attribute:
-    `<button onclick="window.showFacultyLogin()" class="...">FACULTY LOGIN</button>`
-  * Ensure the Student **SIGN IN** button has an explicit onclick attribute or ID:
-    `<button onclick="window.studentLoginStep()" id="s-login-btn" class="...">SIGN IN →</button>`
-* **File:** `admin-hidden.html`
-  * Ensure the Admin Login form or button triggers `window.adminLogin()` directly:
-    `<button onclick="window.adminLogin()" class="...">Login →</button>`
+* **File:** `index.html` (Faculty Sign-In Button)
+  * Update the Faculty Sign-In button to explicitly trigger `window.facultyLoginStep()`:
+    ```html
+    <button onclick="window.facultyLoginStep()" id="f-login-btn">Faculty Sign In →</button>
+    ```
+* **File:** `admin-hidden.html` (Admin Navigation & Logout Buttons)
+  * Ensure the top navigation buttons call `switchAdminTab`:
+    ```html
+    <button onclick="window.switchAdminTab('tab-upload', this)">1. Upload Results & System</button>
+    <button onclick="window.switchAdminTab('tab-curriculum', this)">2. Manage Curriculum</button>
+    <button onclick="window.switchAdminTab('tab-students', this)">3. Student Directory & Passwords</button>
+    <button onclick="window.switchAdminTab('tab-faculty', this)">4. Faculty Assignments & Deadlines</button>
+    ```
+  * Ensure the Logout button calls `window.logoutPortal()`:
+    ```html
+    <button onclick="window.logoutPortal()">Logout</button>
+    ```
 
-## 3. Direct Login & Navigation Engine (`script.js`)
+## 3. Explicit Handler Engine (`script.js`)
 * **File:** `script.js`
-  * Replace your login click bindings with these bulletproof global functions:
+  * Add these explicit global functions to handle faculty login, admin tab switching, and logout:
 
     ```javascript
     /**
      * script.js — AIIT COE Result Portal
-     * Master Script Engine (Ver 9.1 - Direct Login Button Bindings)
+     * Master Script Engine (Ver 9.2 - Explicit Handlers)
      */
 
     'use strict';
 
     const scriptURL = "[https://script.google.com/macros/s/AKfycby0xTAEjyfcN-IrEVaEzQuFFAfCQD1wWhpTJ5dlv9S7jBIT48RY8PxH76mW2Mci0rCGCw/exec](https://script.google.com/macros/s/AKfycby0xTAEjyfcN-IrEVaEzQuFFAfCQD1wWhpTJ5dlv9S7jBIT48RY8PxH76mW2Mci0rCGCw/exec)";
 
-    window.STUDENTS = [];
-    window.CURRICULUM_RULES = {};
-    window.SYSTEM_PROGRAMS = [];
+    window.facultyLoginStep = async function() {
+        var emailInput = document.getElementById('f-email') || document.querySelector('input[type="email"]');
+        var passInput = document.getElementById('f-pass') || document.querySelector('input[type="password"]');
+        var email = emailInput ? emailInput.value.trim().toLowerCase() : "";
+        var pass = passInput ? passInput.value : "";
 
-    function sanitize(str) {
-      return String(str || '').replace(/[<>"'`;\\&\/]/g, '').trim().substring(0, 200);
-    }
-
-    function esc(str) {
-      if (str === null || str === undefined) return '';
-      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
-    }
-    window.esc = esc;
-
-    // --- 1. CLOUD BOOTLOADER ---
-    window.initializeCloudPortal = async function() {
-        try {
-            let stuRes = await fetch(scriptURL + "?action=load");
-            let stuData = await stuRes.json();
-            window.STUDENTS = Array.isArray(stuData) ? stuData : (stuData.students || []);
-            
-            let progMap = new Map();
-            window.STUDENTS.forEach(s => {
-                if (s.batch && s.program) {
-                    progMap.set(`${s.batch}_${s.program}`, { batch: s.batch, program: s.program });
-                }
-            });
-            window.SYSTEM_PROGRAMS = Array.from(progMap.values());
-            if (window.SYSTEM_PROGRAMS.length === 0) {
-                window.SYSTEM_PROGRAMS = [{ batch: "2024", program: "MCA" }, { batch: "2025", program: "MCA" }, { batch: "2024", program: "B.C.A" }];
-            }
-
-            let curRes = await fetch(scriptURL + "?action=getCurriculum");
-            let curText = await curRes.text();
-            if (curText && curText.trim().startsWith("{")) {
-                let parsed = JSON.parse(curText);
-                window.CURRICULUM_RULES = parsed.rules || parsed;
-                if (parsed.courses) window.CUSTOM_COURSE_DICT = parsed.courses;
-            }
-        } catch (err) {
-            console.warn("Cloud sync warning:", err);
+        if (!email || !pass) {
+            alert("Please enter both institutional email and password.");
+            return;
         }
-    };
 
-    // --- 2. EXPLICIT NAVIGATION & LOGIN HANDLERS ---
-    window.showFacultyLogin = function() {
-        let sContainer = document.getElementById('student-login-container') || document.querySelector('.landing-container') || document.getElementById('landing');
-        let fContainer = document.getElementById('faculty-login-container') || document.getElementById('faculty-login');
-        if (sContainer) sContainer.style.display = 'none';
-        if (fContainer) {
-            fContainer.style.display = 'block';
+        const authorizedFaculty = [
+            "chandrashekharbn@blr.amity.edu", "gopalr@blr.amity.edu", "krishnachalithakc@blr.amity.edu",
+            "mbhan@blr.amity.edu", "mkirmani@blr.amity.edu", "pramamurthy@blr.amity.edu",
+            "pchakraborty@blr.amity.edu", "skumar2@blr.amity.edu", "vramamoorthy@blr.amity.edu",
+            "geethav@blr.amity.edu", "nkumar@blr.amity.edu", "ntressa@blr.amity.edu", "sspattu@blr.amity.edu"
+        ];
+
+        if (authorizedFaculty.includes(email) || email === 'faculty@123') {
+            alert("✅ Faculty Verified Successfully! Loading Portal...");
+            window.currentFacultyEmail = email;
+            let fLogin = document.getElementById('faculty-login-container') || document.getElementById('faculty-login');
+            let fDash = document.getElementById('faculty-dash') || document.querySelector('.faculty-section');
+            if (fLogin) fLogin.style.display = 'none';
+            if (fDash) {
+                fDash.style.display = 'block';
+                if (typeof window.renderFacultyPortal === 'function') window.renderFacultyPortal(email);
+            } else {
+                location.reload();
+            }
         } else {
-            alert("Faculty login portal view loading...");
+            alert("❌ Invalid Faculty Credentials or Email not authorized.");
         }
     };
 
-    window.studentLoginStep = async function () {
-        var rawSen = document.getElementById('s-sen')?.value || document.getElementById('student-sen')?.value || document.querySelector('input[placeholder*="SEN"]')?.value;
-        var sen = String(rawSen || '').toUpperCase().trim();
-        var passInput = document.getElementById('s-pass')?.value || document.getElementById('student-pass')?.value || document.querySelector('input[type="password"]')?.value || '';
-        
-        if (!sen || !passInput) {
-            alert("Please enter both SEN and password.");
-            return;
-        }
-
-        try {
-            var response = await fetch(scriptURL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify({ action: 'login', sen: sen, password: passInput.trim() })
-            });
-            var result = await response.json();
-
-            if (result && result.status === 'success' && result.student) {
-                window.loadStudentDashboard(result.student);
-            } else if (result && (result.status === 'first_time' || (result.message && result.message.toLowerCase().includes('first')))) {
-                let newPass = prompt("🔐 First-time login. Enter new permanent password (min 6 characters):");
-                if (!newPass || newPass.length < 6) {
-                    alert("❌ Password must be at least 6 characters.");
-                    return;
-                }
-
-                let setRes = await fetch(scriptURL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain' },
-                    body: JSON.stringify({ action: 'setpassword', sen: sen, newPassword: newPass })
-                });
-                let setJson = await setRes.json();
-
-                if (setJson.status === 'success') {
-                    alert("✅ Password created successfully! Logging in...");
-                    window.loadStudentDashboardAfterCloudAuth(sen);
-                } else {
-                    alert(`❌ Error: ${setJson.message}`);
-                }
-            } else {
-                alert("⚠ " + (result.message || 'Incorrect password.'));
-            }
-        } catch (err) {
-            alert("✗ Cloud connection error. Check your network.");
-        }
-    };
-
-    window.adminLogin = async function() {
-        const passInput = document.querySelector('input[type="password"]') || document.querySelectorAll('input')[1];
-        const password = passInput ? passInput.value.trim() : "";
-
-        if (!scriptURL || scriptURL.includes("YOUR_WEB_APP_URL_HERE")) {
-            alert("⚠ ERROR: scriptURL is missing.");
-            return;
-        }
-
-        try {
-            const response = await fetch(scriptURL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify({ action: 'verifyadmin', password: password })
-            });
-            const data = await response.json();
-
-            if (data.status === 'success') {
-                window.currentAdminPassword = password;
-                sessionStorage.setItem('coe_admin_auth', password);
-                window.showPage('admin-dash');
-            } else {
-                alert(`⚠ ${data.message || 'Incorrect Admin Password'}`);
-            }
-        } catch (err) {
-            alert(`⚠ Network Error: Check your connection.`);
-        }
-    };
-
-    window.loadStudentDashboard = function(student) {
-        window.currentStudent = student;
-        document.querySelectorAll('.page, .login-container, #student-login-container, .landing-container').forEach(el => {
+    window.switchAdminTab = function(tabId, btnElement) {
+        ['tab-upload', 'tab-curriculum', 'tab-students', 'tab-faculty'].forEach(id => {
+            let el = document.getElementById(id);
             if (el) el.style.display = 'none';
         });
-        
-        const dash = document.getElementById('student-dash') || document.getElementById('student-dashboard');
-        if (dash) {
-            dash.style.display = 'block';
-            dash.classList.add('dashboard-fullscreen-overlay');
+
+        document.querySelectorAll('.admin-section, .admin-tab-content').forEach(sec => {
+            if (sec) sec.style.display = 'none';
+        });
+
+        let target = document.getElementById(tabId);
+        if (target) target.style.display = 'block';
+
+        document.querySelectorAll('button').forEach(b => {
+            b.style.background = '';
+            b.style.color = '';
+        });
+
+        if (btnElement) {
+            btnElement.style.background = '#2563eb';
+            btnElement.style.color = '#ffffff';
         }
 
-        let name = student.name || 'Student';
-        let sen = student.sen || '';
-        let cgpa = student.cgpa || 'N/A';
-        let credits = student.totalCredits || '0';
-
-        document.querySelectorAll('#dash-name, .student-name').forEach(el => el.textContent = `${name} (${sen})`);
-        document.querySelectorAll('#dash-cgpa, .cgpa-val').forEach(el => el.textContent = cgpa);
-        document.querySelectorAll('#dash-ce, .credits-val').forEach(el => el.textContent = credits);
-
-        // Clean Logout button text
-        document.querySelectorAll('button, a').forEach(el => {
-            let txt = el.textContent.trim().toLowerCase();
-            if (txt.includes('logout') || txt.includes('search another')) {
-                el.textContent = 'LOGOUT';
-                el.onclick = function() { window.logoutPortal(); };
-            }
-        });
+        if (tabId === 'tab-students' && typeof window.applyAdminFilters === 'function') {
+            window.applyAdminFilters();
+        } else if (tabId === 'tab-curriculum' && typeof window.loadCurriculumEditor === 'function') {
+            window.loadCurriculumEditor();
+        }
     };
 
     window.logoutPortal = function() {
@@ -202,11 +112,7 @@ Please execute the following strict updates:
         document.body.classList.remove('overlay-active');
         window.location.href = window.location.pathname;
     };
-
-    document.addEventListener('DOMContentLoaded', () => {
-        window.initializeCloudPortal();
-    });
     ```
 
-## 4. Create `VERSION9.1.md`
-* Create a file named `VERSION9.1.md` in your project root containing the release notes for Ver 9.1.
+## 4. Create `VERSION9.2.md`
+* Create a file named `VERSION9.2.md` in your project root containing the release notes for Ver 9.2.

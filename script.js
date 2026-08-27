@@ -1,6 +1,6 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 9.1 - Direct Login Button Action Binding)
+ * Master Script Engine (Ver 9.2 - Explicit Button Action Handlers)
  */
 
 'use strict';
@@ -537,6 +537,34 @@ window.exportStudentPDF = function() {
         theme: 'grid'
     });
     doc.save(`${window.currentStudent?.sen || 'Student'}_Report.pdf`);
+};
+
+window.switchAdminTab = function(tabId, btnElement) {
+    ['tab-upload', 'tab-curriculum', 'tab-students', 'tab-faculty'].forEach(id => {
+        let el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+
+    document.querySelectorAll('.admin-section, .admin-tab-content').forEach(sec => {
+        if (sec) sec.style.display = 'none';
+    });
+
+    let target = document.getElementById(tabId);
+    if (target) target.style.display = 'block';
+
+    document.querySelectorAll('.admin-tab-btn').forEach(b => {
+        b.classList.remove('active');
+    });
+
+    if (btnElement) {
+        btnElement.classList.add('active');
+    }
+
+    if (tabId === 'tab-students' && typeof window.applyAdminFilters === 'function') {
+        window.applyAdminFilters();
+    } else if (tabId === 'tab-curriculum' && typeof window.loadCurriculumEditor === 'function') {
+        window.loadCurriculumEditor();
+    }
 };
 
 window.logoutPortal = function() {

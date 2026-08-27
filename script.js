@@ -106,6 +106,67 @@ document.addEventListener('click', function(e) {
         window.switchAdminTab('tab-faculty', btn);
     }
 });
+// ═══════════════════════════════════════════════════════════════════════════════
+//  PRECISE ADMIN TAB SWITCHING ENGINE (Ver 5.5)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+window.switchAdminTab = function (tabId, btnElement) {
+    // Hide all sections in the admin dashboard
+    document.querySelectorAll('.admin-section, .admin-tab-content, div[id^="tab-"], section[id^="tab-"]').forEach(sec => {
+        if (sec) sec.style.display = 'none';
+    });
+
+    // Remove active styles from top navigation buttons
+    document.querySelectorAll('.admin-tab-btn, .nav-btn, .dashboard-nav button').forEach(b => {
+        if (b) {
+            b.classList.remove('active', 'bg-blue-600', 'text-white');
+            b.style.background = '';
+            b.style.color = '';
+        }
+    });
+
+    // Show the target section
+    var target = document.getElementById(tabId) || document.querySelector('.' + tabId);
+    if (target) {
+        target.style.display = 'block';
+    }
+
+    // Highlight the clicked button
+    if (btnElement) {
+        btnElement.classList.add('active');
+        btnElement.style.background = '#2563eb';
+        btnElement.style.color = '#ffffff';
+    }
+
+    // Trigger specific loaders when switching tabs
+    if (tabId === 'tab-students' || tabId === 'student-directory') {
+        if (typeof window.applyAdminFilters === 'function') window.applyAdminFilters();
+    } else if (tabId === 'tab-curriculum' || tabId === 'manage-curriculum') {
+        if (typeof window.loadCurriculumEditor === 'function') window.loadCurriculumEditor();
+    }
+};
+
+// Global click listener to safely intercept the 4 top admin buttons
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+
+    let text = btn.textContent.trim();
+
+    if (text.includes('1. Upload Results') || text.includes('Upload Results')) {
+        e.preventDefault();
+        window.switchAdminTab('tab-upload', btn);
+    } else if (text.includes('2. Manage Curriculum') || text.includes('Manage Curriculum')) {
+        e.preventDefault();
+        window.switchAdminTab('tab-curriculum', btn);
+    } else if (text.includes('3. Student Directory') || text.includes('Student Directory')) {
+        e.preventDefault();
+        window.switchAdminTab('tab-students', btn);
+    } else if (text.includes('4. Faculty Assignments') || text.includes('Faculty Assignments')) {
+        e.preventDefault();
+        window.switchAdminTab('tab-faculty', btn);
+    }
+});
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  STUDENT LOGIN & CLOUD AUTHENTICATION

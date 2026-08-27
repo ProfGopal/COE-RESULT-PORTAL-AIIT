@@ -1,6 +1,6 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 7.1 - Cloud Curriculum Auto-Restore & Sign-In Fix)
+ * Master Script Engine (Ver 8.0 - 100% Cloud-Driven Architecture)
  */
 
 'use strict';
@@ -11,6 +11,7 @@ const GAS_URL = scriptURL;
 window.STUDENTS = window.STUDENTS || [];
 window.ALL_STUDENTS = window.ALL_STUDENTS || [];
 window.CURRICULUM_RULES = window.CURRICULUM_RULES || {};
+window.SYSTEM_PROGRAMS = window.SYSTEM_PROGRAMS || [];
 
 function sanitize(str) {
   return String(str || '').replace(/[<>"'`;\\&\/]/g, '').trim().substring(0, 200);
@@ -34,7 +35,7 @@ window.showPage = function (id) {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  FACULTY & ADMIN NAVIGATION HANDLERS (Ver 7.1)
+//  FACULTY & ADMIN NAVIGATION HANDLERS (Ver 8.0)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 window.showFacultyLogin = function() {
@@ -118,18 +119,15 @@ window.facultyLoginStep = async function () {
 };
 
 window.switchAdminTab = function (tabId, btnElement) {
-    // Hide all admin tabs safely
     ['tab-upload', 'tab-curriculum', 'tab-students', 'tab-faculty', 'tab-admin-all'].forEach(id => {
         let el = document.getElementById(id);
         if (el) el.style.display = 'none';
     });
 
-    // Also hide generic sections
     document.querySelectorAll('.admin-section, .admin-tab-content').forEach(sec => {
         if (sec) sec.style.display = 'none';
     });
 
-    // Reset button states
     document.querySelectorAll('.admin-tab-btn, .nav-btn, .dashboard-nav button').forEach(b => {
         if (b) {
             b.classList.remove('active');
@@ -138,7 +136,6 @@ window.switchAdminTab = function (tabId, btnElement) {
         }
     });
 
-    // Show target section
     var target = document.getElementById(tabId) || document.querySelector('.' + tabId);
     if (target) {
         target.style.display = 'block';
@@ -150,7 +147,6 @@ window.switchAdminTab = function (tabId, btnElement) {
         btnElement.style.color = '#ffffff';
     }
 
-    // Trigger specific loaders
     if (tabId === 'tab-students') {
         if (typeof window.applyAdminFilters === 'function') window.applyAdminFilters();
     } else if (tabId === 'tab-curriculum') {
@@ -195,38 +191,125 @@ window.clearStudentPassword = async function(senInputId) {
     }
 };
 
-// --- 1. AUTO-RESTORE CURRICULUM & PROGRAMS FROM GOOGLE SHEET CLOUD ---
-window.syncCloudCurriculumOnLoad = async function() {
+// --- 1. LIVE CLOUD BOOTLOADER (Fetches everything from Google Sheet) ---
+window.initializeCloudPortal = async function() {
     try {
-        let res = await fetch(scriptURL + "?action=getCurriculum");
-        let data = await res.json();
-        if (data && (data.rules || data.programs)) {
-            if (data.rules) {
-                window.CURRICULUM_RULES = data.rules;
-                localStorage.setItem('AIIT_CUSTOM_CURRICULUM', JSON.stringify(data.rules));
+        // A. Fetch Students & Batches/Programs
+        let stuRes = await fetch(scriptURL + "?action=load");
+        let stuData = await stuRes.json();
+        window.STUDENTS = Array.isArray(stuData) ? stuData : (stuData.students || []);
+        
+        // Extract unique batches and programs directly from live student cloud records
+        let progMap = new Map();
+        window.STUDENTS.forEach(s => {
+            if (s.batch && s.program) {
+                progMap.set(`${s.batch}_${s.program}`, { batch: s.batch, program: s.program });
             }
-            if (data.programs && Array.isArray(data.programs)) {
-                localStorage.setItem('AIIT_SYSTEM_PROGRAMS', JSON.stringify(data.programs));
-            }
-            if (data.courses) {
-                window.CUSTOM_COURSE_DICT = data.courses;
-                localStorage.setItem('AIIT_CUSTOM_COURSES', JSON.stringify(data.courses));
-            }
-            console.log("✅ Successfully restored Batches, Programs, and Curriculums from Google Sheet Cloud!");
+        });
+        window.SYSTEM_PROGRAMS = Array.from(progMap.values());
+        if (window.SYSTEM_PROGRAMS.length === 0) {
+            window.SYSTEM_PROGRAMS = [{ batch: "2024", program: "MCA" }, { batch: "2025", program: "MCA" }];
         }
-    } catch(e) {
-        console.warn("Cloud curriculum sync offline, using local cache.", e);
+
+        // B. Fetch Curriculum from CurriculumDB sheet
+        let curRes = await fetch(scriptURL + "?action=getCurriculum");
+        let curText = await curRes.text();
+        if (curText && curText.trim().startsWith("{")) {
+            let parsed = JSON.parse(curText);
+            window.CURRICULUM_RULES = parsed.rules || parsed;
+            if (parsed.courses) window.CUSTOM_COURSE_DICT = parsed.courses;
+        }
+
+        console.log("☁️ Pure Cloud Synchronization Successful:", {
+            students: window.STUDENTS.length,
+            programs: window.SYSTEM_PROGRAMS.length
+        });
+    } catch (err) {
+        console.warn("☁️ Cloud sync warning, offline fallback active.", err);
     }
 
+    // Refresh UI elements
     if (typeof window.renderSystemPrograms === 'function') window.renderSystemPrograms();
+    if (typeof window.applyAdminFilters === 'function') window.applyAdminFilters();
     if (typeof window.loadCurriculumEditor === 'function') window.loadCurriculumEditor();
 };
 
-// --- 2. DIRECT STUDENT SIGN-IN BINDING ---
+// --- 2. GLOBAL LOGOUT HANDLER ---
+window.logoutPortal = function() {
+    sessionStorage.clear();
+    localStorage.clear();
+    document.body.classList.remove('overlay-active');
+    window.location.href = window.location.pathname;
+};
+
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('button, a');
+    if (!btn) return;
+    let text = (btn.textContent || '').trim().toUpperCase();
+
+    if (text === 'LOGOUT' || text.includes('LOG OUT')) {
+        e.preventDefault();
+        window.logoutPortal();
+    } else if (text.includes('SIGN IN') || text.id === 's-login-btn') {
+        e.preventDefault();
+        window.studentLoginStep();
+    }
+});
+
+// --- 3. SYSTEM PROGRAMS & DIRECTORY RENDERERS ---
+window.renderSystemPrograms = function () {
+    const container = document.getElementById('active-system-programs');
+    if (container) {
+        container.innerHTML = window.SYSTEM_PROGRAMS.map((p, i) => `
+            <span style="background: #334155; padding: 5px 10px; border-radius: 4px; color: white; font-weight:bold; display:inline-block; margin:3px;">
+                ${esc(p.batch)} ${esc(p.program)}
+            </span>
+        `).join('');
+    }
+
+    const uniqueBatches = [...new Set(window.SYSTEM_PROGRAMS.map(p => String(p.batch).trim()))];
+    const uniqueProgs = [...new Set(window.SYSTEM_PROGRAMS.map(p => String(p.program).trim()))];
+
+    const batchFilter = document.getElementById('filter-batch');
+    if (batchFilter) batchFilter.innerHTML = `<option value="">All Years</option>` + uniqueBatches.map(b => `<option value="${b}">${b}</option>`).join('');
+
+    const progFilter = document.getElementById('filter-program');
+    if (progFilter) progFilter.innerHTML = `<option value="">All Programs</option>` + uniqueProgs.map(p => `<option value="${p}">${p}</option>`).join('');
+};
+
+window.applyAdminFilters = async function() {
+    var tbody = document.getElementById('admin-tbody');
+    var totalStu = document.getElementById('total-stu');
+    if (!tbody) return;
+
+    if (window.STUDENTS.length === 0) {
+        await window.initializeCloudPortal();
+    }
+
+    if (totalStu) totalStu.textContent = window.STUDENTS.length;
+
+    if (window.STUDENTS.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px; color:#64748b;">No enrolled student records found in Cloud DB.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = window.STUDENTS.map((s, i) => `
+        <tr style="border-bottom:1px solid #e2e8f0;">
+            <td style="padding:10px;">${i + 1}</td>
+            <td style="font-weight:bold;">${esc(s.sen)}</td>
+            <td>${esc(s.name)}</td>
+            <td>${esc(s.program || 'N/A')}</td>
+            <td style="font-weight:bold; color:#3b82f6;">${s.cgpa || 'N/A'}</td>
+            <td>${s.totalCredits || '0'}</td>
+            <td><button style="background:#0ea5e9; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer;" onclick="window.openAdminStudentView('${esc(s.sen)}')">Details</button></td>
+        </tr>
+    `).join('');
+};
+
+// --- 4. STUDENT LOGIN ---
 window.studentLoginStep = async function () {
     var rawSen = document.getElementById('s-sen')?.value || document.getElementById('student-sen')?.value || document.querySelector('input[placeholder*="SEN"]')?.value;
     var sen = String(rawSen || '').toUpperCase().trim();
-    
     var passInput = document.getElementById('s-pass')?.value || document.getElementById('student-pass')?.value || document.querySelector('input[type="password"]')?.value || '';
     
     if (!sen || !passInput) {
@@ -273,13 +356,12 @@ window.studentLoginStep = async function () {
 };
 
 window.loadStudentDashboardAfterCloudAuth = async function(sen) {
-    try {
-        let res = await fetch(scriptURL + "?action=load");
-        let students = await res.json();
-        let student = students.find(s => String(s.sen).toUpperCase() === sen);
-        if (student) window.loadStudentDashboard(student);
-        else location.reload();
-    } catch(e) { location.reload(); }
+    let res = await fetch(scriptURL + "?action=load");
+    let data = await res.json();
+    let students = Array.isArray(data) ? data : (data.students || []);
+    let student = students.find(s => String(s.sen).toUpperCase() === sen);
+    if (student) window.loadStudentDashboard(student);
+    else location.reload();
 };
 
 window.loadStudentDashboard = function(student) {
@@ -318,18 +400,6 @@ window.loadStudentDashboard = function(student) {
     }
 };
 
-// --- 3. EXPLICIT BUTTON CLICK BINDINGS ---
-document.addEventListener('click', function(e) {
-    const btn = e.target.closest('button');
-    if (!btn) return;
-    let text = (btn.textContent || '').trim().toUpperCase();
-
-    if (text.includes('SIGN IN') || text.id === 's-login-btn') {
-        e.preventDefault();
-        window.studentLoginStep();
-    }
-});
-
 document.addEventListener('DOMContentLoaded', () => {
-    window.syncCloudCurriculumOnLoad();
+    window.initializeCloudPortal();
 });

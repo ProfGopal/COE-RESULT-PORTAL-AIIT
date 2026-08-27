@@ -1,27 +1,27 @@
-# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 6.1 (Unblocked Native Controls & Full Authentication Sync)
+# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 6.2 (Native Routing & Unhindered Authentication Fix)
 
-You are updating a static GitHub Pages site (`script.js`, `admin-hidden.html`, `index.html`) and Google Apps Script backend (`Code.gs`). We are completely unblocking native buttons, fixing admin/faculty login click handlers, ensuring password clears correctly update the Google Sheet backend, and updating version tags to **Ver 6.1** by creating `VERSION6.1.md`.
+You are updating a static GitHub Pages site (`script.js`, `admin-hidden.html`, `index.html`). We are fixing the click routing for the top-right **"ADMIN LOGIN"** and **"FACULTY LOGIN"** header buttons, restoring explicit form submission bindings, updating version tags to **Ver 6.2**, and creating `VERSION6.2.md`.
 
 Please execute the following strict updates:
 
 ## 1. Global Versioning Update
 
 * **File:** `index.html`, `admin-hidden.html`
-* Change all version tags in the top left corners to `Ver 6.1`.
+* Change all version tags in the top left corners to `Ver 6.2`.
 
 
 
-## 2. Unblocked Event-Driven Engine (`script.js`)
+## 2. Unhindered Click Routing & Login Engine (`script.js`)
 
 * **File:** `script.js`
-* Replace your entire `script.js` file with this clean, fully unblocked master version that preserves native form/button interactions:
+* Replace your routing and login click handlers with this explicit version that guarantees header buttons and form submit buttons trigger their target functions without obstruction:
 
 
 
 ```javascript
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 6.1 - Unblocked Controls & Full Routing)
+ * Master Script Engine (Ver 6.2 - Unhindered UI & Native Routing Fix)
  */
 
 'use strict';
@@ -44,21 +44,62 @@ function esc(str) {
 window.esc = esc;
 
 window.showPage = function (id) {
-  document.querySelectorAll('.page, .admin-section, .admin-tab-content').forEach(function (p) { 
-      p.classList.remove('active'); 
-      p.style.display = 'none';
+  document.querySelectorAll('.page, .admin-section, .admin-tab-content, .login-container').forEach(function (p) { 
+      if (p) p.style.display = 'none';
   });
   var target = document.getElementById(id);
   if (target) {
-      target.classList.add('active');
       target.style.display = 'block';
   }
   window.scrollTo(0, 0);
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  ADMIN TAB NAVIGATION (Ver 6.1)
+//  EXPLICIT HEADER BUTTON ROUTING (Ver 6.2)
 // ═══════════════════════════════════════════════════════════════════════════════
+
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('button, a');
+    if (!btn) return;
+
+    let text = (btn.textContent || '').trim().toUpperCase();
+
+    // 1. Top Right Admin Login Button
+    if (text === 'ADMIN LOGIN') {
+        e.preventDefault();
+        window.location.href = 'admin-hidden.html';
+        return;
+    }
+
+    // 2. Top Right Faculty Login Button
+    if (text === 'FACULTY LOGIN') {
+        e.preventDefault();
+        if (typeof window.showFacultyLogin === 'function') {
+            window.showFacultyLogin();
+        } else {
+            let fContainer = document.getElementById('faculty-login-container') || document.getElementById('faculty-login');
+            let sContainer = document.getElementById('student-login-container') || document.getElementById('landing');
+            if (sContainer) sContainer.style.display = 'none';
+            if (fContainer) fContainer.style.display = 'block';
+        }
+        return;
+    }
+
+    // 3. Admin Dashboard Tab Switcher
+    if (text.includes('1. UPLOAD RESULTS') || text.includes('UPLOAD RESULTS')) {
+        e.preventDefault();
+        window.switchAdminTab('tab-upload', btn);
+    } else if (text.includes('2. MANAGE CURRICULUM') || text.includes('MANAGE CURRICULUM')) {
+        e.preventDefault();
+        window.switchAdminTab('tab-curriculum', btn);
+    } else if (text.includes('3. STUDENT DIRECTORY') || text.includes('STUDENT DIRECTORY')) {
+        e.preventDefault();
+        window.switchAdminTab('tab-students', btn);
+    } else if (text.includes('4. FACULTY ASSIGNMENTS') || text.includes('FACULTY ASSIGNMENTS')) {
+        e.preventDefault();
+        window.switchAdminTab('tab-faculty', btn);
+    }
+});
 
 window.switchAdminTab = function (tabId, btnElement) {
     document.querySelectorAll('.admin-section, .admin-tab-content, div[id^="tab-"], section[id^="tab-"]').forEach(sec => {
@@ -86,115 +127,53 @@ window.switchAdminTab = function (tabId, btnElement) {
 
     if (tabId === 'tab-students' || tabId === 'student-directory') {
         if (typeof window.applyAdminFilters === 'function') window.applyAdminFilters();
-    } else if (tabId === 'tab-curriculum' || tabId === 'manage-curriculum') {
-        if (typeof window.loadCurriculumEditor === 'function') window.loadCurriculumEditor();
-    } else if (tabId === 'tab-upload') {
-        if (typeof window.renderSystemPrograms === 'function') window.renderSystemPrograms();
     }
 };
 
-document.addEventListener('click', function(e) {
-    const btn = e.target.closest('button');
-    if (!btn) return;
+// ═══════════════════════════════════════════════════════════════════════════════
+//  ADMIN LOGIN SUBMISSION (Ver 6.2)
+// ═══════════════════════════════════════════════════════════════════════════════
 
-    let text = btn.textContent.trim();
+window.adminLogin = async function() {
+    const passInput = document.querySelector('input[type="password"]') || document.querySelectorAll('input')[1];
+    const password = passInput ? passInput.value.trim() : "";
 
-    if (text.includes('1. Upload Results') || text.includes('Upload Results')) {
-        e.preventDefault();
-        window.switchAdminTab('tab-upload', btn);
-    } else if (text.includes('2. Manage Curriculum') || text.includes('Manage Curriculum')) {
-        e.preventDefault();
-        window.switchAdminTab('tab-curriculum', btn);
-    } else if (text.includes('3. Student Directory') || text.includes('Student Directory')) {
-        e.preventDefault();
-        window.switchAdminTab('tab-students', btn);
-    } else if (text.includes('4. Faculty Assignments') || text.includes('4. Faculty')) {
-        e.preventDefault();
-        window.switchAdminTab('tab-faculty', btn);
+    if (!scriptURL || scriptURL.includes("YOUR_WEB_APP_URL_HERE")) {
+        alert("⚠ ERROR: scriptURL is missing.");
+        return;
     }
-});
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  ADMIN PASSWORD CLEARING & SYSTEM PROGRAMS SYNC
-// ═══════════════════════════════════════════════════════════════════════════════
-
-window.clearStudentPassword = async function(senInputId) {
-    let inputEl = document.getElementById(senInputId) || document.querySelector('input[placeholder*="SEN"], input[id*="sen"], input[type="text"]');
-    let sen = inputEl ? inputEl.value.trim().toUpperCase() : "";
-    
-    if (!sen) { alert("⚠️ Please enter a valid SEN number."); return; }
-    if (!confirm(`Are you sure you want to clear the password for student ${sen}?`)) return;
-
-    let adminPass = window.currentAdminPassword || sessionStorage.getItem('coe_admin_auth') || '';
 
     try {
-        let response = await fetch(scriptURL, {
+        const response = await fetch(scriptURL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({ 
-                action: 'clearpassword', 
-                sen: sen,
-                adminPassword: adminPass 
-            })
+            body: JSON.stringify({ action: 'verifyadmin', password: password })
         });
-        let result = await response.json();
-        if (result.status === 'success') {
-            alert(`✅ Password successfully cleared for student: ${sen}`);
-            if (inputEl) inputEl.value = "";
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            window.currentAdminPassword = password;
+            sessionStorage.setItem('coe_admin_auth', password);
+            window.showPage('admin-dash');
+            if (typeof applyAdminFilters === 'function') applyAdminFilters();
         } else {
-            alert(`❌ Error: ${result.message}`);
+            alert(`⚠ ${data.message || 'Incorrect Admin Password'}`);
         }
-    } catch (err) { alert("❌ Network error connecting to backend."); }
-};
-
-window.renderSystemPrograms = function () {
-    let sysProgs = [];
-    try { sysProgs = JSON.parse(localStorage.getItem('AIIT_SYSTEM_PROGRAMS')) || [
-        { batch: "2024", program: "MCA" }, { batch: "2025", program: "MCA" }, { batch: "2024", program: "B.C.A" }
-    ]; } catch(e){}
-
-    const container = document.getElementById('active-system-programs');
-    if (container) {
-        container.innerHTML = sysProgs.map((p, i) => `
-            <span style="background: #334155; padding: 5px 10px; border-radius: 4px; color: white; font-weight:bold; display:inline-block; margin:3px;">
-                ${esc(p.batch)} ${esc(p.program)} 
-                <button onclick="window.removeSystemProgram(${i})" style="background:none; border:none; color:#ef4444; cursor:pointer; margin-left:5px;">✖</button>
-            </span>
-        `).join('');
+    } catch (err) {
+        alert(`⚠ Network Error: Check your connection.`);
     }
 };
-
-window.removeSystemProgram = function (index) {
-    let sysProgs = [];
-    try { sysProgs = JSON.parse(localStorage.getItem('AIIT_SYSTEM_PROGRAMS')) || []; } catch(e){}
-    sysProgs.splice(index, 1);
-    localStorage.setItem('AIIT_SYSTEM_PROGRAMS', JSON.stringify(sysProgs));
-    window.renderSystemPrograms();
-};
-
-document.addEventListener('DOMContentLoaded', () => {
-    window.renderSystemPrograms();
-});
-
-document.addEventListener('click', function(e) {
-    const btn = e.target.closest('button');
-    if (!btn) return;
-    if (btn.textContent.includes('Clear Password') && !btn.textContent.includes('ALL')) {
-        e.preventDefault();
-        window.clearStudentPassword('reset-sen-input');
-    }
-});
 
 ```
 
-## 3. Create `VERSION6.1.md`
+## 3. Create `VERSION6.2.md`
 
-* Create a file named `VERSION6.1.md` in your project root containing the following release notes:
+* Create a file named `VERSION6.2.md` in your project root containing the following release notes:
 
 ```markdown
-# Release Notes: AIIT Version 6.1
+# Release Notes: AIIT Version 6.2
 
-* **Unblocked UI Controls:** Removed restrictive event hijackers, restoring full click and input interactivity for Admin navigation tabs, Faculty login buttons, and system controls.
-* **Session Auth Synchronization:** Secured all admin actions with explicit session state handling.
+* **Header Routing Engine:** Explicitly mapped top-right "ADMIN LOGIN" and "FACULTY LOGIN" buttons to instantly open their respective portals.
+* **Authentication Interceptor:** Restored seamless form submission for admin credentials and unblocked interactive elements across the dashboard.
 
 ```

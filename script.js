@@ -1,6 +1,6 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Restored & Cloud-Enforced Ver 4.6)
+ * Master Script Engine (Restored & Cloud-Enforced Ver 4.7)
  */
 
 'use strict';
@@ -646,15 +646,34 @@ window.studentLoginStep = async function () {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  3b. ABSOLUTE ADMIN-RESET FLAG ENGINE — Ver 4.6
+//  3b. SELF-HEALING GLOBAL STATE & BULLETPROOF RESET ENGINE — Ver 4.7
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * clearStudentPassword — Ver 4.6
- * Absolute Admin Reset Engine:
- * - Removes permanent password key AIIT_STUDENT_PASS_<SEN> from localStorage.
- * - Sets absolute force-reset flag AIIT_FORCE_RESET_<SEN> = 'true'.
- * - Updates AIIT_CLEARED_PASSWORDS array and wipes data array properties.
+ * loadMasterDatabase — Ver 4.7
+ * Self-healing global database loader:
+ * - Loads from AIIT_STUDENTS_DATA, falls back to AIIT_UPLOADED_STUDENTS, then window.STUDENTS.
+ * - Guarantees window.STUDENTS is always populated.
+ */
+window.loadMasterDatabase = function() {
+    let master = [];
+    try { master = JSON.parse(localStorage.getItem('AIIT_STUDENTS_DATA')) || []; } catch(e){}
+    if (master.length === 0) {
+        try { master = JSON.parse(localStorage.getItem('AIIT_UPLOADED_STUDENTS')) || []; } catch(e){}
+    }
+    if (master.length === 0 && window.STUDENTS) {
+        master = window.STUDENTS;
+    }
+    window.STUDENTS = master;
+    return master;
+};
+
+/**
+ * clearStudentPassword — Ver 4.7
+ * Bulletproof Admin Reset Engine:
+ * - Removes permanent password key and sets AIIT_FORCE_RESET_<SEN> = 'true'.
+ * - Uses loadMasterDatabase() for self-healing data access.
+ * - Wipes password properties and syncs both storage keys.
  */
 window.clearStudentPassword = async function(senInputId) {
     let inputEl = document.getElementById(senInputId) || document.querySelector('input[placeholder*="SEN"], input[id*="sen"], input[type="text"]');
@@ -668,31 +687,25 @@ window.clearStudentPassword = async function(senInputId) {
     if (!confirm(`Are you sure you want to clear the password for student ${sen}?`)) return;
 
     try {
-        // 1. Remove old permanent password key
         localStorage.removeItem(`AIIT_STUDENT_PASS_${sen}`);
-        
-        // 2. SET ABSOLUTE FORCE-RESET FLAG
         localStorage.setItem(`AIIT_FORCE_RESET_${sen}`, 'true');
 
-        // 3. Update cleared list array
         let clearedList = [];
         try { clearedList = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || []; } catch(e){}
         if (!clearedList.includes(sen)) clearedList.push(sen);
         localStorage.setItem('AIIT_CLEARED_PASSWORDS', JSON.stringify(clearedList));
 
-        // Clear custom password properties in local databases
-        ['AIIT_STUDENTS_DATA', 'AIIT_UPLOADED_STUDENTS'].forEach(key => {
-            let list = JSON.parse(localStorage.getItem(key)) || [];
-            list.forEach(s => {
-                if (s && String(s.sen || s.SEN || s.enrollment || '').toUpperCase().trim() === sen) {
-                    s.customPassword = "";
-                    s.password = "";
-                }
-            });
-            localStorage.setItem(key, JSON.stringify(list));
+        let master = window.loadMasterDatabase();
+        master.forEach(s => {
+            if (s && String(s.sen || s.SEN || s.enrollment || '').toUpperCase().trim() === sen) {
+                s.customPassword = "";
+                s.password = "";
+            }
         });
+        localStorage.setItem('AIIT_STUDENTS_DATA', JSON.stringify(master));
+        localStorage.setItem('AIIT_UPLOADED_STUDENTS', JSON.stringify(master));
     } catch (err) {
-        console.error("Clear password error:", err);
+        console.error("Clear error:", err);
     }
 
     alert(`✅ Password successfully cleared for student: ${sen}.\nThe student can now log in to set a new password.`);
@@ -700,11 +713,12 @@ window.clearStudentPassword = async function(senInputId) {
 };
 
 /**
- * verifyStudentLogin — Ver 4.6
- * Absolute Admin-Reset Flag Engine:
- * - Checks AIIT_FORCE_RESET_<SEN> flag set by Admin or absence of permanent password.
- * - IF ADMIN CLEARED: Prompts for New Password & Confirm Password, saves permanently, and wipes reset flag.
- * - NORMAL LOGIN: Validates strictly against permanent stored password. Incorrect password displays "⚠ Incorrect password.".
+ * verifyStudentLogin — Ver 4.7
+ * Bulletproof Reset & Login Engine:
+ * - Uses loadMasterDatabase() for self-healing data access.
+ * - Checks AIIT_FORCE_RESET_<SEN> flag or absence of permanent password.
+ * - IF ADMIN CLEARED: Any input triggers New Password & Confirm Password prompt.
+ * - NORMAL LOGIN: Validates strictly against permanent stored password.
  */
 window.verifyStudentLogin = function() {
     let senInput = document.getElementById('student-sen') || document.querySelector('input[placeholder*="SEN"], input[id*="sen"], input[type="text"]');
@@ -718,15 +732,8 @@ window.verifyStudentLogin = function() {
         return;
     }
 
-    // 1. Load master student list
-    let masterStudents = [];
-    try { masterStudents = JSON.parse(localStorage.getItem('AIIT_STUDENTS_DATA')) || []; } catch(e){}
-    if (masterStudents.length === 0) {
-        try { masterStudents = JSON.parse(localStorage.getItem('AIIT_UPLOADED_STUDENTS')) || []; } catch(e){}
-    }
-    if (masterStudents.length === 0 && window.STUDENTS) {
-        masterStudents = window.STUDENTS;
-    }
+    // Always use self-healing loader
+    let masterStudents = window.loadMasterDatabase();
 
     let student = masterStudents.find(s => {
         if (!s) return false;
@@ -735,15 +742,14 @@ window.verifyStudentLogin = function() {
     });
 
     if (!student) {
-        showErr('student-err', '❌ SEN not found in active database.');
+        showErr('student-err', '❌ SEN not found in active database. Please verify result upload.');
         return;
     }
 
-    // 2. CHECK FORCE RESET FLAG SET BY ADMIN
     let forceResetFlag = localStorage.getItem(`AIIT_FORCE_RESET_${sen}`) === 'true';
     let permanentPass = localStorage.getItem(`AIIT_STUDENT_PASS_${sen}`);
 
-    // 3. IF ADMIN CLEARED THE PASSWORD (Flag is true OR no permanent password exists):
+    // IF ADMIN CLEARED PASSWORD OR NO PASS EXISTS: Any input triggers prompt
     if (forceResetFlag || !permanentPass) {
         let newPass = prompt("🔐 Enter your new permanent password (min 6 characters):");
         if (!newPass || newPass.length < 6) {
@@ -757,17 +763,14 @@ window.verifyStudentLogin = function() {
             return;
         }
 
-        // Save new permanent password
         localStorage.setItem(`AIIT_STUDENT_PASS_${sen}`, newPass);
         student.customPassword = newPass;
         student.password = newPass;
         
-        try {
-            localStorage.setItem('AIIT_STUDENTS_DATA', JSON.stringify(masterStudents));
-            localStorage.setItem('AIIT_UPLOADED_STUDENTS', JSON.stringify(masterStudents));
-        } catch(e){}
+        localStorage.setItem('AIIT_STUDENTS_DATA', JSON.stringify(masterStudents));
+        localStorage.setItem('AIIT_UPLOADED_STUDENTS', JSON.stringify(masterStudents));
 
-        // REMOVE FORCE RESET FLAG SO IT NEVER OPENS AGAIN UNLESS ADMIN CLEARS IT
+        // Clear reset flags permanently
         localStorage.removeItem(`AIIT_FORCE_RESET_${sen}`);
         try {
             let clearedList = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || [];
@@ -782,7 +785,7 @@ window.verifyStudentLogin = function() {
         return;
     }
 
-    // 4. NORMAL LOGIN: If password is configured and admin did NOT clear it, strictly validate password
+    // NORMAL LOGIN VALIDATION
     if (pass !== permanentPass) {
         showErr('student-err', '⚠ Incorrect password.');
         if (passInput) passInput.value = "";

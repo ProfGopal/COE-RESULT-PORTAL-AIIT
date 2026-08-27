@@ -1,22 +1,32 @@
-# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 4.6 (HTML UI Cleaner & Absolute Reset Flag Engine)
+# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 4.7 (Self-Healing Global State & Bulletproof Reset Engine)
 
-You are updating a static GitHub Pages site (`script.js`, `index.html`, `admin-hidden.html`). We are completely removing the "Forgot Password?" element from `index.html`, ensuring clean UI text, and locking down the student login verification to use an explicit local storage reset flag (`AIIT_FORCE_RESET_<SEN>`), updating version tags to **Ver 4.6**, and creating `VERSION4.6.md`.
+You are updating a static GitHub Pages site (`script.js`, `admin-hidden.html`, `index.html`). We are establishing a self-healing database loader that guarantees student records are always present in memory across all pages, fixing the admin-clear reset prompt trigger, updating version tags to **Ver 4.7**, and creating `VERSION4.7.md`.
 
 Please execute the following strict updates:
 
-## 1. Global Versioning & UI HTML Cleanup
-* **File:** `index.html`
-  * Update the version tag in the top left corner to `Ver 4.6`.
-  * Locate and **completely delete** any anchor tag or text containing `FORGOT PASSWORD?` or links pointing to password recovery.
-  * Update the instruction text under "Student Login" to simply: `Enter your SEN and password.` (removing any mention of `pwd`).
-* **File:** `admin-hidden.html`
-  * Update version tags to `Ver 4.6`.
+## 1. Global Versioning Update
+* **File:** `index.html` & `admin-hidden.html`
+  * Change all version tags in the top left corners to `Ver 4.7`.
 
-## 2. Absolute Admin-Reset Flag Engine (`script.js`)
+## 2. Self-Healing State Engine (`script.js`)
 * **File:** `script.js`
-  * Replace your `clearStudentPassword` and `verifyStudentLogin` functions with this clean implementation:
+  * Add this global database initializer and update `clearStudentPassword` and `verifyStudentLogin`:
 
     ```javascript
+    // Self-healing global database loader
+    window.loadMasterDatabase = function() {
+        let master = [];
+        try { master = JSON.parse(localStorage.getItem('AIIT_STUDENTS_DATA')) || []; } catch(e){}
+        if (master.length === 0) {
+            try { master = JSON.parse(localStorage.getItem('AIIT_UPLOADED_STUDENTS')) || []; } catch(e){}
+        }
+        if (master.length === 0 && window.STUDENTS) {
+            master = window.STUDENTS;
+        }
+        window.STUDENTS = master;
+        return master;
+    };
+
     window.clearStudentPassword = async function(senInputId) {
         let inputEl = document.getElementById(senInputId) || document.querySelector('input[placeholder*="SEN"], input[id*="sen"], input[type="text"]');
         let sen = inputEl ? inputEl.value.trim().toUpperCase() : "";
@@ -29,31 +39,25 @@ Please execute the following strict updates:
         if (!confirm(`Are you sure you want to clear the password for student ${sen}?`)) return;
 
         try {
-            // 1. Remove old permanent password key
             localStorage.removeItem(`AIIT_STUDENT_PASS_${sen}`);
-            
-            // 2. SET ABSOLUTE FORCE-RESET FLAG
             localStorage.setItem(`AIIT_FORCE_RESET_${sen}`, 'true');
 
-            // 3. Update cleared list array
             let clearedList = [];
             try { clearedList = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || []; } catch(e){}
             if (!clearedList.includes(sen)) clearedList.push(sen);
             localStorage.setItem('AIIT_CLEARED_PASSWORDS', JSON.stringify(clearedList));
 
-            // Clear custom password properties in local databases
-            ['AIIT_STUDENTS_DATA', 'AIIT_UPLOADED_STUDENTS'].forEach(key => {
-                let list = JSON.parse(localStorage.getItem(key)) || [];
-                list.forEach(s => {
-                    if (s && String(s.sen || s.SEN || s.enrollment || '').toUpperCase().trim() === sen) {
-                        s.customPassword = "";
-                        s.password = "";
-                    }
-                });
-                localStorage.setItem(key, JSON.stringify(list));
+            let master = window.loadMasterDatabase();
+            master.forEach(s => {
+                if (s && String(s.sen || s.SEN || s.enrollment || '').toUpperCase().trim() === sen) {
+                    s.customPassword = "";
+                    s.password = "";
+                }
             });
+            localStorage.setItem('AIIT_STUDENTS_DATA', JSON.stringify(master));
+            localStorage.setItem('AIIT_UPLOADED_STUDENTS', JSON.stringify(master));
         } catch (err) {
-            console.error("Clear password error:", err);
+            console.error("Clear error:", err);
         }
 
         alert(`✅ Password successfully cleared for student: ${sen}.\nThe student can now log in to set a new password.`);
@@ -72,15 +76,8 @@ Please execute the following strict updates:
             return;
         }
 
-        // 1. Load master student list
-        let masterStudents = [];
-        try { masterStudents = JSON.parse(localStorage.getItem('AIIT_STUDENTS_DATA')) || []; } catch(e){}
-        if (masterStudents.length === 0) {
-            try { masterStudents = JSON.parse(localStorage.getItem('AIIT_UPLOADED_STUDENTS')) || []; } catch(e){}
-        }
-        if (masterStudents.length === 0 && window.STUDENTS) {
-            masterStudents = window.STUDENTS;
-        }
+        // Always use self-healing loader
+        let masterStudents = window.loadMasterDatabase();
 
         let student = masterStudents.find(s => {
             if (!s) return false;
@@ -89,15 +86,14 @@ Please execute the following strict updates:
         });
 
         if (!student) {
-            showErr('student-err', '❌ SEN not found in active database.');
+            showErr('student-err', '❌ SEN not found in active database. Please verify result upload.');
             return;
         }
 
-        // 2. CHECK FORCE RESET FLAG SET BY ADMIN
         let forceResetFlag = localStorage.getItem(`AIIT_FORCE_RESET_${sen}`) === 'true';
         let permanentPass = localStorage.getItem(`AIIT_STUDENT_PASS_${sen}`);
 
-        // 3. IF ADMIN CLEARED THE PASSWORD (Flag is true OR no permanent password exists):
+        // IF ADMIN CLEARED PASSWORD OR NO PASS EXISTS: Any input triggers prompt
         if (forceResetFlag || !permanentPass) {
             let newPass = prompt("🔐 Enter your new permanent password (min 6 characters):");
             if (!newPass || newPass.length < 6) {
@@ -111,17 +107,14 @@ Please execute the following strict updates:
                 return;
             }
 
-            // Save new permanent password
             localStorage.setItem(`AIIT_STUDENT_PASS_${sen}`, newPass);
             student.customPassword = newPass;
             student.password = newPass;
             
-            try {
-                localStorage.setItem('AIIT_STUDENTS_DATA', JSON.stringify(masterStudents));
-                localStorage.setItem('AIIT_UPLOADED_STUDENTS', JSON.stringify(masterStudents));
-            } catch(e){}
+            localStorage.setItem('AIIT_STUDENTS_DATA', JSON.stringify(masterStudents));
+            localStorage.setItem('AIIT_UPLOADED_STUDENTS', JSON.stringify(masterStudents));
 
-            // REMOVE FORCE RESET FLAG SO IT NEVER OPENS AGAIN UNLESS ADMIN CLEARS IT
+            // Clear reset flags permanently
             localStorage.removeItem(`AIIT_FORCE_RESET_${sen}`);
             try {
                 let clearedList = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || [];
@@ -136,7 +129,7 @@ Please execute the following strict updates:
             return;
         }
 
-        // 4. NORMAL LOGIN: If password is configured and admin did NOT clear it, strictly validate password
+        // NORMAL LOGIN VALIDATION
         if (pass !== permanentPass) {
             showErr('student-err', '⚠ Incorrect password.');
             if (passInput) passInput.value = "";
@@ -147,5 +140,5 @@ Please execute the following strict updates:
     };
     ```
 
-## 3. Create `VERSION4.6.md`
-* Create a file named `VERSION4.6.md` in your project root containing the release notes for Ver 4.6.
+## 3. Create `VERSION4.7.md`
+* Create a file named `VERSION4.7.md` in your project root containing the release notes for Ver 4.7.

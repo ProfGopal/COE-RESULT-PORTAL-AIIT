@@ -1,6 +1,6 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Restored & Cloud-Enforced Ver 4.3)
+ * Master Script Engine (Restored & Cloud-Enforced Ver 4.4)
  */
 
 'use strict';
@@ -697,12 +697,11 @@ window.clearStudentPassword = async function(senInputId) {
 };
 
 /**
- * verifyStudentLogin — Ver 4.3
- * Universal Admin-Clear & Secure Login Engine:
- * - Gathers master student records with dynamic fallback profile.
- * - IF ADMIN CLEARED PASSWORD: ANY password typed immediately triggers New Password and Confirm Password prompt.
- * - Validates matching passwords, saves permanently, and removes student from cleared list.
- * - NORMAL LOGIN: Validates strictly against permanent stored password.
+ * verifyStudentLogin — Ver 4.4
+ * Universal Force-Reset & Permanent Login Engine:
+ * - If user types 'pwd' OR if no permanent password exists yet, triggers new password and confirm password prompt immediately.
+ * - Saves new permanent password and clears admin cleared list flag.
+ * - If password is configured and user types anything else, validates strictly against permanent storage.
  */
 window.verifyStudentLogin = function() {
     let senInput = document.getElementById('student-sen') || document.querySelector('input[placeholder*="SEN"], input[id*="sen"], input[type="text"]');
@@ -732,7 +731,6 @@ window.verifyStudentLogin = function() {
         return candidate === sen || candidate.includes(sen) || sen.includes(candidate);
     });
 
-    // Fallback profile so SEN is NEVER reported as not found
     if (!student) {
         student = {
             sen: sen,
@@ -750,16 +748,11 @@ window.verifyStudentLogin = function() {
         try { localStorage.setItem('AIIT_STUDENTS_DATA', JSON.stringify(masterStudents)); } catch(e){}
     }
 
-    // 2. Check admin cleared list
-    let clearedList = [];
-    try { clearedList = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || []; } catch(e){}
-    let isClearedByAdmin = clearedList.includes(sen);
-
     let permanentPass = localStorage.getItem(`AIIT_STUDENT_PASS_${sen}`);
 
-    // 3. IF ADMIN CLEARED PASSWORD: ANY password typed triggers New Password & Confirm Password prompt
-    if (isClearedByAdmin || !permanentPass) {
-        let newPass = prompt("🔐 Password reset required by Admin. Enter new permanent password (min 6 characters):");
+    // 2. UNIVERSAL FORCE-RESET: If user types 'pwd' OR if no permanent password exists yet, trigger prompt immediately!
+    if (pass === 'pwd' || !permanentPass) {
+        let newPass = prompt("🔐 Enter your new permanent password (min 6 characters):");
         if (!newPass || newPass.length < 6) {
             alert("❌ Password must be at least 6 characters.");
             return;
@@ -771,7 +764,7 @@ window.verifyStudentLogin = function() {
             return;
         }
 
-        // Save permanently
+        // Save new permanent password
         localStorage.setItem(`AIIT_STUDENT_PASS_${sen}`, newPass);
         student.customPassword = newPass;
         student.password = newPass;
@@ -781,9 +774,12 @@ window.verifyStudentLogin = function() {
             localStorage.setItem('AIIT_UPLOADED_STUDENTS', JSON.stringify(masterStudents));
         } catch(e){}
 
-        // Remove from cleared list so reset mode closes
-        clearedList = clearedList.filter(s => s !== sen);
-        localStorage.setItem('AIIT_CLEARED_PASSWORDS', JSON.stringify(clearedList));
+        // Clear admin cleared list flag if present
+        try {
+            let clearedList = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || [];
+            clearedList = clearedList.filter(s => s !== sen);
+            localStorage.setItem('AIIT_CLEARED_PASSWORDS', JSON.stringify(clearedList));
+        } catch(e){}
 
         if (passInput) passInput.value = "";
 
@@ -792,7 +788,7 @@ window.verifyStudentLogin = function() {
         return;
     }
 
-    // 4. NORMAL LOGIN: If password is configured, validate strictly against permanent storage
+    // 3. NORMAL LOGIN VALIDATION: If password is configured and user types something else, check it strictly
     if (pass !== permanentPass) {
         showErr('student-err', '⚠ Incorrect password.');
         if (passInput) passInput.value = "";

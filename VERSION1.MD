@@ -1,58 +1,18 @@
-# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 4.3 (Universal Admin-Clear Trigger & Resilient Student Login)
+# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 4.4 (Universal 'pwd' Force-Reset & Permanent Login Engine)
 
-You are updating a static GitHub Pages site (`script.js`, `admin-hidden.html`, `index.html`). We are implementing your precise workflow: normal incorrect passwords show "Incorrect password", but once an admin clears the password, entering *any* password immediately triggers the New Password and Confirm Password prompt. Version tags are updated to **Ver 4.3**, and `VERSION4.3.md` is created.
+You are updating a static GitHub Pages site (`script.js`, `admin-hidden.html`, `index.html`). We are fixing the student login authentication flow so that typing `pwd` universally and unconditionally forces the new password creation prompt, while regular incorrect passwords correctly show "Incorrect password". Version tags are updated to **Ver 4.4**, and `VERSION4.4.md` is created.
 
 Please execute the following strict updates:
 
 ## 1. Global Versioning Update
 * **File:** `index.html` & `admin-hidden.html`
-  * Change all version tags in the top left corners to `Ver 4.3`.
+  * Change all version tags in the top left corners to `Ver 4.4`.
 
-## 2. Universal Admin-Clear & Secure Login Engine (`script.js`)
+## 2. Universal Force-Reset & Secure Login Engine (`script.js`)
 * **File:** `script.js`
-  * Replace your `clearStudentPassword` and `verifyStudentLogin` functions with this robust version:
+  * Replace your `verifyStudentLogin` function with this foolproof version:
 
     ```javascript
-    window.clearStudentPassword = async function(senInputId) {
-        let inputEl = document.getElementById(senInputId) || document.querySelector('input[placeholder*="SEN"], input[id*="sen"], input[type="text"]');
-        let sen = inputEl ? inputEl.value.trim().toUpperCase() : "";
-        
-        if (!sen) {
-            alert("⚠️ Please enter a valid Student Enrollment Number (SEN).");
-            return;
-        }
-
-        if (!confirm(`Are you sure you want to clear the password for student ${sen}?`)) return;
-
-        try {
-            // Remove permanent password key
-            localStorage.removeItem(`AIIT_STUDENT_PASS_${sen}`);
-            
-            // Add to admin cleared list
-            let clearedList = [];
-            try { clearedList = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || []; } catch(e){}
-            if (!clearedList.includes(sen)) clearedList.push(sen);
-            localStorage.setItem('AIIT_CLEARED_PASSWORDS', JSON.stringify(clearedList));
-
-            // Clear custom password properties in local databases
-            ['AIIT_STUDENTS_DATA', 'AIIT_UPLOADED_STUDENTS'].forEach(key => {
-                let list = JSON.parse(localStorage.getItem(key)) || [];
-                list.forEach(s => {
-                    if (s && String(s.sen || s.SEN || s.enrollment || '').toUpperCase().trim() === sen) {
-                        s.customPassword = "";
-                        s.password = "";
-                    }
-                });
-                localStorage.setItem(key, JSON.stringify(list));
-            });
-        } catch (err) {
-            console.error("Clear password error:", err);
-        }
-
-        alert(`✅ Password successfully cleared for student: ${sen}.\nThe student can now log in using any password to set a new one.`);
-        if (inputEl) inputEl.value = "";
-    };
-
     window.verifyStudentLogin = function() {
         let senInput = document.getElementById('student-sen') || document.querySelector('input[placeholder*="SEN"], input[id*="sen"], input[type="text"]');
         let passInput = document.getElementById('student-pass') || document.querySelector('input[type="password"]');
@@ -81,7 +41,6 @@ Please execute the following strict updates:
             return candidate === sen || candidate.includes(sen) || sen.includes(candidate);
         });
 
-        // Fallback profile so SEN is NEVER reported as not found
         if (!student) {
             student = {
                 sen: sen,
@@ -99,16 +58,11 @@ Please execute the following strict updates:
             try { localStorage.setItem('AIIT_STUDENTS_DATA', JSON.stringify(masterStudents)); } catch(e){}
         }
 
-        // 2. Check admin cleared list
-        let clearedList = [];
-        try { clearedList = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || []; } catch(e){}
-        let isClearedByAdmin = clearedList.includes(sen);
-
         let permanentPass = localStorage.getItem(`AIIT_STUDENT_PASS_${sen}`);
 
-        // 3. IF ADMIN CLEARED PASSWORD: ANY password typed triggers New Password & Confirm Password prompt
-        if (isClearedByAdmin || !permanentPass) {
-            let newPass = prompt("🔐 Password reset required by Admin. Enter new permanent password (min 6 characters):");
+        // 2. UNIVERSAL FORCE-RESET: If user types 'pwd' OR if no permanent password exists yet, trigger prompt immediately!
+        if (pass === 'pwd' || !permanentPass) {
+            let newPass = prompt("🔐 Enter your new permanent password (min 6 characters):");
             if (!newPass || newPass.length < 6) {
                 alert("❌ Password must be at least 6 characters.");
                 return;
@@ -120,7 +74,7 @@ Please execute the following strict updates:
                 return;
             }
 
-            // Save permanently
+            // Save new permanent password
             localStorage.setItem(`AIIT_STUDENT_PASS_${sen}`, newPass);
             student.customPassword = newPass;
             student.password = newPass;
@@ -130,9 +84,12 @@ Please execute the following strict updates:
                 localStorage.setItem('AIIT_UPLOADED_STUDENTS', JSON.stringify(masterStudents));
             } catch(e){}
 
-            // Remove from cleared list so reset mode closes
-            clearedList = clearedList.filter(s => s !== sen);
-            localStorage.setItem('AIIT_CLEARED_PASSWORDS', JSON.stringify(clearedList));
+            // Clear admin cleared list flag if present
+            try {
+                let clearedList = JSON.parse(localStorage.getItem('AIIT_CLEARED_PASSWORDS')) || [];
+                clearedList = clearedList.filter(s => s !== sen);
+                localStorage.setItem('AIIT_CLEARED_PASSWORDS', JSON.stringify(clearedList));
+            } catch(e){}
 
             if (passInput) passInput.value = "";
 
@@ -141,7 +98,7 @@ Please execute the following strict updates:
             return;
         }
 
-        // 4. NORMAL LOGIN: If password is configured, validate strictly against permanent storage
+        // 3. NORMAL LOGIN VALIDATION: If password is configured and user types something else, check it strictly
         if (pass !== permanentPass) {
             showErr('student-err', '⚠ Incorrect password.');
             if (passInput) passInput.value = "";
@@ -152,5 +109,5 @@ Please execute the following strict updates:
     };
     ```
 
-## 3. Create `VERSION4.3.md`
-* Create a file named `VERSION4.3.md` in your project root containing the release notes for Ver 4.3.
+## 3. Create `VERSION4.4.md`
+* Create a file named `VERSION4.4.md` in your project root containing the release notes for Ver 4.4.

@@ -1,3 +1,24 @@
+# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 6.1 (Unblocked Native Controls & Full Authentication Sync)
+
+You are updating a static GitHub Pages site (`script.js`, `admin-hidden.html`, `index.html`) and Google Apps Script backend (`Code.gs`). We are completely unblocking native buttons, fixing admin/faculty login click handlers, ensuring password clears correctly update the Google Sheet backend, and updating version tags to **Ver 6.1** by creating `VERSION6.1.md`.
+
+Please execute the following strict updates:
+
+## 1. Global Versioning Update
+
+* **File:** `index.html`, `admin-hidden.html`
+* Change all version tags in the top left corners to `Ver 6.1`.
+
+
+
+## 2. Unblocked Event-Driven Engine (`script.js`)
+
+* **File:** `script.js`
+* Replace your entire `script.js` file with this clean, fully unblocked master version that preserves native form/button interactions:
+
+
+
+```javascript
 /**
  * script.js — AIIT COE Result Portal
  * Master Script Engine (Ver 6.1 - Unblocked Controls & Full Routing)
@@ -163,3 +184,17 @@ document.addEventListener('click', function(e) {
         window.clearStudentPassword('reset-sen-input');
     }
 });
+
+```
+
+## 3. Create `VERSION6.1.md`
+
+* Create a file named `VERSION6.1.md` in your project root containing the following release notes:
+
+```markdown
+# Release Notes: AIIT Version 6.1
+
+* **Unblocked UI Controls:** Removed restrictive event hijackers, restoring full click and input interactivity for Admin navigation tabs, Faculty login buttons, and system controls.
+* **Session Auth Synchronization:** Secured all admin actions with explicit session state handling.
+
+```

@@ -1,6 +1,6 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 1.7 - Faculty Curriculum Table & Navigation Fix)
+ * Master Script Engine (Ver 1.7.1 - Faculty Curriculum Table & Dropdown Filter)
  */
 
 'use strict';
@@ -1933,15 +1933,15 @@ window.switchFacultyTab = function(tabName) {
         let sysProgs = window.SYSTEM_PROGRAMS.length > 0 ? window.SYSTEM_PROGRAMS : [{ batch: "2024", program: "MCA" }];
 
         area.innerHTML = `
-            <div style="background:white; padding:20px; border-radius:8px; border:1px solid #cbd5e1;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
-                    <div style="display:flex; align-items:center; gap:10px;">
-                        <label style="font-weight:bold; color:#334155;">Select Batch & Program:</label>
-                        <select id="faculty-curr-select" onchange="window.renderFacultyCurriculumTable()" style="padding:8px 12px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold;">
+            <div style="background:white; padding:25px; border-radius:8px; border:1px solid #cbd5e1; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:15px;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <label style="font-weight:bold; color:#1e293b;">Select Batch & Program:</label>
+                        <select id="faculty-curr-select" onchange="window.renderFacultyCurriculumTable()" style="padding:8px 14px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold; background:#f8fafc;">
                             ${sysProgs.map(p => `<option value="${p.batch}_${p.program}">${p.batch} ${p.program}</option>`).join('')}
                         </select>
                     </div>
-                    <button onclick="window.exportFacultyCurriculumPDF()" style="background:#dc2626; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer;">📄 Download PDF</button>
+                    <button onclick="window.exportFacultyCurriculumPDF()" style="background:#dc2626; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer;">📄 Download Curriculum PDF</button>
                 </div>
                 <div id="faculty-curriculum-table-container"></div>
             </div>
@@ -1959,39 +1959,43 @@ window.renderFacultyCurriculumTable = function() {
     let rules = window.CURRICULUM_RULES[selectedKey] || [];
 
     if (rules.length === 0) {
-        container.innerHTML = `<p style="color:#64748b; text-align:center; padding:20px;">No curriculum rules found for ${selectedKey.replace('_', ' ')}.</p>`;
+        container.innerHTML = `<p style="color:#64748b; text-align:center; padding:30px;">No curriculum rules found for ${selectedKey.replace('_', ' ')}.</p>`;
         return;
     }
 
-    let html = `<h4 style="color:#0f172a; margin-top:0;">📋 Curriculum Overview: ${selectedKey.replace('_', ' ')}</h4>`;
+    let html = `<h4 style="color:#0f172a; margin-top:0; margin-bottom:20px;">📋 Curriculum Table: <span style="color:#2563eb;">${selectedKey.replace('_', ' ')}</span></h4>`;
 
     rules.forEach((main) => {
         html += `
         <div style="margin-bottom:25px; border:1px solid #cbd5e1; border-radius:8px; overflow:hidden; background:white;">
-            <div style="background:#f8fafc; padding:12px 15px; border-bottom:1px solid #cbd5e1;">
-                <strong style="color:#1e293b; font-size:1.05rem;">📁 ${esc(main.category)} (Min Credits: ${main.minCredits})</strong>
+            <div style="background:#f8fafc; padding:14px 18px; border-bottom:1px solid #cbd5e1; display:flex; justify-content:space-between; align-items:center;">
+                <strong style="color:#1e293b; font-size:1.1rem;">📁 ${esc(main.category)}</strong>
+                <span style="background:#e0f2fe; color:#0369a1; padding:3px 10px; border-radius:4px; font-weight:bold; font-size:0.85rem;">Min Credits: ${main.minCredits}</span>
             </div>`;
 
         (main.subCategories || []).forEach((sub) => {
             html += `
             <div style="padding:15px; background:white; border-bottom:1px solid #e2e8f0;">
-                <div style="font-weight:bold; color:#334155; margin-bottom:8px;">📄 Sub-Category: ${esc(sub.name)} (Min: ${sub.minCredits} Cr)</div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <span style="font-weight:bold; color:#334155; font-size:0.95rem;">📄 Sub-Category: ${esc(sub.name)}</span>
+                    <span style="color:#64748b; font-size:0.85rem; font-weight:bold;">Min Credits: ${sub.minCredits} Cr</span>
+                </div>
                 <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
                     <thead>
                         <tr style="background:#f1f5f9; color:#475569; text-align:left;">
-                            <th style="padding:8px;">Course Code</th>
-                            <th style="padding:8px;">Course Name</th>
-                            <th style="padding:8px; text-align:right;">Credits</th>
+                            <th style="padding:9px 12px; border-bottom:1px solid #cbd5e1;">Course Code</th>
+                            <th style="padding:9px 12px; border-bottom:1px solid #cbd5e1;">Course Name</th>
+                            <th style="padding:9px 12px; border-bottom:1px solid #cbd5e1; text-align:right;">Credits</th>
                         </tr>
                     </thead>
                     <tbody>
                         ${(sub.codes || []).length > 0 ? (sub.codes || []).map((code) => {
                             let info = window.getCourseInfo(code);
                             return `
-                            <tr style="border-bottom:1px solid #f1f5f9;">
-                                <td style="padding:8px; font-weight:bold; color:#0f172a;">${esc(code)}</td>
-                                <td style="padding:8px; color:#334155;">${esc(info.name)}</td>
-                                <td style="padding:8px; text-align:right; font-weight:bold; color:#2563eb;">${info.credits} Cr</td>
+                            <tr style="border-bottom:1px solid #f8fafc;">
+                                <td style="padding:9px 12px; font-weight:bold; color:#0f172a;">${esc(code)}</td>
+                                <td style="padding:9px 12px; color:#334155;">${esc(info.name)}</td>
+                                <td style="padding:9px 12px; text-align:right; font-weight:bold; color:#2563eb;">${info.credits} Cr</td>
                             </tr>`;
                         }).join('') : `<tr><td colspan="3" style="padding:10px; color:#64748b; text-align:center;">No courses in this sub-category.</td></tr>`}
                     </tbody>

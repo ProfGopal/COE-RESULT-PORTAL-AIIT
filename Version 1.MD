@@ -1,45 +1,17 @@
-```python
-# Analyzing requirements for Ver 1.7 / Ver 19.0:
-# 1. Faculty Portal Curriculum Viewer: Match the admin panel format exactly—displaying Main Category, Sub-Category, Course Code, Course Name, and Credits in a clean table structure (read-only for faculty).
-# 2. Add a dropdown in the faculty curriculum viewer to select the year/batch and program (e.g., 2024 MCA), exactly like the admin panel.
-# 3. Add a "Download PDF" option for the faculty curriculum view (using jsPDF and autoTable).
-# 4. Fix the "← Back to Directory" button in the faculty portal student details view so it properly re-renders the directory table instead of failing.
+# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 1.7.1 (Faculty Curriculum Dropdown & Clean Table Viewer)
 
-print("Designing Ver 1.7 Master Faculty Curriculum Table Viewer & Navigation Repair")
+You are updating a static GitHub Pages site (`script.js`). Looking at your screenshot (`image_e89d2ff.jpg`), the faculty curriculum tab is currently rendering all programs stacked together as raw text bullets instead of a **clean table structure** with a **batch/program dropdown selector** (just like the admin panel).
 
+Here is the master repair to ensure the faculty curriculum viewer displays **only the selected year/batch and program**, structured in a **clean table** with Main Category, Sub-Category, Course Code, Course Name, and Credits, with a PDF download option.
 
-```
+---
 
-```text
-Designing Ver 1.7 Master Faculty Curriculum Table Viewer & Navigation Repair
-
-
-```
-
-# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 1.7 (Faculty Curriculum Table Viewer & Navigation Fix)
-
-You are updating a static GitHub Pages site (`script.js`). We are rebuilding the **Faculty Curriculum Viewer** to match the admin table format (Main Category, Sub-Category, Course Code, Course Name, and Credits), adding a batch/program dropdown selector, adding a **"Download PDF"** export button, and fixing the **"← Back to Directory"** navigation handler when viewing individual student profiles in the faculty portal, updating version tags to **Ver 1.7**, and creating `VERSION17.1.md`.
-
-Please execute the following strict updates:
-
-## 1. Global Versioning Update
-
-* **File:** `index.html`, `admin-hidden.html`
-* Change all version tags in the top left corners to **Ver 1.7**.
-
-
-
-## 2. Faculty Curriculum Table & Navigation Repair Engine (`script.js`)
-
-* **File:** `script.js`
-* Replace your faculty curriculum tab renderer, course lookup helper, and student profile back navigation with this polished version:
-
-
+### 📋 Copy this entire block and paste it into Antigravity IDE (`script.js`):
 
 ```javascript
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 1.7 - Faculty Curriculum Table & Navigation Fix)
+ * Master Script Engine (Ver 1.7.1 - Faculty Curriculum Table & Dropdown Filter)
  */
 
 'use strict';
@@ -58,7 +30,7 @@ window.getCourseInfo = function(code) {
     return { name: cleanCode, credits: 3 };
 };
 
-// --- 2. FACULTY CURRICULUM TAB VIEWER (Matching Admin Table Format & Dropdown) ---
+// --- 2. FACULTY CURRICULUM TAB VIEWER (Dropdown & Clean Table Structure) ---
 window.switchFacultyTab = function(tabName) {
     let area = document.getElementById('faculty-tab-content-area');
     if (!area) return;
@@ -103,18 +75,17 @@ window.switchFacultyTab = function(tabName) {
         window.facultyFilterAndSort();
     } else if (tabName === 'curriculum') {
         let sysProgs = window.SYSTEM_PROGRAMS.length > 0 ? window.SYSTEM_PROGRAMS : [{ batch: "2024", program: "MCA" }];
-        let defaultKey = `${sysProgs[0].batch}_${sysProgs[0].program}`;
 
         area.innerHTML = `
-            <div style="background:white; padding:20px; border-radius:8px; border:1px solid #cbd5e1;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
-                    <div style="display:flex; align-items:center; gap:10px;">
-                        <label style="font-weight:bold; color:#334155;">Select Batch & Program:</label>
-                        <select id="faculty-curr-select" onchange="window.renderFacultyCurriculumTable()" style="padding:8px 12px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold;">
+            <div style="background:white; padding:25px; border-radius:8px; border:1px solid #cbd5e1; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:15px;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <label style="font-weight:bold; color:#1e293b;">Select Batch & Program:</label>
+                        <select id="faculty-curr-select" onchange="window.renderFacultyCurriculumTable()" style="padding:8px 14px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold; background:#f8fafc;">
                             ${sysProgs.map(p => `<option value="${p.batch}_${p.program}">${p.batch} ${p.program}</option>`).join('')}
                         </select>
                     </div>
-                    <button onclick="window.exportFacultyCurriculumPDF()" style="background:#dc2626; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer;">📄 Download PDF</button>
+                    <button onclick="window.exportFacultyCurriculumPDF()" style="background:#dc2626; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer;">📄 Download Curriculum PDF</button>
                 </div>
                 <div id="faculty-curriculum-table-container"></div>
             </div>
@@ -132,39 +103,43 @@ window.renderFacultyCurriculumTable = function() {
     let rules = window.CURRICULUM_RULES[selectedKey] || [];
 
     if (rules.length === 0) {
-        container.innerHTML = `<p style="color:#64748b; text-align:center; padding:20px;">No curriculum rules found for ${selectedKey.replace('_', ' ')}.</p>`;
+        container.innerHTML = `<p style="color:#64748b; text-align:center; padding:30px;">No curriculum rules found for ${selectedKey.replace('_', ' ')}.</p>`;
         return;
     }
 
-    let html = `<h4 style="color:#0f172a; margin-top:0;">📋 Curriculum Overview: ${selectedKey.replace('_', ' ')}</h4>`;
+    let html = `<h4 style="color:#0f172a; margin-top:0; margin-bottom:20px;">📋 Curriculum Table: <span style="color:#2563eb;">${selectedKey.replace('_', ' ')}</span></h4>`;
 
     rules.forEach((main) => {
         html += `
         <div style="margin-bottom:25px; border:1px solid #cbd5e1; border-radius:8px; overflow:hidden; background:white;">
-            <div style="background:#f8fafc; padding:12px 15px; border-bottom:1px solid #cbd5e1;">
-                <strong style="color:#1e293b; font-size:1.05rem;">📁 ${esc(main.category)} (Min Credits: ${main.minCredits})</strong>
+            <div style="background:#f8fafc; padding:14px 18px; border-bottom:1px solid #cbd5e1; display:flex; justify-content:space-between; align-items:center;">
+                <strong style="color:#1e293b; font-size:1.1rem;">📁 ${esc(main.category)}</strong>
+                <span style="background:#e0f2fe; color:#0369a1; padding:3px 10px; border-radius:4px; font-weight:bold; font-size:0.85rem;">Min Credits: ${main.minCredits}</span>
             </div>`;
 
         (main.subCategories || []).forEach((sub) => {
             html += `
             <div style="padding:15px; background:white; border-bottom:1px solid #e2e8f0;">
-                <div style="font-weight:bold; color:#334155; margin-bottom:8px;">📄 Sub-Category: ${esc(sub.name)} (Min: ${sub.minCredits} Cr)</div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <span style="font-weight:bold; color:#334155; font-size:0.95rem;">📄 Sub-Category: ${esc(sub.name)}</span>
+                    <span style="color:#64748b; font-size:0.85rem; font-weight:bold;">Min Credits: ${sub.minCredits} Cr</span>
+                </div>
                 <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
                     <thead>
                         <tr style="background:#f1f5f9; color:#475569; text-align:left;">
-                            <th style="padding:8px;">Course Code</th>
-                            <th style="padding:8px;">Course Name</th>
-                            <th style="padding:8px; text-align:right;">Credits</th>
+                            <th style="padding:9px 12px; border-bottom:1px solid #cbd5e1;">Course Code</th>
+                            <th style="padding:9px 12px; border-bottom:1px solid #cbd5e1;">Course Name</th>
+                            <th style="padding:9px 12px; border-bottom:1px solid #cbd5e1; text-align:right;">Credits</th>
                         </tr>
                     </thead>
                     <tbody>
                         ${(sub.codes || []).length > 0 ? (sub.codes || []).map((code) => {
                             let info = window.getCourseInfo(code);
                             return `
-                            <tr style="border-bottom:1px solid #f1f5f9;">
-                                <td style="padding:8px; font-weight:bold; color:#0f172a;">${esc(code)}</td>
-                                <td style="padding:8px; color:#334155;">${esc(info.name)}</td>
-                                <td style="padding:8px; text-align:right; font-weight:bold; color:#2563eb;">${info.credits} Cr</td>
+                            <tr style="border-bottom:1px solid #f8fafc;">
+                                <td style="padding:9px 12px; font-weight:bold; color:#0f172a;">${esc(code)}</td>
+                                <td style="padding:9px 12px; color:#334155;">${esc(info.name)}</td>
+                                <td style="padding:9px 12px; text-align:right; font-weight:bold; color:#2563eb;">${info.credits} Cr</td>
                             </tr>`;
                         }).join('') : `<tr><td colspan="3" style="padding:10px; color:#64748b; text-align:center;">No courses in this sub-category.</td></tr>`}
                     </tbody>
@@ -207,31 +182,4 @@ window.exportFacultyCurriculumPDF = function() {
     doc.save(`Curriculum_${selectedKey}.pdf`);
 };
 
-// --- 3. BACK TO DIRECTORY NAVIGATION FIX ---
-window.openFacultyStudentView = function(sen) {
-    let student = window.STUDENTS.find(s => String(s.sen).toUpperCase() === String(sen).toUpperCase());
-    if (!student) { alert("Student not found."); return; }
-    window.loadStudentDashboard(student);
-
-    // FIX: Properly wire "← Back to Directory" button
-    setTimeout(() => {
-        let dash = document.getElementById('student-dash') || document.getElementById('student-dashboard');
-        if (dash && !document.getElementById('back-to-directory-btn')) {
-            let backBtn = document.createElement('button');
-            backBtn.id = 'back-to-directory-btn';
-            backBtn.innerHTML = '← Back to Directory';
-            backBtn.style.cssText = 'margin:15px 0 0 20px; background:#475569; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer; display:inline-block; z-index:999; position:relative;';
-            backBtn.onclick = function() {
-                dash.style.display = 'none';
-                if (typeof window.renderFacultyPortal === 'function') window.renderFacultyPortal();
-            };
-            dash.insertBefore(backBtn, dash.firstChild);
-        }
-    }, 100);
-};
-
 ```
-
-## 3. Create `VERSION17.1.md`
-
-* Create a file named `VERSION17.1.md` in your project root containing the release notes for Ver 1.7.

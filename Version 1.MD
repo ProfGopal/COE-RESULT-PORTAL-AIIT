@@ -1,8 +1,38 @@
-# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 1.7.1 (Faculty Curriculum Dropdown & Clean Table Viewer)
+```python
+# Let's analyze the user's requirements for Ver 1.7.2:
+# 1. Admin Panel Filter Dropdowns: Looking at image_8a2898.jpg, the filter dropdowns ("All Years", "All Programs", "All Credits", "Sort Credits: Default") are rendering with limited options or getting cut off / not populated correctly because `renderSystemPrograms()` or admin filter setup isn't populating them dynamically from `window.SYSTEM_PROGRAMS` and `window.STUDENTS`.
+# 2. Comprehensive Filtering Options for Admin & Faculty Logins:
+#    - Year / Batch filter (All Years + dynamic years)
+#    - Program filter (All Programs + dynamic programs)
+#    - Backlogs / Has Backlogs filter (All Students, Has Backlogs / Failed Courses, Clean / No Backlogs)
+#    - CGPA Range / Sorting (High to Low CGPA, Low to High CGPA)
+#    - Credits Sorting & Filtering (Low to High Credits, High to Low Credits)
+#    - Search box (SEN or Student Name)
+# 3. Ensure both Admin and Faculty student directory tables share this exact robust filtering and sorting engine.
 
-You are updating a static GitHub Pages site (`script.js`). Looking at your screenshot (`image_e89d2ff.jpg`), the faculty curriculum tab is currently rendering all programs stacked together as raw text bullets instead of a **clean table structure** with a **batch/program dropdown selector** (just like the admin panel).
+print("Designing Ver 1.7.2 Master Advanced Filtering & Sorting Suite")
 
-Here is the master repair to ensure the faculty curriculum viewer displays **only the selected year/batch and program**, structured in a **clean table** with Main Category, Sub-Category, Course Code, Course Name, and Credits, with a PDF download option.
+
+```
+
+```text
+Designing Ver 1.7.2 Master Advanced Filtering & Sorting Suite
+
+
+```
+
+# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 1.7.2 (Advanced Student Filters & Sorting Suite)
+
+You are updating a static GitHub Pages site (`script.js`). Looking at your screenshot (`image_8a2898.jpg`), the filter dropdowns ("All Years", "All Programs", "All Credits", "Sort Credits") were not fully populating or responding.
+
+Here is the master repair. This builds a **comprehensive advanced filtering and sorting engine** for both the **Admin Panel** and **Faculty Portal** containing:
+
+1. **Batch / Year Filter** (auto-populated from cloud records)
+2. **Program Filter** (auto-populated from cloud records)
+3. **Backlog Filter** (All Students, Has Backlogs Only, Zero Backlogs)
+4. **Credit Sorting** (Low to High Credits, High to Low Credits)
+5. **CGPA Sorting** (Highest CGPA first, Lowest CGPA first)
+6. **Live Search** (by SEN or Name)
 
 ---
 
@@ -11,26 +41,143 @@ Here is the master repair to ensure the faculty curriculum viewer displays **onl
 ```javascript
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 1.7.1 - Faculty Curriculum Table & Dropdown Filter)
+ * Master Script Engine (Ver 1.7.2 - Advanced Student Filters & Sorting Suite)
  */
 
 'use strict';
 
-// --- 1. COURSE INFO HELPER ---
-window.getCourseInfo = function(code) {
-    if (!code) return { name: "Course Title", credits: 3 };
-    let cleanCode = String(code).toUpperCase().trim();
-    if (window.CUSTOM_COURSE_DICT && window.CUSTOM_COURSE_DICT[cleanCode]) {
-        let item = window.CUSTOM_COURSE_DICT[cleanCode];
-        return {
-            name: item.name || cleanCode,
-            credits: (item.credits !== undefined && !isNaN(item.credits)) ? parseFloat(item.credits) : 3
-        };
+// --- 1. BACKLOG CHECKER HELPER ---
+window.getActiveBacklogs = function(courses) {
+    let history = {};
+    (courses || []).forEach(c => {
+        if (!c.code || c.code === 'NAN') return;
+        let code = String(c.code).toUpperCase().trim();
+        if (!history[code]) history[code] = { passed: false, latest: c };
+        let isFail = ['F', 'AB', 'DE', 'I', 'U'].includes(String(c.grade || c.Grade || '').toUpperCase().trim());
+        if (!isFail) history[code].passed = true;
+        else if (!history[code].passed) history[code].latest = c;
+    });
+    let backlogs = [];
+    for (let code in history) {
+        if (!history[code].passed) backlogs.push(history[code].latest);
     }
-    return { name: cleanCode, credits: 3 };
+    return backlogs;
 };
 
-// --- 2. FACULTY CURRICULUM TAB VIEWER (Dropdown & Clean Table Structure) ---
+// --- 2. POPULATE FILTER DROPDOWNS DYNAMICALLY ---
+window.populateFilterDropdowns = function() {
+    let batches = [...new Set((window.STUDENTS || []).map(s => String(s.batch || '').trim()))].filter(Boolean);
+    let programs = [...new Set((window.STUDENTS || []).map(s => String(s.program || '').trim()))].filter(Boolean);
+
+    if (batches.length === 0) batches = ["2024", "2025"];
+    if (programs.length === 0) programs = ["MCA", "B.C.A"];
+
+    // Update Admin & Faculty Batch dropdowns
+    document.querySelectorAll('#filter-batch, select[id*="batch"], select[id*="Year"]').forEach(sel => {
+        let current = sel.value;
+        sel.innerHTML = `<option value="">All Years / Batches</option>` + batches.map(b => `<option value="${b}">${b}</option>`).join('');
+        if (current) sel.value = current;
+    });
+
+    // Update Admin & Faculty Program dropdowns
+    document.querySelectorAll('#filter-program, select[id*="program"], select[id*="Program"]').forEach(sel => {
+        let current = sel.value;
+        sel.innerHTML = `<option value="">All Programs</option>` + programs.map(p => `<option value="${p}">${p}</option>`).join('');
+        if (current) sel.value = current;
+    });
+};
+
+// --- 3. ROBUST ADMIN FILTER & SORT ENGINE ---
+window.applyAdminFilters = async function() {
+    var tbody = document.getElementById('admin-tbody');
+    var totalStu = document.getElementById('total-stu');
+    if (!tbody) return;
+
+    if (window.STUDENTS.length === 0) {
+        await window.initializeCloudPortal();
+    }
+
+    window.populateFilterDropdowns();
+
+    const searchInput = document.querySelector('input[placeholder*="sunil"], input[placeholder*="Search"], #admin-search-input');
+    const searchTxt = searchInput ? searchInput.value.toLowerCase().trim() : "";
+
+    const batchSel = document.getElementById('filter-batch') ? document.getElementById('filter-batch').value.trim() : "";
+    const progSel = document.getElementById('filter-program') ? document.getElementById('filter-program').value.trim() : "";
+    
+    // Additional Advanced Filters
+    const backlogSel = document.getElementById('filter-backlog') ? document.getElementById('filter-backlog').value.trim() : "";
+    const sortSel = document.getElementById('sort-credits') ? document.getElementById('sort-credits').value.trim() : "";
+
+    let filtered = window.STUDENTS.filter(s => {
+        let matchSearch = !searchTxt || String(s.sen || '').toLowerCase().includes(searchTxt) || String(s.name || '').toLowerCase().includes(searchTxt);
+        let matchBatch = !batchSel || String(s.batch || '').trim() === batchSel;
+        let matchProg = !progSel || String(s.program || '').trim() === progSel;
+        
+        let backlogs = window.getActiveBacklogs(s.courses);
+        let matchBacklog = true;
+        if (backlogSel === 'has_backlog') matchBacklog = backlogs.length > 0;
+        else if (backlogSel === 'no_backlog') matchBacklog = backlogs.length === 0;
+
+        return matchSearch && matchBatch && matchProg && matchBacklog;
+    });
+
+    // Sorting
+    if (sortSel === 'cred_low_high') {
+        filtered.sort((a, b) => parseFloat(a.totalCredits || 0) - parseFloat(b.totalCredits || 0));
+    } else if (sortSel === 'cred_high_low') {
+        filtered.sort((a, b) => parseFloat(b.totalCredits || 0) - parseFloat(a.totalCredits || 0));
+    } else if (sortSel === 'cgpa_high_low') {
+        filtered.sort((a, b) => parseFloat(b.cgpa || 0) - parseFloat(a.cgpa || 0));
+    } else if (sortSel === 'cgpa_low_high') {
+        filtered.sort((a, b) => parseFloat(a.cgpa || 0) - parseFloat(b.cgpa || 0));
+    }
+
+    if (totalStu) totalStu.textContent = filtered.length;
+
+    // Inject advanced filter bar if missing
+    let searchContainer = searchInput ? searchInput.parentElement : tbody.closest('table').previousElementSibling;
+    if (searchContainer && !document.getElementById('admin-advanced-filter-bar')) {
+        let filterBar = document.createElement('div');
+        filterBar.id = 'admin-advanced-filter-bar';
+        filterBar.style.cssText = 'display:flex; gap:10px; margin:15px 0; flex-wrap:wrap; align-items:center;';
+        filterBar.innerHTML = `
+            <select id="filter-backlog" onchange="window.applyAdminFilters()" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; background:white;">
+                <option value="">All Backlog Status</option>
+                <option value="has_backlog">⚠️ Has Backlogs / Failed</option>
+                <option value="no_backlog">✅ Zero Backlogs (Clean)</option>
+            </select>
+            <select id="sort-credits" onchange="window.applyAdminFilters()" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; background:white;">
+                <option value="">Sort: Default</option>
+                <option value="cred_high_low">Credits: High to Low</option>
+                <option value="cred_low_high">Credits: Low to High</option>
+                <option value="cgpa_high_low">CGPA: High to Low</option>
+                <option value="cgpa_low_high">CGPA: Low to High</option>
+            </select>
+        `;
+        searchContainer.appendChild(filterBar);
+    }
+
+    tbody.innerHTML = filtered.map((s, i) => {
+        let cRaw = parseFloat(s.cgpa);
+        let cFormatted = !isNaN(cRaw) ? cRaw.toFixed(2) : 'N/A';
+        let backlogsCount = window.getActiveBacklogs(s.courses).length;
+
+        return `
+        <tr style="border-bottom:1px solid #e2e8f0;">
+            <td style="padding:10px;">${i + 1}</td>
+            <td style="font-weight:bold;">${esc(s.sen)}</td>
+            <td>${esc(s.name)}</td>
+            <td>${esc(s.program || 'N/A')}</td>
+            <td style="font-weight:bold; color:#3b82f6;">${cFormatted}</td>
+            <td>${s.totalCredits || '0'}</td>
+            <td><span style="padding:3px 8px; border-radius:4px; font-weight:bold; background:${backlogsCount > 0 ? '#fee2e2' : '#dcfce3'}; color:${backlogsCount > 0 ? '#dc2626' : '#16a34a'};">${backlogsCount}</span></td>
+            <td><button style="background:#0ea5e9; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer;" onclick="window.openAdminStudentView('${esc(s.sen)}')">Details</button></td>
+        </tr>`;
+    }).join('');
+};
+
+// --- 4. ROBUST FACULTY FILTER & SORT ENGINE ---
 window.switchFacultyTab = function(tabName) {
     let area = document.getElementById('faculty-tab-content-area');
     if (!area) return;
@@ -45,16 +192,31 @@ window.switchFacultyTab = function(tabName) {
     }
 
     if (tabName === 'directory') {
+        let batches = [...new Set((window.STUDENTS || []).map(s => String(s.batch || '').trim()))].filter(Boolean);
+        let programs = [...new Set((window.STUDENTS || []).map(s => String(s.program || '').trim()))].filter(Boolean);
+
         area.innerHTML = `
             <div style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
-                <input type="text" id="faculty-search-input" placeholder="Search SEN or Name..." oninput="window.facultyFilterAndSort()" style="flex:1; min-width:220px; padding:8px; border:1px solid #cbd5e1; border-radius:6px;" />
-                <select id="filter-batch" onchange="window.facultyFilterAndSort()" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px;">
-                    <option value="">All Years</option>
-                    ${[...new Set(window.SYSTEM_PROGRAMS.map(p => p.batch))].map(b => `<option value="${b}">${b}</option>`).join('')}
+                <input type="text" id="faculty-search-input" placeholder="Search SEN or Name..." oninput="window.facultyFilterAndSort()" style="flex:1; min-width:200px; padding:8px; border:1px solid #cbd5e1; border-radius:6px;" />
+                <select id="filter-batch" onchange="window.facultyFilterAndSort()" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; background:white;">
+                    <option value="">All Years / Batches</option>
+                    ${batches.map(b => `<option value="${b}">${b}</option>`).join('')}
                 </select>
-                <select id="filter-program" onchange="window.facultyFilterAndSort()" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px;">
+                <select id="filter-program" onchange="window.facultyFilterAndSort()" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; background:white;">
                     <option value="">All Programs</option>
-                    ${[...new Set(window.SYSTEM_PROGRAMS.map(p => p.program))].map(p => `<option value="${p}">${p}</option>`).join('')}
+                    ${programs.map(p => `<option value="${p}">${p}</option>`).join('')}
+                </select>
+                <select id="filter-backlog" onchange="window.facultyFilterAndSort()" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; background:white;">
+                    <option value="">All Backlog Status</option>
+                    <option value="has_backlog">⚠️ Has Backlogs / Failed</option>
+                    <option value="no_backlog">✅ Zero Backlogs (Clean)</option>
+                </select>
+                <select id="sort-credits" onchange="window.facultyFilterAndSort()" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; background:white;">
+                    <option value="">Sort: Default</option>
+                    <option value="cred_high_low">Credits: High to Low</option>
+                    <option value="cred_low_high">Credits: Low to High</option>
+                    <option value="cgpa_high_low">CGPA: High to Low</option>
+                    <option value="cgpa_low_high">CGPA: Low to High</option>
                 </select>
             </div>
             <div style="background:white; border-radius:8px; border:1px solid #cbd5e1; overflow:hidden;">
@@ -65,6 +227,7 @@ window.switchFacultyTab = function(tabName) {
                             <th style="padding:12px;">Name</th>
                             <th style="padding:12px;">CGPA</th>
                             <th style="padding:12px;">Credits Earned</th>
+                            <th style="padding:12px;">Backlogs</th>
                             <th style="padding:12px; text-align:right;">Action</th>
                         </tr>
                     </thead>
@@ -74,112 +237,65 @@ window.switchFacultyTab = function(tabName) {
         `;
         window.facultyFilterAndSort();
     } else if (tabName === 'curriculum') {
-        let sysProgs = window.SYSTEM_PROGRAMS.length > 0 ? window.SYSTEM_PROGRAMS : [{ batch: "2024", program: "MCA" }];
-
-        area.innerHTML = `
-            <div style="background:white; padding:25px; border-radius:8px; border:1px solid #cbd5e1; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:15px;">
-                    <div style="display:flex; align-items:center; gap:12px;">
-                        <label style="font-weight:bold; color:#1e293b;">Select Batch & Program:</label>
-                        <select id="faculty-curr-select" onchange="window.renderFacultyCurriculumTable()" style="padding:8px 14px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold; background:#f8fafc;">
-                            ${sysProgs.map(p => `<option value="${p.batch}_${p.program}">${p.batch} ${p.program}</option>`).join('')}
-                        </select>
-                    </div>
-                    <button onclick="window.exportFacultyCurriculumPDF()" style="background:#dc2626; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer;">📄 Download Curriculum PDF</button>
-                </div>
-                <div id="faculty-curriculum-table-container"></div>
-            </div>
-        `;
-        window.renderFacultyCurriculumTable();
+        window.renderFacultyCurriculumTab(area);
     }
 };
 
-window.renderFacultyCurriculumTable = function() {
-    let dropdown = document.getElementById('faculty-curr-select');
-    let container = document.getElementById('faculty-curriculum-table-container');
-    if (!container) return;
+window.facultyFilterAndSort = function() {
+    let students = window.STUDENTS || [];
+    const searchInput = document.getElementById('faculty-search-input');
+    const searchTxt = searchInput ? searchInput.value.toLowerCase().trim() : "";
+    const batchSel = document.getElementById('filter-batch') ? document.getElementById('filter-batch').value.trim() : "";
+    const progSel = document.getElementById('filter-program') ? document.getElementById('filter-program').value.trim() : "";
+    const backlogSel = document.getElementById('filter-backlog') ? document.getElementById('filter-backlog').value.trim() : "";
+    const sortSel = document.getElementById('sort-credits') ? document.getElementById('sort-credits').value.trim() : "";
 
-    let selectedKey = dropdown ? dropdown.value : "2024_MCA";
-    let rules = window.CURRICULUM_RULES[selectedKey] || [];
+    let filtered = students.filter(s => {
+        let matchSearch = !searchTxt || String(s.sen || '').toLowerCase().includes(searchTxt) || String(s.name || '').toLowerCase().includes(searchTxt);
+        let matchBatch = !batchSel || String(s.batch || '').trim() === batchSel;
+        let matchProg = !progSel || String(s.program || '').trim() === progSel;
+        
+        let backlogs = window.getActiveBacklogs(s.courses);
+        let matchBacklog = true;
+        if (backlogSel === 'has_backlog') matchBacklog = backlogs.length > 0;
+        else if (backlogSel === 'no_backlog') matchBacklog = backlogs.length === 0;
 
-    if (rules.length === 0) {
-        container.innerHTML = `<p style="color:#64748b; text-align:center; padding:30px;">No curriculum rules found for ${selectedKey.replace('_', ' ')}.</p>`;
+        return matchSearch && matchBatch && matchProg && matchBacklog;
+    });
+
+    if (sortSel === 'cred_low_high') {
+        filtered.sort((a, b) => parseFloat(a.totalCredits || 0) - parseFloat(b.totalCredits || 0));
+    } else if (sortSel === 'cred_high_low') {
+        filtered.sort((a, b) => parseFloat(b.totalCredits || 0) - parseFloat(a.totalCredits || 0));
+    } else if (sortSel === 'cgpa_high_low') {
+        filtered.sort((a, b) => parseFloat(b.cgpa || 0) - parseFloat(a.cgpa || 0));
+    } else if (sortSel === 'cgpa_low_high') {
+        filtered.sort((a, b) => parseFloat(a.cgpa || 0) - parseFloat(b.cgpa || 0));
+    }
+
+    let tbody = document.getElementById('faculty-directory-tbody');
+    if (!tbody) return;
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px; color:#64748b;">No matching students found.</td></tr>`;
         return;
     }
 
-    let html = `<h4 style="color:#0f172a; margin-top:0; margin-bottom:20px;">📋 Curriculum Table: <span style="color:#2563eb;">${selectedKey.replace('_', ' ')}</span></h4>`;
+    tbody.innerHTML = filtered.map(s => {
+        let cRaw = parseFloat(s.cgpa);
+        let cFormatted = !isNaN(cRaw) ? cRaw.toFixed(2) : 'N/A';
+        let backlogsCount = window.getActiveBacklogs(s.courses).length;
 
-    rules.forEach((main) => {
-        html += `
-        <div style="margin-bottom:25px; border:1px solid #cbd5e1; border-radius:8px; overflow:hidden; background:white;">
-            <div style="background:#f8fafc; padding:14px 18px; border-bottom:1px solid #cbd5e1; display:flex; justify-content:space-between; align-items:center;">
-                <strong style="color:#1e293b; font-size:1.1rem;">📁 ${esc(main.category)}</strong>
-                <span style="background:#e0f2fe; color:#0369a1; padding:3px 10px; border-radius:4px; font-weight:bold; font-size:0.85rem;">Min Credits: ${main.minCredits}</span>
-            </div>`;
-
-        (main.subCategories || []).forEach((sub) => {
-            html += `
-            <div style="padding:15px; background:white; border-bottom:1px solid #e2e8f0;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                    <span style="font-weight:bold; color:#334155; font-size:0.95rem;">📄 Sub-Category: ${esc(sub.name)}</span>
-                    <span style="color:#64748b; font-size:0.85rem; font-weight:bold;">Min Credits: ${sub.minCredits} Cr</span>
-                </div>
-                <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
-                    <thead>
-                        <tr style="background:#f1f5f9; color:#475569; text-align:left;">
-                            <th style="padding:9px 12px; border-bottom:1px solid #cbd5e1;">Course Code</th>
-                            <th style="padding:9px 12px; border-bottom:1px solid #cbd5e1;">Course Name</th>
-                            <th style="padding:9px 12px; border-bottom:1px solid #cbd5e1; text-align:right;">Credits</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${(sub.codes || []).length > 0 ? (sub.codes || []).map((code) => {
-                            let info = window.getCourseInfo(code);
-                            return `
-                            <tr style="border-bottom:1px solid #f8fafc;">
-                                <td style="padding:9px 12px; font-weight:bold; color:#0f172a;">${esc(code)}</td>
-                                <td style="padding:9px 12px; color:#334155;">${esc(info.name)}</td>
-                                <td style="padding:9px 12px; text-align:right; font-weight:bold; color:#2563eb;">${info.credits} Cr</td>
-                            </tr>`;
-                        }).join('') : `<tr><td colspan="3" style="padding:10px; color:#64748b; text-align:center;">No courses in this sub-category.</td></tr>`}
-                    </tbody>
-                </table>
-            </div>`;
-        });
-        html += `</div>`;
-    });
-
-    container.innerHTML = html;
-};
-
-window.exportFacultyCurriculumPDF = function() {
-    if (!window.jspdf || !window.jspdf.jsPDF) { alert("PDF library loading..."); return; }
-    let dropdown = document.getElementById('faculty-curr-select');
-    let selectedKey = dropdown ? dropdown.value : "2024_MCA";
-    let rules = window.CURRICULUM_RULES[selectedKey] || [];
-
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    doc.setFontSize(14);
-    doc.text(`Amity University - Curriculum Report (${selectedKey.replace('_', ' ')})`, 14, 20);
-
-    let flatRows = [];
-    rules.forEach(main => {
-        (main.subCategories || []).forEach(sub => {
-            (sub.codes || []).forEach(code => {
-                let info = window.getCourseInfo(code);
-                flatRows.push([main.category, sub.name, code, info.name, `${info.credits} Cr`]);
-            });
-        });
-    });
-
-    doc.autoTable({
-        startY: 28,
-        head: [['Main Category', 'Sub Category', 'Code', 'Course Name', 'Credits']],
-        body: flatRows,
-        theme: 'grid'
-    });
-    doc.save(`Curriculum_${selectedKey}.pdf`);
+        return `
+        <tr style="border-bottom:1px solid #e2e8f0;">
+            <td style="padding:12px; font-weight:bold;">${esc(s.sen)}</td>
+            <td style="padding:12px;">${esc(s.name)}</td>
+            <td style="padding:12px; font-weight:bold; color:#3b82f6;">${cFormatted}</td>
+            <td style="padding:12px; font-weight:bold;">${s.totalCredits || '0'}</td>
+            <td style="padding:12px;"><span style="padding:3px 8px; border-radius:4px; font-weight:bold; background:${backlogsCount > 0 ? '#fee2e2' : '#dcfce3'}; color:${backlogsCount > 0 ? '#dc2626' : '#16a34a'};">${backlogsCount}</span></td>
+            <td style="padding:12px; text-align:right;"><button style="background:#0ea5e9; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-weight:bold;" onclick="window.openFacultyStudentView('${esc(s.sen)}')">Details</button></td>
+        </tr>`;
+    }).join('');
 };
 
 ```

@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════════
-//   AIIT COE RESULT PORTAL — Google Apps Script Backend (V1.5 COE Login & Dual Audit)
+//   AIIT COE RESULT PORTAL — Google Apps Script Backend (V1.5.1 COE Configuration & Seating)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 var SHEET_ID = "1_aJ5SVfkQEIEMMb8NyjU7mZWX9nWkGM2j9-ZZVrU2zQ";
@@ -174,6 +174,28 @@ function doPost(e) {
         count += (parseInt(rows[i][2]) || 1);
       }
       return jsonResponse([{ email: "coeaub@blr.amity.edu", timestamps: timestamps.length > 0 ? timestamps : ["Never"], count: count, lastTimestamp: timestamps[timestamps.length-1] || "Never" }]);
+    }
+
+    if (action === 'saveCoeConfig') {
+      var ss = SpreadsheetApp.openById(SHEET_ID);
+      var cfgSheet = ss.getSheetByName("CoeConfig") || ss.insertSheet("CoeConfig");
+      cfgSheet.clear();
+      cfgSheet.appendRow(["ConfigKey", "ConfigJSON"]);
+      cfgSheet.appendRow(["master_config", data.configJson]);
+      return jsonResponse({status: "success", message: "COE Configuration saved to cloud."});
+    }
+
+    if (action === 'getCoeConfig') {
+      var ss = SpreadsheetApp.openById(SHEET_ID);
+      var cfgSheet = ss.getSheetByName("CoeConfig");
+      if (!cfgSheet) return jsonResponse({status: "success", config: null});
+      var rows = cfgSheet.getDataRange().getValues();
+      for (var i = 1; i < rows.length; i++) {
+        if (rows[i][0] === 'master_config') {
+          return jsonResponse({status: "success", config: JSON.parse(rows[i][1])});
+        }
+      }
+      return jsonResponse({status: "success", config: null});
     }
 
     if (action === 'getFacultyAudit') {

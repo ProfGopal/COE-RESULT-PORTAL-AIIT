@@ -1,6 +1,6 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 12.0 - Faculty Dashboard, Filters, Details & Curriculum Loader Repair)
+ * Master Script Engine (Ver 13.0 - True Database-Connected Faculty Auth & Audit)
  */
 
 'use strict';
@@ -148,7 +148,7 @@ window.facultyLoginStep = async function () {
         var result = await response.json();
 
         if (result && result.status === 'first_time') {
-            let newPass = prompt("🔐 First-time login using default password. Enter your new permanent password (min 6 characters):");
+            let newPass = prompt("🔐 First-time login or password reset. Enter your new permanent password (min 6 characters):");
             if (!newPass || newPass.length < 6) {
                 alert("❌ Password must be at least 6 characters.");
                 return;
@@ -173,12 +173,20 @@ window.facultyLoginStep = async function () {
         if (result && result.status === 'success') {
             alert("✅ Faculty Verified Successfully! Loading Portal...");
             window.currentFacultyEmail = email;
-            window.renderFacultyPortal(email);
+            let fLogin = document.getElementById('faculty-login-container') || document.getElementById('faculty-login');
+            let fDash = document.getElementById('faculty-dash') || document.querySelector('.faculty-section');
+            if (fLogin) fLogin.style.display = 'none';
+            if (fDash) {
+                fDash.style.display = 'block';
+                if (typeof window.renderFacultyPortal === 'function') window.renderFacultyPortal(email);
+            } else {
+                location.reload();
+            }
         } else {
-            alert("❌ " + (result.message || 'Invalid Faculty Credentials or Email not authorized.'));
+            alert("❌ " + (result.message || 'Invalid Faculty Credentials'));
         }
     } catch (err) {
-        alert("✗ Network error connecting to faculty authentication backend.");
+        alert("❌ Network error connecting to database backend.");
     }
 };
 
@@ -306,7 +314,7 @@ window.renderAdminFacultyAudit = async function() {
             <tr style="border-bottom:1px solid #e2e8f0;">
                 <td style="padding:10px; font-weight:bold; color:#0f172a;">${esc(item.email)}</td>
                 <td style="padding:10px; text-align:center;"><span style="background:#dcfce3; color:#16a34a; padding:4px 8px; border-radius:4px; font-weight:bold;">${item.count} logins</span></td>
-                <td style="padding:10px; color:#475569;">${new Date(item.timestamp).toLocaleString()}</td>
+                <td style="padding:10px; color:#475569;">${item.timestamp !== 'Never' ? new Date(item.timestamp).toLocaleString() : 'Never'}</td>
                 <td style="padding:10px; text-align:right;">
                     <button onclick="window.adminResetFacultyPwd('${esc(item.email)}')" style="background:#ef4444; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-weight:bold;">Reset Password</button>
                 </td>
@@ -314,8 +322,8 @@ window.renderAdminFacultyAudit = async function() {
         });
 
         container.innerHTML = `
-            <h3 style="color:#0f172a; margin-top:0;">📊 Faculty Login Audit & Security Dashboard</h3>
-            <p style="color:#475569; font-size:0.9rem;">Tracks faculty login frequency, last active timestamps, and allows resetting passwords back to default (faculty@123).</p>
+            <h3 style="color:#0f172a; margin-top:0;">📊 Faculty List & Login Audit Dashboard</h3>
+            <p style="color:#475569; font-size:0.9rem;">View authorized faculty members, total login frequency, timestamps, and reset passwords back to default (faculty@123).</p>
             <table style="width:100%; border-collapse:collapse; margin-top:15px; font-size:0.9rem;">
                 <thead>
                     <tr style="background:#f8fafc; border-bottom:2px solid #cbd5e1; color:#334155; text-align:left;">
@@ -325,7 +333,7 @@ window.renderAdminFacultyAudit = async function() {
                         <th style="padding:10px; text-align:right;">Action</th>
                     </tr>
                 </thead>
-                <tbody>${rowsHTML || `<tr><td colspan="4" style="text-align:center; padding:20px; color:#64748b;">No faculty login audits recorded yet.</td></tr>`}</tbody>
+                <tbody>${rowsHTML || `<tr><td colspan="4" style="text-align:center; padding:20px; color:#64748b;">No faculty records found.</td></tr>`}</tbody>
             </table>
         `;
     } catch(e) {

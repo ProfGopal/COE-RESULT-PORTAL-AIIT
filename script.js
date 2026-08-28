@@ -1,6 +1,6 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 13.0 - True Database-Connected Faculty Auth & Audit)
+ * Master Script Engine (Ver 14.0 - Faculty List, Details & Audit Suite)
  */
 
 'use strict';
@@ -298,7 +298,7 @@ window.renderAdminFacultyAudit = async function() {
         if (tabFac) {
             container = document.createElement('div');
             container.id = 'admin-faculty-audit-container';
-            container.style.cssText = 'margin-top:20px; background:white; padding:20px; border-radius:8px; border:1px solid #cbd5e1;';
+            container.style.cssText = 'margin-top:25px; background:white; padding:20px; border-radius:8px; border:1px solid #cbd5e1;';
             tabFac.appendChild(container);
         }
     }
@@ -308,29 +308,33 @@ window.renderAdminFacultyAudit = async function() {
         let res = await fetch(scriptURL + "?action=getFacultyAudit");
         let auditList = await res.json();
 
+        window.FACULTY_AUDIT_CACHE = auditList;
+
         let rowsHTML = "";
-        (auditList || []).forEach(item => {
+        (auditList || []).forEach((item, index) => {
+            let lastTime = item.lastTimestamp && item.lastTimestamp !== 'Never' ? new Date(item.lastTimestamp).toLocaleString() : 'Never';
             rowsHTML += `
             <tr style="border-bottom:1px solid #e2e8f0;">
-                <td style="padding:10px; font-weight:bold; color:#0f172a;">${esc(item.email)}</td>
-                <td style="padding:10px; text-align:center;"><span style="background:#dcfce3; color:#16a34a; padding:4px 8px; border-radius:4px; font-weight:bold;">${item.count} logins</span></td>
-                <td style="padding:10px; color:#475569;">${item.timestamp !== 'Never' ? new Date(item.timestamp).toLocaleString() : 'Never'}</td>
-                <td style="padding:10px; text-align:right;">
-                    <button onclick="window.adminResetFacultyPwd('${esc(item.email)}')" style="background:#ef4444; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-weight:bold;">Reset Password</button>
+                <td style="padding:12px; font-weight:bold; color:#0f172a;">${esc(item.email)}</td>
+                <td style="padding:12px; text-align:center;"><span style="background:#dcfce3; color:#16a34a; padding:4px 10px; border-radius:4px; font-weight:bold;">${item.count} logins</span></td>
+                <td style="padding:12px; color:#475569;">${lastTime}</td>
+                <td style="padding:12px; text-align:right; white-space:nowrap;">
+                    <button onclick="window.showFacultyAuditDetails(${index})" style="background:#0ea5e9; color:white; border:none; padding:5px 12px; border-radius:4px; cursor:pointer; font-weight:bold; margin-right:6px;">Details</button>
+                    <button onclick="window.adminResetFacultyPwd('${esc(item.email)}')" style="background:#ef4444; color:white; border:none; padding:5px 12px; border-radius:4px; cursor:pointer; font-weight:bold;">Reset Password</button>
                 </td>
             </tr>`;
         });
 
         container.innerHTML = `
-            <h3 style="color:#0f172a; margin-top:0;">📊 Faculty List & Login Audit Dashboard</h3>
-            <p style="color:#475569; font-size:0.9rem;">View authorized faculty members, total login frequency, timestamps, and reset passwords back to default (faculty@123).</p>
+            <h3 style="color:#0f172a; margin-top:0;">📊 Authorized Faculty Directory & Login Audit</h3>
+            <p style="color:#475569; font-size:0.9rem;">Complete list of authorized faculty members with live login counts, date/timestamp logs, and password reset controls.</p>
             <table style="width:100%; border-collapse:collapse; margin-top:15px; font-size:0.9rem;">
                 <thead>
                     <tr style="background:#f8fafc; border-bottom:2px solid #cbd5e1; color:#334155; text-align:left;">
-                        <th style="padding:10px;">Faculty Email</th>
-                        <th style="padding:10px; text-align:center;">Login Count</th>
-                        <th style="padding:10px;">Last Timestamp</th>
-                        <th style="padding:10px; text-align:right;">Action</th>
+                        <th style="padding:12px;">Faculty Email</th>
+                        <th style="padding:12px; text-align:center;">Login Count</th>
+                        <th style="padding:12px;">Last Timestamp</th>
+                        <th style="padding:12px; text-align:right;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>${rowsHTML || `<tr><td colspan="4" style="text-align:center; padding:20px; color:#64748b;">No faculty records found.</td></tr>`}</tbody>
@@ -339,6 +343,36 @@ window.renderAdminFacultyAudit = async function() {
     } catch(e) {
         console.warn("Faculty audit load error:", e);
     }
+};
+
+window.showFacultyAuditDetails = function(index) {
+    let faculty = window.FACULTY_AUDIT_CACHE ? window.FACULTY_AUDIT_CACHE[index] : null;
+    if (!faculty) return;
+
+    let timestamps = faculty.timestamps || [];
+    let listHTML = timestamps.map((t, i) => `<li>${t !== 'Never' ? new Date(t).toLocaleString() : 'Never logged in'}</li>`).join('');
+
+    let modal = document.getElementById('faculty-detail-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'faculty-detail-modal';
+        modal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:flex; justify-content:center; align-items:center; z-index:9999;';
+        document.body.appendChild(modal);
+    }
+
+    modal.innerHTML = `
+        <div style="background:white; padding:25px; border-radius:8px; width:450px; max-width:90%; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
+            <h3 style="margin-top:0; color:#0f172a;">📅 Login History: ${esc(faculty.email)}</h3>
+            <p style="color:#475569; font-size:0.9rem;">Total Logins: <strong>${faculty.count}</strong></p>
+            <div style="max-height:250px; overflow-y:auto; background:#f8fafc; padding:10px; border:1px solid #cbd5e1; border-radius:6px; margin-bottom:15px;">
+                <ul style="margin:0; padding-left:20px; color:#334155; font-size:0.9rem;">${listHTML}</ul>
+            </div>
+            <div style="text-align:right;">
+                <button onclick="document.getElementById('faculty-detail-modal').style.display='none';" style="background:#3b82f6; color:white; border:none; padding:6px 16px; border-radius:4px; cursor:pointer; font-weight:bold;">Close</button>
+            </div>
+        </div>
+    `;
+    modal.style.display = 'flex';
 };
 
 window.adminResetFacultyPwd = async function(email) {

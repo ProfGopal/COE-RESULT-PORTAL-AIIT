@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════════
-//   AIIT COE RESULT PORTAL — Google Apps Script Backend (V13.0 True Database-Driven Faculty Auth)
+//   AIIT COE RESULT PORTAL — Google Apps Script Backend (V14.0 Faculty List & Audit Details)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 var SHEET_ID = "1_aJ5SVfkQEIEMMb8NyjU7mZWX9nWkGM2j9-ZZVrU2zQ";
@@ -8,11 +8,10 @@ var SETTINGS_SHEET = "Settings";
 var CURRICULUM_SHEET = "CurriculumDB";
 
 var AUTHORIZED_FACULTY = [
-  "Chandrashekharbn@blr.amity.edu", "gopalr@blr.amity.edu", "krishnachalithakc@blr.amity.edu",
+  "chandrashekharbn@blr.amity.edu", "gopalr@blr.amity.edu", "krishnachalithakc@blr.amity.edu",
   "mbhan@blr.amity.edu", "mkirmani@blr.amity.edu", "pramamurthy@blr.amity.edu",
   "pchakraborty@blr.amity.edu", "skumar2@blr.amity.edu", "vramamoorthy@blr.amity.edu",
-  "geethav@blr.amity.edu", "nkumar@blr.amity.edu", "ntressa@blr.amity.edu",
-  "rababladkar@blr.amity.edu", "sspattu@blr.amity.edu"
+  "geethav@blr.amity.edu", "nkumar@blr.amity.edu", "ntressa@blr.amity.edu", "sspattu@blr.amity.edu"
 ];
 
 function doPost(e) {
@@ -99,22 +98,31 @@ function doPost(e) {
 
     if (action === 'getFacultyAudit') {
       var ss = SpreadsheetApp.openById(SHEET_ID);
-      var auditSheet = ss.getSheetByName("FacultyAudit");
-      var facSheet = ss.getSheetByName("FacultyPass");
+      var auditSheet = ss.getSheetByName("FacultyAudit") || ss.insertSheet("FacultyAudit");
       
       var auditMap = {};
-      if (auditSheet && auditSheet.getLastRow() > 1) {
+      if (auditSheet.getLastRow() > 1) {
         var aData = auditSheet.getDataRange().getValues();
         for (var i = 1; i < aData.length; i++) {
-          auditMap[String(aData[i][0]).toLowerCase()] = { timestamp: aData[i][1], count: aData[i][2] };
+          var emailKey = String(aData[i][0]).toLowerCase();
+          if (!auditMap[emailKey]) {
+            auditMap[emailKey] = { timestamps: [], count: 0 };
+          }
+          auditMap[emailKey].timestamps.push(aData[i][1]);
+          auditMap[emailKey].count += (parseInt(aData[i][2]) || 1);
         }
       }
 
       var list = [];
       AUTHORIZED_FACULTY.forEach(function(email) {
         var key = email.toLowerCase();
-        var audit = auditMap[key] || { timestamp: "Never", count: 0 };
-        list.push({ email: email, timestamp: audit.timestamp, count: audit.count });
+        var record = auditMap[key] || { timestamps: ["Never"], count: 0 };
+        list.push({ 
+          email: email, 
+          timestamps: record.timestamps, 
+          count: record.count,
+          lastTimestamp: record.timestamps[record.timestamps.length - 1] || "Never"
+        });
       });
       return jsonResponse(list);
     }
@@ -208,14 +216,33 @@ function doGet(e) {
 
     if (action === 'getFacultyAudit') {
       var ss = SpreadsheetApp.openById(SHEET_ID);
-      var auditSheet = ss.getSheetByName("FacultyAudit");
-      if (!auditSheet) return jsonpResponse([], callback);
-      var rows = auditSheet.getDataRange().getValues();
-      var auditList = [];
-      for (var i = 1; i < rows.length; i++) {
-        auditList.push({ email: rows[i][0], timestamp: rows[i][1], count: rows[i][2] });
+      var auditSheet = ss.getSheetByName("FacultyAudit") || ss.insertSheet("FacultyAudit");
+      
+      var auditMap = {};
+      if (auditSheet.getLastRow() > 1) {
+        var aData = auditSheet.getDataRange().getValues();
+        for (var i = 1; i < aData.length; i++) {
+          var emailKey = String(aData[i][0]).toLowerCase();
+          if (!auditMap[emailKey]) {
+            auditMap[emailKey] = { timestamps: [], count: 0 };
+          }
+          auditMap[emailKey].timestamps.push(aData[i][1]);
+          auditMap[emailKey].count += (parseInt(aData[i][2]) || 1);
+        }
       }
-      return jsonpResponse(auditList, callback);
+
+      var list = [];
+      AUTHORIZED_FACULTY.forEach(function(email) {
+        var key = email.toLowerCase();
+        var record = auditMap[key] || { timestamps: ["Never"], count: 0 };
+        list.push({ 
+          email: email, 
+          timestamps: record.timestamps, 
+          count: record.count,
+          lastTimestamp: record.timestamps[record.timestamps.length - 1] || "Never"
+        });
+      });
+      return jsonpResponse(list, callback);
     }
 
     if (action === 'ping') return jsonpResponse({status: "pong", message: "Backend is online!"}, callback);
@@ -245,22 +272,9 @@ function logFacultyAudit(email) {
   var ss = SpreadsheetApp.openById(SHEET_ID);
   var auditSheet = ss.getSheetByName("FacultyAudit") || ss.insertSheet("FacultyAudit");
   if (auditSheet.getLastRow() === 0) {
-    auditSheet.appendRow(["Email", "Last Timestamp", "Login Count"]);
+    auditSheet.appendRow(["Email", "Timestamp", "Count"]);
   }
-  var data = auditSheet.getDataRange().getValues();
-  var found = false;
-  for (var i = 1; i < data.length; i++) {
-    if (String(data[i][0]).toLowerCase() === email.toLowerCase()) {
-      var currentCount = parseInt(data[i][2]) || 0;
-      auditSheet.getRange(i + 1, 2).setValue(new Date().toISOString());
-      auditSheet.getRange(i + 1, 3).setValue(currentCount + 1);
-      found = true;
-      break;
-    }
-  }
-  if (!found) {
-    auditSheet.appendRow([email, new Date().toISOString(), 1]);
-  }
+  auditSheet.appendRow([email, new Date().toISOString(), 1]);
 }
 
 function handleUpsert(payloadStudents) {

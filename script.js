@@ -1,6 +1,6 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 14.0 - Faculty List, Details & Audit Suite)
+ * Master Script Engine (Ver 15.0 - Student Backlog Tab & Label Optimization)
  */
 
 'use strict';
@@ -1036,6 +1036,23 @@ window.adminLogin = async function() {
 // ═══════════════════════════════════════════════════════════════════════
 //  11. STUDENT DASHBOARD RENDERING
 // ═══════════════════════════════════════════════════════════════════════
+window.getActiveBacklogs = function(courses) {
+    let history = {};
+    (courses || []).forEach(c => {
+        if (!c.code || c.code === 'NAN') return;
+        let code = String(c.code).toUpperCase().trim();
+        if (!history[code]) history[code] = { passed: false, latest: c };
+        let isFail = ['F', 'AB', 'DE', 'I', 'U'].includes(String(c.grade || c.Grade || '').toUpperCase().trim());
+        if (!isFail) history[code].passed = true;
+        else if (!history[code].passed) history[code].latest = c;
+    });
+    let backlogs = [];
+    for (let code in history) {
+        if (!history[code].passed) backlogs.push(history[code].latest);
+    }
+    return backlogs;
+};
+
 window.loadStudentDashboard = function(student) {
     window.currentStudent = student;
     document.querySelectorAll('.page, .login-container, #student-login-container, .landing-container').forEach(el => {
@@ -1053,12 +1070,13 @@ window.loadStudentDashboard = function(student) {
     let cgpa = student.cgpa || 'N/A';
     let credits = student.totalCredits || '0';
     let validCourses = (student.courses || []).filter(c => c && c.code && c.code !== 'NAN');
-    let activeBacklogs = window.getActiveBacklogs ? window.getActiveBacklogs(validCourses) : [];
+    let backlogsList = window.getActiveBacklogs(validCourses);
 
     document.querySelectorAll('#dash-name, .student-name').forEach(el => el.textContent = `${name} (${sen})`);
     document.querySelectorAll('#dash-cgpa, .cgpa-val').forEach(el => el.textContent = cgpa);
     document.querySelectorAll('#dash-ce, .credits-val').forEach(el => el.textContent = credits);
 
+    // Inject Tab Navigation for Student Portal (All Courses, Backlog, Degree Audit)
     let tableContainer = document.getElementById('courses-tbody') || document.querySelector('table tbody');
     if (tableContainer) tableContainer = tableContainer.closest('table').parentElement;
 
@@ -1101,7 +1119,7 @@ window.loadStudentDashboard = function(student) {
     if (tabNav) {
         tabNav.innerHTML = `
             <button onclick="window.switchStudentTab('all')" id="btn-stu-all" style="padding:8px 16px; border:none; background:#3b82f6; color:white; border-radius:6px; font-weight:bold; cursor:pointer;">📚 All Courses</button>
-            <button onclick="window.switchStudentTab('backlogs')" id="btn-stu-backlogs" style="padding:8px 16px; border:none; background:#f1f5f9; color:#475569; border-radius:6px; font-weight:bold; cursor:pointer;">⚠️ Active Backlogs (${activeBacklogs.length})</button>
+            <button onclick="window.switchStudentTab('backlogs')" id="btn-stu-backlogs" style="padding:8px 16px; border:none; background:#f1f5f9; color:#475569; border-radius:6px; font-weight:bold; cursor:pointer;">⚠️ Backlog (${backlogsList.length})</button>
             <button onclick="window.switchStudentTab('audit')" id="btn-stu-audit" style="padding:8px 16px; border:none; background:#f1f5f9; color:#475569; border-radius:6px; font-weight:bold; cursor:pointer;">🎓 Degree Audit Check</button>
             <button onclick="window.exportStudentPDF()" style="margin-left:auto; padding:8px 16px; border:none; background:#dc2626; color:white; border-radius:6px; font-weight:bold; cursor:pointer;">📄 Export PDF</button>
         `;
@@ -1123,7 +1141,7 @@ window.loadStudentDashboard = function(student) {
 
     let backlogsTbody = document.getElementById('student-backlogs-tbody');
     if (backlogsTbody) {
-        backlogsTbody.innerHTML = activeBacklogs.length > 0 ? activeBacklogs.map(c => `
+        backlogsTbody.innerHTML = backlogsList.length > 0 ? backlogsList.map(c => `
             <tr style="border-bottom:1px solid #e2e8f0;">
                 <td style="padding:10px; font-weight:bold;">${esc(c.code)}</td>
                 <td style="padding:10px;">${esc(c.name)}</td>
@@ -1132,7 +1150,7 @@ window.loadStudentDashboard = function(student) {
                 <td style="padding:10px;">${esc(c.marks)}</td>
                 <td style="padding:10px; font-weight:bold; color:#dc2626;">${esc(c.grade)}</td>
             </tr>
-        `).join('') : `<tr><td colspan="6" style="text-align:center; padding:20px; color:#16a34a; font-weight:bold;">🎉 Excellent! You have no active backlogs.</td></tr>`;
+        `).join('') : `<tr><td colspan="6" style="text-align:center; padding:20px; color:#16a34a; font-weight:bold;">🎉 Excellent! You have no backlogs.</td></tr>`;
     }
 
     let auditContainer = document.getElementById('student-tab-audit');
@@ -1140,6 +1158,7 @@ window.loadStudentDashboard = function(student) {
         auditContainer.innerHTML = window.evaluateDegree(student);
     }
 
+    // Clean Logout button text
     document.querySelectorAll('button, a').forEach(el => {
         let txt = el.textContent.trim().toLowerCase();
         if (txt.includes('logout') || txt.includes('search another')) {

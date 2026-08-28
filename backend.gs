@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════════
-//   AIIT COE RESULT PORTAL — Google Apps Script Backend (V14.0 Faculty List & Audit Details)
+//   AIIT COE RESULT PORTAL — Google Apps Script Backend (V1.5 COE Login & Dual Audit)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 var SHEET_ID = "1_aJ5SVfkQEIEMMb8NyjU7mZWX9nWkGM2j9-ZZVrU2zQ";
@@ -94,6 +94,86 @@ function doPost(e) {
         facSheet.appendRow([email, newPass, new Date().toISOString()]);
       }
       return jsonResponse({status: "success", message: "Faculty password updated successfully."});
+    }
+
+    if (action === 'verifycoe') {
+      var email = data.email ? data.email.trim().toLowerCase() : "";
+      var password = data.password ? data.password.trim() : "";
+      
+      if (email !== 'coeaub@blr.amity.edu') {
+        return jsonResponse({status: "error", message: "Invalid COE Email."});
+      }
+
+      var ss = SpreadsheetApp.openById(SHEET_ID);
+      var coeSheet = ss.getSheetByName("COELogin") || ss.insertSheet("COELogin");
+      if (coeSheet.getLastRow() === 0) {
+        coeSheet.appendRow(["Email", "Password", "Last Timestamp"]);
+      }
+      var coeData = coeSheet.getDataRange().getValues();
+      
+      var storedPass = "";
+      for (var i = 1; i < coeData.length; i++) {
+        if (String(coeData[i][0]).toLowerCase() === email) {
+          storedPass = String(coeData[i][1]).trim();
+          break;
+        }
+      }
+
+      if (!storedPass) {
+        if (password === 'coe@123') {
+          logCOEAudit(email);
+          return jsonResponse({status: "first_time", message: "First-time login. Please change your password."});
+        } else {
+          return jsonResponse({status: "error", message: "Invalid COE Credentials."});
+        }
+      }
+
+      if (storedPass === 'coe@123' && password === 'coe@123') {
+        return jsonResponse({status: "first_time", message: "First-time login. Please change your password."});
+      }
+
+      if (storedPass === password) {
+        logCOEAudit(email);
+        return jsonResponse({status: "success", message: "COE verified"});
+      }
+
+      return jsonResponse({status: "error", message: "Incorrect COE password."});
+    }
+
+    if (action === 'setcoepassword') {
+      var email = data.email ? data.email.trim().toLowerCase() : "";
+      var newPass = data.password ? data.password.trim() : "";
+      var ss = SpreadsheetApp.openById(SHEET_ID);
+      var coeSheet = ss.getSheetByName("COELogin") || ss.insertSheet("COELogin");
+      var coeData = coeSheet.getDataRange().getValues();
+      
+      var found = false;
+      for (var i = 1; i < coeData.length; i++) {
+        if (String(coeData[i][0]).toLowerCase() === email) {
+          coeSheet.getRange(i + 1, 2).setValue(newPass);
+          coeSheet.getRange(i + 1, 3).setValue(new Date().toISOString());
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        coeSheet.appendRow([email, newPass, new Date().toISOString()]);
+      }
+      return jsonResponse({status: "success", message: "COE password updated successfully."});
+    }
+
+    if (action === 'getCOEAudit') {
+      var ss = SpreadsheetApp.openById(SHEET_ID);
+      var auditSheet = ss.getSheetByName("COEAudit");
+      if (!auditSheet) return jsonResponse([{ email: "coeaub@blr.amity.edu", timestamps: ["Never"], count: 0 }]);
+      var rows = auditSheet.getDataRange().getValues();
+      var timestamps = [];
+      var count = 0;
+      for (var i = 1; i < rows.length; i++) {
+        timestamps.push(rows[i][1]);
+        count += (parseInt(rows[i][2]) || 1);
+      }
+      return jsonResponse([{ email: "coeaub@blr.amity.edu", timestamps: timestamps.length > 0 ? timestamps : ["Never"], count: count, lastTimestamp: timestamps[timestamps.length-1] || "Never" }]);
     }
 
     if (action === 'getFacultyAudit') {
@@ -271,6 +351,15 @@ function doGet(e) {
 function logFacultyAudit(email) {
   var ss = SpreadsheetApp.openById(SHEET_ID);
   var auditSheet = ss.getSheetByName("FacultyAudit") || ss.insertSheet("FacultyAudit");
+  if (auditSheet.getLastRow() === 0) {
+    auditSheet.appendRow(["Email", "Timestamp", "Count"]);
+  }
+  auditSheet.appendRow([email, new Date().toISOString(), 1]);
+}
+
+function logCOEAudit(email) {
+  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var auditSheet = ss.getSheetByName("COEAudit") || ss.insertSheet("COEAudit");
   if (auditSheet.getLastRow() === 0) {
     auditSheet.appendRow(["Email", "Timestamp", "Count"]);
   }

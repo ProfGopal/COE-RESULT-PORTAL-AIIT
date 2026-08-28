@@ -1,12 +1,19 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 15.0 - Student Backlog Tab & Label Optimization)
+ * Master Script Engine (Ver 1.5 - COE Login & Dual Audit Suite)
  */
 
 'use strict';
 
 const scriptURL = "https://script.google.com/macros/s/AKfycby0xTAEjyfcN-IrEVaEzQuFFAfCQD1wWhpTJ5dlv9S7jBIT48RY8PxH76mW2Mci0rCGCw/exec";
 const GAS_URL = scriptURL;
+
+window.AUTHORIZED_FACULTY_LIST = [
+    "chandrashekharbn@blr.amity.edu", "gopalr@blr.amity.edu", "krishnachalithakc@blr.amity.edu",
+    "mbhan@blr.amity.edu", "mkirmani@blr.amity.edu", "pramamurthy@blr.amity.edu",
+    "pchakraborty@blr.amity.edu", "skumar2@blr.amity.edu", "vramamoorthy@blr.amity.edu",
+    "geethav@blr.amity.edu", "nkumar@blr.amity.edu", "ntressa@blr.amity.edu", "sspattu@blr.amity.edu"
+];
 
 window.STUDENTS = [];
 window.CURRICULUM_RULES = {};
@@ -267,11 +274,14 @@ window.renderFacultyStudentTable = function(students) {
 
     tbody.innerHTML = students.map(s => {
         let activeBacklogs = window.getActiveBacklogs ? window.getActiveBacklogs(s.courses).length : 0;
+        let cRaw = parseFloat(s.cgpa);
+        let cFormatted = !isNaN(cRaw) ? cRaw.toFixed(2) : 'N/A'; // FIX: CGPA 2 decimal places
+
         return `
         <tr style="border-bottom:1px solid #e2e8f0;">
             <td style="padding:12px; font-weight:bold;">${esc(s.sen)}</td>
             <td style="padding:12px;">${esc(s.name)}</td>
-            <td style="padding:12px; font-weight:bold; color:#3b82f6;">${s.cgpa || 'N/A'}</td>
+            <td style="padding:12px; font-weight:bold; color:#3b82f6;">${cFormatted}</td>
             <td style="padding:12px; font-weight:bold;">${s.totalCredits || '0'}</td>
             <td style="padding:12px;"><span style="padding:4px 8px; border-radius:4px; font-weight:bold; background:${activeBacklogs > 0 ? '#fee2e2' : '#dcfce3'}; color:${activeBacklogs > 0 ? '#dc2626' : '#16a34a'};">${activeBacklogs}</span></td>
             <td style="padding:12px;"><button style="background:#0ea5e9; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer;" onclick="window.openFacultyStudentView('${esc(s.sen)}')">Details</button></td>
@@ -288,69 +298,221 @@ window.openFacultyStudentView = function(sen) {
     window.loadStudentDashboard(student);
 };
 
-// ═══════════════════════════════════════════════════════════════════════
-//  4. ADMIN FACULTY AUDIT DASHBOARD RENDERER (Tab 4)
-// ═══════════════════════════════════════════════════════════════════════
-window.renderAdminFacultyAudit = async function() {
-    let container = document.getElementById('admin-faculty-audit-container');
-    if (!container) {
-        let tabFac = document.getElementById('tab-faculty');
-        if (tabFac) {
-            container = document.createElement('div');
-            container.id = 'admin-faculty-audit-container';
-            container.style.cssText = 'margin-top:25px; background:white; padding:20px; border-radius:8px; border:1px solid #cbd5e1;';
-            tabFac.appendChild(container);
-        }
-    }
-    if (!container) return;
+// --- 1. COE LOGIN TRIGGER & HANDLER ---
+window.showCoeLogin = function() {
+    let sContainer = document.getElementById('student-login-container') || document.querySelector('.landing-container') || document.getElementById('landing');
+    let fContainer = document.getElementById('faculty-login-container') || document.getElementById('faculty-login');
+    
+    if (sContainer) sContainer.style.display = 'none';
+    if (fContainer) fContainer.style.display = 'none';
 
+    let coeContainer = document.getElementById('coe-login-container');
+    if (!coeContainer) {
+        coeContainer = document.createElement('div');
+        coeContainer.id = 'coe-login-container';
+        coeContainer.style.cssText = 'max-width:450px; margin:40px auto; background:white; padding:30px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.1); text-align:left;';
+        coeContainer.innerHTML = `
+            <h2 style="color:#0f172a; margin-top:0;">🔐 COE Portal Login</h2>
+            <p style="color:#475569; font-size:0.9rem;">Controller of Examination access. Enter your institutional credentials.</p>
+            <div style="margin-bottom:15px;">
+                <label style="display:block; font-weight:bold; font-size:0.85rem; color:#334155; margin-bottom:5px;">COE EMAIL</label>
+                <input type="email" id="coe-email" value="coeaub@blr.amity.edu" readonly style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; background:#f1f5f9; font-weight:bold;" />
+            </div>
+            <div style="margin-bottom:20px;">
+                <label style="display:block; font-weight:bold; font-size:0.85rem; color:#334155; margin-bottom:5px;">PASSWORD</label>
+                <input type="password" id="coe-pass" placeholder="Enter password" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;" />
+            </div>
+            <button onclick="window.coeLoginStep()" style="width:100%; background:#2563eb; color:white; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer;">COE Sign In →</button>
+            <div style="text-align:center; margin-top:15px;">
+                <a href="#" onclick="location.reload(); return false;" style="color:#64748b; font-size:0.85rem; text-decoration:none;">← Back to Main Portal</a>
+            </div>
+        `;
+        document.body.appendChild(coeContainer);
+    }
+    coeContainer.style.display = 'block';
+};
+
+window.coeLoginStep = async function() {
+    var passInput = document.getElementById('coe-pass');
+    var pass = passInput ? passInput.value.trim() : "";
+
+    if (!pass) {
+        alert("Please enter the password.");
+        return;
+    }
+
+    try {
+        var response = await fetch(scriptURL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ action: 'verifycoe', email: 'coeaub@blr.amity.edu', password: pass })
+        });
+        var result = await response.json();
+
+        if (result && result.status === 'first_time') {
+            let newPass = prompt("🔐 First-time COE login. Enter your new permanent password (min 6 characters):");
+            if (!newPass || newPass.length < 6) {
+                alert("❌ Password must be at least 6 characters.");
+                return;
+            }
+
+            let setRes = await fetch(scriptURL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({ action: 'setcoepassword', email: 'coeaub@blr.amity.edu', password: newPass })
+            });
+            let setJson = await setRes.json();
+
+            if (setJson.status === 'success') {
+                alert("✅ COE password updated successfully! Please sign in with your new password.");
+                if (passInput) passInput.value = "";
+            } else {
+                alert(`❌ Error: ${setJson.message}`);
+            }
+            return;
+        }
+
+        if (result && result.status === 'success') {
+            alert("✅ COE Verified Successfully! Redirecting to Admin Panel...");
+            window.location.href = 'admin-hidden.html';
+        } else {
+            alert("❌ " + (result.message || 'Invalid COE Credentials'));
+        }
+    } catch(err) {
+        alert("❌ Network error connecting to COE authentication backend.");
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+//  4. ADMIN PANEL DUAL AUDIT DASHBOARD (Faculty & COE)
+// ═══════════════════════════════════════════════════════════════════════
+window.renderAdminDualAudit = async function() {
+    let tabFac = document.getElementById('tab-faculty');
+    if (!tabFac) return;
+
+    let container = document.getElementById('admin-dual-audit-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'admin-dual-audit-container';
+        container.style.cssText = 'margin-top:30px; background:white; padding:25px; border-radius:8px; border:1px solid #cbd5e1; box-shadow:0 1px 3px rgba(0,0,0,0.05);';
+        tabFac.appendChild(container);
+    }
+
+    let coeRecord = { email: "coeaub@blr.amity.edu", count: 0, timestamps: ["Never"], lastTimestamp: "Never" };
+    try {
+        let coeRes = await fetch(scriptURL + "?action=getCOEAudit");
+        let coeList = await coeRes.json();
+        if (coeList && coeList.length > 0) coeRecord = coeList[0];
+    } catch(e) {}
+
+    let coeLastTime = coeRecord.lastTimestamp && coeRecord.lastTimestamp !== 'Never' ? new Date(coeRecord.lastTimestamp).toLocaleString() : 'Never';
+
+    let html = `
+        <h3 style="color:#0f172a; margin-top:0;">🛡️ COE Login Audit & Security</h3>
+        <table style="width:100%; border-collapse:collapse; margin-top:15px; font-size:0.9rem; margin-bottom:30px;">
+            <thead>
+                <tr style="background:#f8fafc; border-bottom:2px solid #cbd5e1; color:#334155; text-align:left;">
+                    <th style="padding:12px;">COE Email</th>
+                    <th style="padding:12px; text-align:center;">Login Count</th>
+                    <th style="padding:12px;">Last Timestamp</th>
+                    <th style="padding:12px; text-align:right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr style="border-bottom:1px solid #e2e8f0;">
+                    <td style="padding:12px; font-weight:bold; color:#0f172a;">${esc(coeRecord.email)}</td>
+                    <td style="padding:12px; text-align:center;"><span style="background:#dcfce3; color:#16a34a; padding:4px 10px; border-radius:4px; font-weight:bold;">${coeRecord.count} logins</span></td>
+                    <td style="padding:12px; color:#475569;">${coeLastTime}</td>
+                    <td style="padding:12px; text-align:right;">
+                        <button onclick="window.adminResetCOEPwd()" style="background:#ef4444; color:white; border:none; padding:5px 12px; border-radius:4px; cursor:pointer; font-weight:bold;">Reset COE Password</button>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    `;
+
+    // Fetch Faculty Audit
+    let auditMap = {};
     try {
         let res = await fetch(scriptURL + "?action=getFacultyAudit");
         let auditList = await res.json();
-
-        window.FACULTY_AUDIT_CACHE = auditList;
-
-        let rowsHTML = "";
-        (auditList || []).forEach((item, index) => {
-            let lastTime = item.lastTimestamp && item.lastTimestamp !== 'Never' ? new Date(item.lastTimestamp).toLocaleString() : 'Never';
-            rowsHTML += `
-            <tr style="border-bottom:1px solid #e2e8f0;">
-                <td style="padding:12px; font-weight:bold; color:#0f172a;">${esc(item.email)}</td>
-                <td style="padding:12px; text-align:center;"><span style="background:#dcfce3; color:#16a34a; padding:4px 10px; border-radius:4px; font-weight:bold;">${item.count} logins</span></td>
-                <td style="padding:12px; color:#475569;">${lastTime}</td>
-                <td style="padding:12px; text-align:right; white-space:nowrap;">
-                    <button onclick="window.showFacultyAuditDetails(${index})" style="background:#0ea5e9; color:white; border:none; padding:5px 12px; border-radius:4px; cursor:pointer; font-weight:bold; margin-right:6px;">Details</button>
-                    <button onclick="window.adminResetFacultyPwd('${esc(item.email)}')" style="background:#ef4444; color:white; border:none; padding:5px 12px; border-radius:4px; cursor:pointer; font-weight:bold;">Reset Password</button>
-                </td>
-            </tr>`;
+        (auditList || []).forEach(item => {
+            auditMap[String(item.email).toLowerCase()] = item;
         });
-
-        container.innerHTML = `
-            <h3 style="color:#0f172a; margin-top:0;">📊 Authorized Faculty Directory & Login Audit</h3>
-            <p style="color:#475569; font-size:0.9rem;">Complete list of authorized faculty members with live login counts, date/timestamp logs, and password reset controls.</p>
-            <table style="width:100%; border-collapse:collapse; margin-top:15px; font-size:0.9rem;">
-                <thead>
-                    <tr style="background:#f8fafc; border-bottom:2px solid #cbd5e1; color:#334155; text-align:left;">
-                        <th style="padding:12px;">Faculty Email</th>
-                        <th style="padding:12px; text-align:center;">Login Count</th>
-                        <th style="padding:12px;">Last Timestamp</th>
-                        <th style="padding:12px; text-align:right;">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>${rowsHTML || `<tr><td colspan="4" style="text-align:center; padding:20px; color:#64748b;">No faculty records found.</td></tr>`}</tbody>
-            </table>
-        `;
     } catch(e) {
-        console.warn("Faculty audit load error:", e);
+        console.warn("Audit fetch offline, rendering base faculty list.");
+    }
+
+    window.FACULTY_AUDIT_CACHE = window.AUTHORIZED_FACULTY_LIST.map(email => {
+        let record = auditMap[email.toLowerCase()] || { timestamps: ["Never"], count: 0, lastTimestamp: "Never" };
+        return {
+            email: email,
+            count: record.count || 0,
+            timestamps: record.timestamps || ["Never"],
+            lastTimestamp: record.lastTimestamp || "Never"
+        };
+    });
+
+    let rowsHTML = "";
+    window.FACULTY_AUDIT_CACHE.forEach((item, index) => {
+        let lastTime = item.lastTimestamp && item.lastTimestamp !== 'Never' ? new Date(item.lastTimestamp).toLocaleString() : 'Never';
+        rowsHTML += `
+        <tr style="border-bottom:1px solid #e2e8f0;">
+            <td style="padding:12px; font-weight:bold; color:#0f172a;">${esc(item.email)}</td>
+            <td style="padding:12px; text-align:center;"><span style="background:${item.count > 0 ? '#dcfce3' : '#f1f5f9'}; color:${item.count > 0 ? '#16a34a' : '#64748b'}; padding:4px 10px; border-radius:4px; font-weight:bold;">${item.count} logins</span></td>
+            <td style="padding:12px; color:#475569;">${lastTime}</td>
+            <td style="padding:12px; text-align:right; white-space:nowrap;">
+                <button onclick="window.showFacultyAuditDetails(${index})" style="background:#0ea5e9; color:white; border:none; padding:5px 12px; border-radius:4px; cursor:pointer; font-weight:bold; margin-right:6px;">Details</button>
+                <button onclick="window.adminResetFacultyPwd('${esc(item.email)}')" style="background:#ef4444; color:white; border:none; padding:5px 12px; border-radius:4px; cursor:pointer; font-weight:bold;">Reset Password</button>
+            </td>
+        </tr>`;
+    });
+
+    container.innerHTML = html + `
+        <h3 style="color:#0f172a; margin-top:0;">📊 Authorized Faculty Directory & Login Audit</h3>
+        <p style="color:#475569; font-size:0.9rem;">Complete list of authorized faculty members, total login counts, exact date/timestamp history logs, and password reset controls.</p>
+        <table style="width:100%; border-collapse:collapse; margin-top:15px; font-size:0.9rem;">
+            <thead>
+                <tr style="background:#f8fafc; border-bottom:2px solid #cbd5e1; color:#334155; text-align:left;">
+                    <th style="padding:12px;">Faculty Email</th>
+                    <th style="padding:12px; text-align:center;">Login Count</th>
+                    <th style="padding:12px;">Last Timestamp</th>
+                    <th style="padding:12px; text-align:right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>${rowsHTML}</tbody>
+        </table>
+    `;
+};
+
+window.adminResetCOEPwd = async function() {
+    if (!confirm("Are you sure you want to reset COE password back to default (coe@123)?")) return;
+    try {
+        let res = await fetch(scriptURL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ action: 'setcoepassword', email: 'coeaub@blr.amity.edu', password: 'coe@123' })
+        });
+        let json = await res.json();
+        if (json.status === 'success') {
+            alert("✅ COE password successfully reset to coe@123.");
+            window.renderAdminDualAudit();
+        } else {
+            alert(`❌ Error: ${json.message}`);
+        }
+    } catch(err) {
+        alert("❌ Network error.");
     }
 };
+
+window.renderAdminFacultyAudit = window.renderAdminDualAudit;
 
 window.showFacultyAuditDetails = function(index) {
     let faculty = window.FACULTY_AUDIT_CACHE ? window.FACULTY_AUDIT_CACHE[index] : null;
     if (!faculty) return;
 
     let timestamps = faculty.timestamps || [];
-    let listHTML = timestamps.map((t, i) => `<li>${t !== 'Never' ? new Date(t).toLocaleString() : 'Never logged in'}</li>`).join('');
+    let listHTML = timestamps.map(t => `<li>${t !== 'Never' ? new Date(t).toLocaleString() : 'Never logged in'}</li>`).join('');
 
     let modal = document.getElementById('faculty-detail-modal');
     if (!modal) {
@@ -386,7 +548,7 @@ window.adminResetFacultyPwd = async function(email) {
         let json = await res.json();
         if (json.status === 'success') {
             alert(`✅ Password for ${email} successfully reset to faculty@123.`);
-            window.renderAdminFacultyAudit();
+            window.renderAdminDualAudit();
         } else {
             alert(`❌ Error: ${json.message}`);
         }
@@ -1067,7 +1229,11 @@ window.loadStudentDashboard = function(student) {
 
     let name = student.name || 'Student';
     let sen = student.sen || '';
-    let cgpa = student.cgpa || 'N/A';
+    
+    // FIX: Strictly format CGPA to 2 decimal places
+    let rawCgpa = parseFloat(student.cgpa);
+    let cgpa = !isNaN(rawCgpa) ? rawCgpa.toFixed(2) : 'N/A';
+    
     let credits = student.totalCredits || '0';
     let validCourses = (student.courses || []).filter(c => c && c.code && c.code !== 'NAN');
     let backlogsList = window.getActiveBacklogs(validCourses);
@@ -1076,14 +1242,21 @@ window.loadStudentDashboard = function(student) {
     document.querySelectorAll('#dash-cgpa, .cgpa-val').forEach(el => el.textContent = cgpa);
     document.querySelectorAll('#dash-ce, .credits-val').forEach(el => el.textContent = credits);
 
-    // Inject Tab Navigation for Student Portal (All Courses, Backlog, Degree Audit)
+    // FIX: Locate the static "Completed Credits: 0 | Backlog: 0" bar and update it dynamically
+    document.querySelectorAll('*').forEach(el => {
+        if (el.children.length === 0 && el.textContent.includes('Completed Credits:') && el.textContent.includes('Backlog')) {
+            el.textContent = `Completed Credits: ${credits}   |   Backlog / Failed Courses: ${backlogsList.length}`;
+        }
+    });
+
+    // Inject Tab Navigation for Student Portal
     let tableContainer = document.getElementById('courses-tbody') || document.querySelector('table tbody');
     if (tableContainer) tableContainer = tableContainer.closest('table').parentElement;
 
     if (tableContainer && !document.getElementById('student-tab-nav')) {
         let tabNav = document.createElement('div');
         tabNav.id = 'student-tab-nav';
-        tabNav.style.cssText = 'display:flex; gap:10px; margin:20px 0 15px 0; border-bottom:2px solid #e2e8f0; padding-bottom:10px;';
+        tabNav.style.cssText = 'display:flex; gap:10px; margin:20px 0 15px 0; border-bottom:2px solid #e2e8f0; padding-bottom:10px; flex-wrap:wrap;';
         tableContainer.parentNode.insertBefore(tabNav, tableContainer);
 
         let backlogsDiv = document.createElement('div');
@@ -1163,7 +1336,7 @@ window.loadStudentDashboard = function(student) {
         let txt = el.textContent.trim().toLowerCase();
         if (txt.includes('logout') || txt.includes('search another')) {
             el.textContent = 'LOGOUT';
-            el.onclick = function() { window.logoutPortal(); };
+            el.onclick = function(e) { e.preventDefault(); window.logoutPortal(); };
         }
     });
 };
@@ -1171,7 +1344,7 @@ window.loadStudentDashboard = function(student) {
 // ═══════════════════════════════════════════════════════════════════════
 //  12. ADMIN NAVIGATION & UTILITIES
 // ═══════════════════════════════════════════════════════════════════════
-window.switchAdminTab = function(tabId, btnElement) {
+window.switchAdminTab = function (tabId, btnElement) {
     ['tab-upload', 'tab-curriculum', 'tab-students', 'tab-faculty'].forEach(id => {
         let el = document.getElementById(id);
         if (el) el.style.display = 'none';
@@ -1184,21 +1357,58 @@ window.switchAdminTab = function(tabId, btnElement) {
     let target = document.getElementById(tabId);
     if (target) target.style.display = 'block';
 
-    document.querySelectorAll('.admin-tab-btn').forEach(b => {
-        b.classList.remove('active');
+    document.querySelectorAll('button').forEach(b => {
+        if (b.classList.contains('admin-tab-btn') || b.parentElement?.classList?.contains('dashboard-nav')) {
+            b.style.background = '';
+            b.style.color = '';
+        }
     });
 
     if (btnElement) {
-        btnElement.classList.add('active');
+        btnElement.style.background = '#2563eb';
+        btnElement.style.color = '#ffffff';
     }
 
     if (tabId === 'tab-students' && typeof window.applyAdminFilters === 'function') {
         window.applyAdminFilters();
     } else if (tabId === 'tab-curriculum' && typeof window.loadCurriculumEditor === 'function') {
         window.loadCurriculumEditor();
-    } else if (tabId === 'tab-faculty' && typeof window.renderAdminFacultyAudit === 'function') {
-        window.renderAdminFacultyAudit();
+    } else if (tabId === 'tab-faculty' && typeof window.renderAdminDualAudit === 'function') {
+        window.renderAdminDualAudit();
     }
+};
+
+window.applyAdminFilters = async function() {
+    var tbody = document.getElementById('admin-tbody');
+    var totalStu = document.getElementById('total-stu');
+    if (!tbody) return;
+
+    if (window.STUDENTS.length === 0) {
+        await window.initializeCloudPortal();
+    }
+
+    if (totalStu) totalStu.textContent = window.STUDENTS.length;
+
+    if (window.STUDENTS.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px; color:#64748b;">No student records found in Cloud DB.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = window.STUDENTS.map((s, i) => {
+        let cRaw = parseFloat(s.cgpa);
+        let cFormatted = !isNaN(cRaw) ? cRaw.toFixed(2) : 'N/A'; // FIX: CGPA 2 decimal places
+        
+        return `
+        <tr style="border-bottom:1px solid #e2e8f0;">
+            <td style="padding:10px;">${i + 1}</td>
+            <td style="font-weight:bold;">${esc(s.sen)}</td>
+            <td>${esc(s.name)}</td>
+            <td>${esc(s.program || 'N/A')}</td>
+            <td style="font-weight:bold; color:#3b82f6;">${cFormatted}</td>
+            <td>${s.totalCredits || '0'}</td>
+            <td><button style="background:#0ea5e9; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer;" onclick="window.openAdminStudentView('${esc(s.sen)}')">Details</button></td>
+        </tr>`;
+    }).join('');
 };
 
 window.exportStudentPDF = function() {
@@ -1234,8 +1444,9 @@ window.logoutPortal = function() {
 document.addEventListener('DOMContentLoaded', () => {
     window.initializeCloudPortal();
 
-    if (document.getElementById('tab-faculty')) {
-        window.renderAdminFacultyAudit();
+    let tabFac = document.getElementById('tab-faculty');
+    if (tabFac) {
+        setTimeout(window.renderAdminDualAudit, 500);
     }
 
     let fileInput = document.getElementById('bulk-curriculum-file-input');

@@ -1,184 +1,333 @@
 ```python
-# Let's review the requirement for Version 15.0:
-# 1. In the student portal, backlogs are not showing correctly or need proper extraction.
-# 2. Rename the tab / label from "Active Backlog" / "Active Backlogs" strictly to "Backlog" / "Backlogs".
-# 3. Ensure that when a student views their backlogs, all failed/backlog courses are properly populated and displayed under the "Backlog" tab.
+# Let's verify the user's requirements for Version 1.5:
+# 1. Change version tag globally across the portal to **Ver 1.5**.
+# 2. On the landing page (`index.html`), below the Faculty Login button, add a **COE Login** button (`coeaub@blr.amity.edu`, default password `coe@123`, with a prompt to change password on first login, stored and controlled in the Google Sheet under a tab/sheet named `COELogin` alongside `FacultyPass` / `FacultyLogin`).
+# 3. Store and control login credentials and authentication in Google Sheets under new/dedicated sheets: `FacultyLogin` and `COELogin`.
+# 4. In the Admin Panel (Tab 4 / Faculty & COE management section), provide separate dedicated buttons/sections to check the login counts and timestamps of both Faculty and COE, along with password reset options for both.
 
-print("Designing Ver 15.0 Student Backlog Tab & Label Optimization")
+print("Designing Ver 1.5 Master COE Login & Enterprise Security Architecture")
 
 
 ```
 
 ```text
-Designing Ver 15.0 Student Backlog Tab & Label Optimization
+Designing Ver 1.5 Master COE Login & Enterprise Security Architecture
 
 
 ```
 
-# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 15.0 (Student Backlog Tab & Label Optimization)
+# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 1.5 (COE Login Integration & Enterprise Audit Suite)
 
-You are updating a static GitHub Pages site (`script.js`). We are ensuring that student backlogs extract correctly from their course grade records, and updating all references and tab labels from "Active Backlog" / "Active Backlogs" strictly to **"Backlog"**, updating version tags to **Ver 15.0**, and creating `VERSION15.0.md`.
+You are updating a static GitHub Pages site (`index.html`, `admin-hidden.html`, `script.js`) and Google Apps Script backend (`Code.gs`). We are updating the version tag globally to **Ver 1.5**, adding the **COE Login** button (`coeaub@blr.amity.edu`, default password `coe@123`, with a first-time password change prompt) stored under the Google Sheets `COELogin` tab, and adding dedicated audit and password reset management for both Faculty and COE inside the Admin Panel.
 
 Please execute the following strict updates:
 
 ## 1. Global Versioning Update
 
 * **File:** `index.html`, `admin-hidden.html`
-* Change all version tags in the top left corners to `Ver 15.0`.
+* Change all version tags in the top left corners to **Ver 1.5**.
 
 
 
-## 2. Student Backlog Extraction & Tab Label Engine (`script.js`)
+## 2. Landing Page Update (`index.html`)
+
+* **File:** `index.html`
+* Below the **Faculty Login** button, add the **COE Login** button:
+```html
+<button onclick="window.showCoeLogin()" id="coe-login-trigger-btn" style="...">COE Login</button>
+
+```
+
+
+
+
+
+## 3. Updated Google Apps Script Backend (`Code.gs`)
+
+* **File:** `Code.gs` (Google Apps Script)
+* Add support for COE login verification, first-time password updates, and separate audit logs in Google Sheets (`COELogin`, `FacultyLogin`, `COEAudit`, `FacultyAudit`):
+
+
+
+```javascript
+// Add these action handlers inside your doPost(e) / doGet(e) function in Code.gs:
+
+    if (action === 'verifycoe') {
+      var email = data.email ? data.email.trim().toLowerCase() : "";
+      var password = data.password ? data.password.trim() : "";
+      
+      if (email !== 'coeaub@blr.amity.edu') {
+        return jsonResponse({status: "error", message: "Invalid COE Email."});
+      }
+
+      var ss = SpreadsheetApp.openById(SHEET_ID);
+      var coeSheet = ss.getSheetByName("COELogin") || ss.insertSheet("COELogin");
+      if (coeSheet.getLastRow() === 0) {
+        coeSheet.appendRow(["Email", "Password", "Last Timestamp"]);
+      }
+      var coeData = coeSheet.getDataRange().getValues();
+      
+      var storedPass = "";
+      for (var i = 1; i < coeData.length; i++) {
+        if (String(coeData[i][0]).toLowerCase() === email) {
+          storedPass = String(coeData[i][1]).trim();
+          break;
+        }
+      }
+
+      if (!storedPass) {
+        if (password === 'coe@123') {
+          logCOE通路Audit(email);
+          return jsonResponse({status: "first_time", message: "First-time login. Please change your password."});
+        } else {
+          return jsonResponse({status: "error", message: "Invalid COE Credentials."});
+        }
+      }
+
+      if (storedPass === 'coe@123' && password === 'coe@123') {
+        return jsonResponse({status: "first_time", message: "First-time login. Please change your password."});
+      }
+
+      if (storedPass === password) {
+        logCOEAudit(email);
+        return jsonResponse({status: "success", message: "COE verified"});
+      }
+
+      return jsonResponse({status: "error", message: "Incorrect COE password."});
+    }
+
+    if (action === 'setcoepassword') {
+      var email = data.email ? data.email.trim().toLowerCase() : "";
+      var newPass = data.password ? data.password.trim() : "";
+      var ss = SpreadsheetApp.openById(SHEET_ID);
+      var coeSheet = ss.getSheetByName("COELogin") || ss.insertSheet("COELogin");
+      var coeData = coeSheet.getDataRange().getValues();
+      
+      var found = false;
+      for (var i = 1; i < coeData.length; i++) {
+        if (String(coeData[i][0]).toLowerCase() === email) {
+          coeSheet.getRange(i + 1, 2).setValue(newPass);
+          coeSheet.getRange(i + 1, 3).setValue(new Date().toISOString());
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        coeSheet.appendRow([email, newPass, new Date().toISOString()]);
+      }
+      return jsonResponse({status: "success", message: "COE password updated successfully."});
+    }
+
+    if (action === 'getCOEAudit') {
+      var ss = SpreadsheetApp.openById(SHEET_ID);
+      var auditSheet = ss.getSheetByName("COEAudit");
+      if (!auditSheet) return jsonResponse([{ email: "coeaub@blr.amity.edu", timestamps: ["Never"], count: 0 }]);
+      var rows = auditSheet.getDataRange().getValues();
+      var timestamps = [];
+      var count = 0;
+      for (var i = 1; i < rows.length; i++) {
+        timestamps.push(rows[i][1]);
+        count += (parseInt(rows[i][2]) || 1);
+      }
+      return jsonResponse([{ email: "coeaub@blr.amity.edu", timestamps: timestamps.length > 0 ? timestamps : ["Never"], count: count, lastTimestamp: timestamps[timestamps.length-1] || "Never" }]);
+    }
+
+function logCOEAudit(email) {
+  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var auditSheet = ss.getSheetByName("COEAudit") || ss.insertSheet("COEAudit");
+  if (auditSheet.getLastRow() === 0) {
+    auditSheet.appendRow(["Email", "Timestamp", "Count"]);
+  }
+  auditSheet.appendRow([email, new Date().toISOString(), 1]);
+}
+
+```
+
+## 4. Frontend COE Login & Audit Engine (`script.js`)
 
 * **File:** `script.js`
-* Replace your student portal dashboard renderer with this version that strictly labels the tab **Backlog** and correctly lists all unresolved backlog courses:
+* Add the COE login modal/view triggers, authentication handlers, and admin audit panels for both Faculty and COE:
 
 
 
 ```javascript
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 15.0 - Student Backlog Tab & Label Optimization)
+ * Master Script Engine (Ver 1.5 - COE Login & Dual Audit Suite)
  */
 
 'use strict';
 
 const scriptURL = "https://script.google.com/macros/s/AKfycby0xTAEjyfcN-IrEVaEzQuFFAfCQD1wWhpTJ5dlv9S7jBIT48RY8PxH76mW2Mci0rCGCw/exec";
 
-window.getActiveBacklogs = function(courses) {
-    let history = {};
-    (courses || []).forEach(c => {
-        if (!c.code || c.code === 'NAN') return;
-        let code = String(c.code).toUpperCase().trim();
-        if (!history[code]) history[code] = { passed: false, latest: c };
-        let isFail = ['F', 'AB', 'DE', 'I', 'U'].includes(String(c.grade || c.Grade || '').toUpperCase().trim());
-        if (!isFail) history[code].passed = true;
-        else if (!history[code].passed) history[code].latest = c;
-    });
-    let backlogs = [];
-    for (let code in history) {
-        if (!history[code].passed) backlogs.push(history[code].latest);
-    }
-    return backlogs;
-};
-
-window.loadStudentDashboard = function(student) {
-    window.currentStudent = student;
-    document.querySelectorAll('.page, .login-container, #student-login-container, .landing-container').forEach(el => {
-        if (el) el.style.display = 'none';
-    });
+// --- 1. COE LOGIN TRIGGER & HANDLER ---
+window.showCoeLogin = function() {
+    let sContainer = document.getElementById('student-login-container') || document.querySelector('.landing-container') || document.getElementById('landing');
+    let fContainer = document.getElementById('faculty-login-container') || document.getElementById('faculty-login');
     
-    const dash = document.getElementById('student-dash') || document.getElementById('student-dashboard');
-    if (dash) {
-        dash.style.display = 'block';
-        dash.classList.add('dashboard-fullscreen-overlay');
-    }
+    if (sContainer) sContainer.style.display = 'none';
+    if (fContainer) fContainer.style.display = 'none';
 
-    let name = student.name || 'Student';
-    let sen = student.sen || '';
-    let cgpa = student.cgpa || 'N/A';
-    let credits = student.totalCredits || '0';
-    let validCourses = (student.courses || []).filter(c => c && c.code && c.code !== 'NAN');
-    let backlogsList = window.getActiveBacklogs(validCourses);
-
-    document.querySelectorAll('#dash-name, .student-name').forEach(el => el.textContent = `${name} (${sen})`);
-    document.querySelectorAll('#dash-cgpa, .cgpa-val').forEach(el => el.textContent = cgpa);
-    document.querySelectorAll('#dash-ce, .credits-val').forEach(el => el.textContent = credits);
-
-    // Inject Tab Navigation for Student Portal (All Courses, Backlog, Degree Audit)
-    let tableContainer = document.getElementById('courses-tbody') || document.querySelector('table tbody');
-    if (tableContainer) tableContainer = tableContainer.closest('table').parentElement;
-
-    if (tableContainer && !document.getElementById('student-tab-nav')) {
-        let tabNav = document.createElement('div');
-        tabNav.id = 'student-tab-nav';
-        tabNav.style.cssText = 'display:flex; gap:10px; margin:20px 0 15px 0; border-bottom:2px solid #e2e8f0; padding-bottom:10px;';
-        tableContainer.parentNode.insertBefore(tabNav, tableContainer);
-
-        let backlogsDiv = document.createElement('div');
-        backlogsDiv.id = 'student-tab-backlogs';
-        backlogsDiv.style.display = 'none';
-        backlogsDiv.innerHTML = `<table style="width:100%; text-align:left; border-collapse:collapse; background:white; border:1px solid #e2e8f0;"><thead style="background:#f8fafc; border-bottom:2px solid #e2e8f0;"><tr><th style="padding:12px 10px;">Code</th><th style="padding:12px 10px;">Course Title</th><th style="padding:12px 10px;">Type</th><th style="padding:12px 10px;">Cr.</th><th style="padding:12px 10px;">Marks</th><th style="padding:12px 10px;">Grade</th></tr></thead><tbody id="student-backlogs-tbody"></tbody></table>`;
-        tableContainer.parentNode.insertBefore(backlogsDiv, tableContainer.nextSibling);
-
-        let auditDiv = document.createElement('div');
-        auditDiv.id = 'student-tab-audit';
-        auditDiv.style.display = 'none';
-        tableContainer.parentNode.insertBefore(auditDiv, backlogsDiv.nextSibling);
-
-        tableContainer.id = 'student-tab-all';
-    }
-
-    window.switchStudentTab = function(tabName) {
-        document.getElementById('student-tab-all').style.display = (tabName === 'all') ? 'block' : 'none';
-        document.getElementById('student-tab-backlogs').style.display = (tabName === 'backlogs') ? 'block' : 'none';
-        document.getElementById('student-tab-audit').style.display = (tabName === 'audit') ? 'block' : 'none';
-
-        document.getElementById('btn-stu-all').style.background = (tabName === 'all') ? '#3b82f6' : '#f1f5f9';
-        document.getElementById('btn-stu-all').style.color = (tabName === 'all') ? 'white' : '#475569';
-        
-        document.getElementById('btn-stu-backlogs').style.background = (tabName === 'backlogs') ? '#ef4444' : '#f1f5f9';
-        document.getElementById('btn-stu-backlogs').style.color = (tabName === 'backlogs') ? 'white' : '#475569';
-
-        document.getElementById('btn-stu-audit').style.background = (tabName === 'audit') ? '#10b981' : '#f1f5f9';
-        document.getElementById('btn-stu-audit').style.color = (tabName === 'audit') ? 'white' : '#475569';
-    };
-
-    const tabNav = document.getElementById('student-tab-nav');
-    if (tabNav) {
-        tabNav.innerHTML = `
-            <button onclick="window.switchStudentTab('all')" id="btn-stu-all" style="padding:8px 16px; border:none; background:#3b82f6; color:white; border-radius:6px; font-weight:bold; cursor:pointer;">📚 All Courses</button>
-            <button onclick="window.switchStudentTab('backlogs')" id="btn-stu-backlogs" style="padding:8px 16px; border:none; background:#f1f5f9; color:#475569; border-radius:6px; font-weight:bold; cursor:pointer;">⚠️ Backlog (${backlogsList.length})</button>
-            <button onclick="window.switchStudentTab('audit')" id="btn-stu-audit" style="padding:8px 16px; border:none; background:#f1f5f9; color:#475569; border-radius:6px; font-weight:bold; cursor:pointer;">🎓 Degree Audit Check</button>
-            <button onclick="window.exportStudentPDF()" style="margin-left:auto; padding:8px 16px; border:none; background:#dc2626; color:white; border-radius:6px; font-weight:bold; cursor:pointer;">📄 Export PDF</button>
+    let coeContainer = document.getElementById('coe-login-container');
+    if (!coeContainer) {
+        coeContainer = document.createElement('div');
+        coeContainer.id = 'coe-login-container';
+        coeContainer.style.cssText = 'max-width:450px; margin:40px auto; background:white; padding:30px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.1); text-align:left;';
+        coeContainer.innerHTML = `
+            <h2 style="color:#0f172a; margin-top:0;">🔐 COE Portal Login</h2>
+            <p style="color:#475569; font-size:0.9rem;">Controller of Examination access. Enter your institutional credentials.</p>
+            <div style="margin-bottom:15px;">
+                <label style="display:block; font-weight:bold; font-size:0.85rem; color:#334155; margin-bottom:5px;">COE EMAIL</label>
+                <input type="email" id="coe-email" value="coeaub@blr.amity.edu" readonly style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; background:#f1f5f9; font-weight:bold;" />
+            </div>
+            <div style="margin-bottom:20px;">
+                <label style="display:block; font-weight:bold; font-size:0.85rem; color:#334155; margin-bottom:5px;">PASSWORD</label>
+                <input type="password" id="coe-pass" placeholder="Enter password" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;" />
+            </div>
+            <button onclick="window.coeLoginStep()" style="width:100%; background:#2563eb; color:white; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer;">COE Sign In →</button>
+            <div style="text-align:center; margin-top:15px;">
+                <a href="#" onclick="location.reload(); return false;" style="color:#64748b; font-size:0.85rem; text-decoration:none;">← Back to Main Portal</a>
+            </div>
         `;
+        document.body.appendChild(coeContainer);
     }
-
-    let coursesTbody = document.getElementById('courses-tbody');
-    if (coursesTbody) {
-        coursesTbody.innerHTML = validCourses.map(c => `
-            <tr style="border-bottom:1px solid #e2e8f0;">
-                <td style="padding:10px; font-weight:bold;">${esc(c.code)}</td>
-                <td style="padding:10px;">${esc(c.name)}</td>
-                <td style="padding:10px;">${esc(c.type || 'Core')}</td>
-                <td style="padding:10px;">${esc(c.credits)}</td>
-                <td style="padding:10px;">${esc(c.marks)}</td>
-                <td style="padding:10px; font-weight:bold; color:#2563eb;">${esc(c.grade)}</td>
-            </tr>
-        `).join('');
-    }
-
-    let backlogsTbody = document.getElementById('student-backlogs-tbody');
-    if (backlogsTbody) {
-        backlogsTbody.innerHTML = backlogsList.length > 0 ? backlogsList.map(c => `
-            <tr style="border-bottom:1px solid #e2e8f0;">
-                <td style="padding:10px; font-weight:bold;">${esc(c.code)}</td>
-                <td style="padding:10px;">${esc(c.name)}</td>
-                <td style="padding:10px;">${esc(c.type || 'Core')}</td>
-                <td style="padding:10px;">${esc(c.credits)}</td>
-                <td style="padding:10px;">${esc(c.marks)}</td>
-                <td style="padding:10px; font-weight:bold; color:#dc2626;">${esc(c.grade)}</td>
-            </tr>
-        `).join('') : `<tr><td colspan="6" style="text-align:center; padding:20px; color:#16a34a; font-weight:bold;">🎉 Excellent! You have no backlogs.</td></tr>`;
-    }
-
-    let auditContainer = document.getElementById('student-tab-audit');
-    if (auditContainer && typeof window.evaluateDegree === 'function') {
-        auditContainer.innerHTML = window.evaluateDegree(student);
-    }
-
-    // Clean Logout button text
-    document.querySelectorAll('button, a').forEach(el => {
-        let txt = el.textContent.trim().toLowerCase();
-        if (txt.includes('logout') || txt.includes('search another')) {
-            el.textContent = 'LOGOUT';
-            el.onclick = function() { window.logoutPortal(); };
-        }
-    });
+    coeContainer.style.display = 'block';
 };
+
+window.coeLoginStep = async function() {
+    var passInput = document.getElementById('coe-pass');
+    var pass = passInput ? passInput.value.trim() : "";
+
+    if (!pass) {
+        alert("Please enter the password.");
+        return;
+    }
+
+    try {
+        var response = await fetch(scriptURL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ action: 'verifycoe', email: 'coeaub@blr.amity.edu', password: pass })
+        });
+        var result = await response.json();
+
+        if (result && result.status === 'first_time') {
+            let newPass = prompt("🔐 First-time COE login. Enter your new permanent password (min 6 characters):");
+            if (!newPass || newPass.length < 6) {
+                alert("❌ Password must be at least 6 characters.");
+                return;
+            }
+
+            let setRes = await fetch(scriptURL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({ action: 'setcoepassword', email: 'coeaub@blr.amity.edu', password: newPass })
+            });
+            let setJson = await setRes.json();
+
+            if (setJson.status === 'success') {
+                alert("✅ COE password updated successfully! Please sign in with your new password.");
+                if (passInput) passInput.value = "";
+            } else {
+                alert(`❌ Error: ${setJson.message}`);
+            }
+            return;
+        }
+
+        if (result && result.status === 'success') {
+            alert("✅ COE Verified Successfully! Redirecting to Admin Panel...");
+            window.location.href = 'admin-hidden.html';
+        } else {
+            alert("❌ " + (result.message || 'Invalid COE Credentials'));
+        }
+    } catch(err) {
+        alert("❌ Network error connecting to COE authentication backend.");
+    }
+};
+
+// --- 2. ADMIN PANEL DUAL AUDIT DASHBOARD (Faculty & COE) ---
+window.renderAdminDualAudit = async function() {
+    let tabFac = document.getElementById('tab-faculty');
+    if (!tabFac) return;
+
+    let container = document.getElementById('admin-dual-audit-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'admin-dual-audit-container';
+        container.style.cssText = 'margin-top:30px; background:white; padding:25px; border-radius:8px; border:1px solid #cbd5e1; box-shadow:0 1px 3px rgba(0,0,0,0.05);';
+        tabFac.appendChild(container);
+    }
+
+    let coeRecord = { email: "coeaub@blr.amity.edu", count: 0, timestamps: ["Never"], lastTimestamp: "Never" };
+    try {
+        let coeRes = await fetch(scriptURL + "?action=getCOEAudit");
+        let coeList = await coeRes.json();
+        if (coeList && coeList.length > 0) coeRecord = coeList[0];
+    } catch(e) {}
+
+    let coeLastTime = coeRecord.lastTimestamp && coeRecord.lastTimestamp !== 'Never' ? new Date(coeRecord.lastTimestamp).toLocaleString() : 'Never';
+
+    let html = `
+        <h3 style="color:#0f172a; margin-top:0;">🛡️ COE Login Audit & Security</h3>
+        <table style="width:100%; border-collapse:collapse; margin-top:15px; font-size:0.9rem; margin-bottom:30px;">
+            <thead>
+                <tr style="background:#f8fafc; border-bottom:2px solid #cbd5e1; color:#334155; text-align:left;">
+                    <th style="padding:12px;">COE Email</th>
+                    <th style="padding:12px; text-align:center;">Login Count</th>
+                    <th style="padding:12px;">Last Timestamp</th>
+                    <th style="padding:12px; text-align:right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr style="border-bottom:1px solid #e2e8f0;">
+                    <td style="padding:12px; font-weight:bold; color:#0f172a;">${esc(coeRecord.email)}</td>
+                    <td style="padding:12px; text-align:center;"><span style="background:#dcfce3; color:#16a34a; padding:4px 10px; border-radius:4px; font-weight:bold;">${coeRecord.count} logins</span></td>
+                    <td style="padding:12px; color:#475569;">${coeLastTime}</td>
+                    <td style="padding:12px; text-align:right;">
+                        <button onclick="window.adminResetCOEPwd()" style="background:#ef4444; color:white; border:none; padding:5px 12px; border-radius:4px; cursor:pointer; font-weight:bold;">Reset COE Password</button>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    `;
+
+    // Append Faculty Audit Table right below it
+    container.innerHTML = html + (document.getElementById('admin-faculty-audit-container')?.innerHTML || '');
+};
+
+window.adminResetCOEPwd = async function() {
+    if (!confirm("Are you sure you want to reset COE password back to default (coe@123)?")) return;
+    try {
+        let res = await fetch(scriptURL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ action: 'setcoepassword', email: 'coeaub@blr.amity.edu', password: 'coe@123' })
+        });
+        let json = await res.json();
+        if (json.status === 'success') {
+            alert("✅ COE password successfully reset to coe@123.");
+            window.renderAdminDualAudit();
+        } else {
+            alert(`❌ Error: ${json.message}`);
+        }
+    } catch(err) {
+        alert("❌ Network error.");
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    let tabFac = document.getElementById('tab-faculty');
+    if (tabFac) {
+        setTimeout(window.renderAdminDualAudit, 500);
+    }
+});
 
 ```
 
-## 3. Create `VERSION15.0.md`
+## 5. Create `VERSION1.5.md`
 
-* Create a file named `VERSION15.0.md` in your project root containing the release notes for Ver 15.0.
+* Create a file named `VERSION1.5.md` in your project root containing the release notes for Ver 1.5.
+
+```
+
+```

@@ -1,6 +1,6 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 1.5.1 - COE Configuration, Seating & Multi-Export Suite)
+ * Master Script Engine (Ver 1.7 - Faculty Curriculum Table & Navigation Fix)
  */
 
 'use strict';
@@ -1930,30 +1930,108 @@ window.switchFacultyTab = function(tabName) {
         `;
         window.facultyFilterAndSort();
     } else if (tabName === 'curriculum') {
-        let keys = Object.keys(window.CURRICULUM_RULES || {});
-        if (keys.length === 0) keys = ["2024_MCA"];
+        let sysProgs = window.SYSTEM_PROGRAMS.length > 0 ? window.SYSTEM_PROGRAMS : [{ batch: "2024", program: "MCA" }];
 
-        let html = `<div style="background:white; padding:20px; border-radius:8px; border:1px solid #cbd5e1;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                <h3 style="margin:0; color:#0f172a;">📚 Official Curriculum Viewer (Read-Only)</h3>
-                <button onclick="window.exportCurriculumJSON()" style="background:#10b981; color:white; border:none; padding:6px 14px; border-radius:6px; font-weight:bold; cursor:pointer;">📥 Download Curriculum</button>
+        area.innerHTML = `
+            <div style="background:white; padding:20px; border-radius:8px; border:1px solid #cbd5e1;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <label style="font-weight:bold; color:#334155;">Select Batch & Program:</label>
+                        <select id="faculty-curr-select" onchange="window.renderFacultyCurriculumTable()" style="padding:8px 12px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold;">
+                            ${sysProgs.map(p => `<option value="${p.batch}_${p.program}">${p.batch} ${p.program}</option>`).join('')}
+                        </select>
+                    </div>
+                    <button onclick="window.exportFacultyCurriculumPDF()" style="background:#dc2626; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer;">📄 Download PDF</button>
+                </div>
+                <div id="faculty-curriculum-table-container"></div>
+            </div>
+        `;
+        window.renderFacultyCurriculumTable();
+    }
+};
+
+window.renderFacultyCurriculumTable = function() {
+    let dropdown = document.getElementById('faculty-curr-select');
+    let container = document.getElementById('faculty-curriculum-table-container');
+    if (!container) return;
+
+    let selectedKey = dropdown ? dropdown.value : "2024_MCA";
+    let rules = window.CURRICULUM_RULES[selectedKey] || [];
+
+    if (rules.length === 0) {
+        container.innerHTML = `<p style="color:#64748b; text-align:center; padding:20px;">No curriculum rules found for ${selectedKey.replace('_', ' ')}.</p>`;
+        return;
+    }
+
+    let html = `<h4 style="color:#0f172a; margin-top:0;">📋 Curriculum Overview: ${selectedKey.replace('_', ' ')}</h4>`;
+
+    rules.forEach((main) => {
+        html += `
+        <div style="margin-bottom:25px; border:1px solid #cbd5e1; border-radius:8px; overflow:hidden; background:white;">
+            <div style="background:#f8fafc; padding:12px 15px; border-bottom:1px solid #cbd5e1;">
+                <strong style="color:#1e293b; font-size:1.05rem;">📁 ${esc(main.category)} (Min Credits: ${main.minCredits})</strong>
             </div>`;
 
-        keys.forEach(k => {
-            html += `<div style="margin-bottom:20px; border:1px solid #cbd5e1; border-radius:6px; padding:15px; background:#f8fafc;">
-                <h4 style="color:#2563eb; margin-top:0;">Program/Batch: ${k.replace('_', ' ')}</h4>`;
-            (window.CURRICULUM_RULES[k] || []).forEach(main => {
-                html += `<div style="margin-bottom:12px;"><strong style="color:#1e293b;">📁 ${esc(main.category)} (Min Credits: ${main.minCredits})</strong>`;
-                (main.subCategories || []).forEach(sub => {
-                    html += `<div style="margin-left:15px; color:#475569; font-size:0.9rem; margin-top:4px;">• <strong>${esc(sub.name)}</strong> (Min: ${sub.minCredits} Cr) — Courses: ${(sub.codes || []).join(', ')}</div>`;
-                });
-                html += `</div>`;
-            });
-            html += `</div>`;
+        (main.subCategories || []).forEach((sub) => {
+            html += `
+            <div style="padding:15px; background:white; border-bottom:1px solid #e2e8f0;">
+                <div style="font-weight:bold; color:#334155; margin-bottom:8px;">📄 Sub-Category: ${esc(sub.name)} (Min: ${sub.minCredits} Cr)</div>
+                <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                    <thead>
+                        <tr style="background:#f1f5f9; color:#475569; text-align:left;">
+                            <th style="padding:8px;">Course Code</th>
+                            <th style="padding:8px;">Course Name</th>
+                            <th style="padding:8px; text-align:right;">Credits</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${(sub.codes || []).length > 0 ? (sub.codes || []).map((code) => {
+                            let info = window.getCourseInfo(code);
+                            return `
+                            <tr style="border-bottom:1px solid #f1f5f9;">
+                                <td style="padding:8px; font-weight:bold; color:#0f172a;">${esc(code)}</td>
+                                <td style="padding:8px; color:#334155;">${esc(info.name)}</td>
+                                <td style="padding:8px; text-align:right; font-weight:bold; color:#2563eb;">${info.credits} Cr</td>
+                            </tr>`;
+                        }).join('') : `<tr><td colspan="3" style="padding:10px; color:#64748b; text-align:center;">No courses in this sub-category.</td></tr>`}
+                    </tbody>
+                </table>
+            </div>`;
         });
         html += `</div>`;
-        area.innerHTML = html;
-    }
+    });
+
+    container.innerHTML = html;
+};
+
+window.exportFacultyCurriculumPDF = function() {
+    if (!window.jspdf || !window.jspdf.jsPDF) { alert("PDF library loading..."); return; }
+    let dropdown = document.getElementById('faculty-curr-select');
+    let selectedKey = dropdown ? dropdown.value : "2024_MCA";
+    let rules = window.CURRICULUM_RULES[selectedKey] || [];
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    doc.setFontSize(14);
+    doc.text(`Amity University - Curriculum Report (${selectedKey.replace('_', ' ')})`, 14, 20);
+
+    let flatRows = [];
+    rules.forEach(main => {
+        (main.subCategories || []).forEach(sub => {
+            (sub.codes || []).forEach(code => {
+                let info = window.getCourseInfo(code);
+                flatRows.push([main.category, sub.name, code, info.name, `${info.credits} Cr`]);
+            });
+        });
+    });
+
+    doc.autoTable({
+        startY: 28,
+        head: [['Main Category', 'Sub Category', 'Code', 'Course Name', 'Credits']],
+        body: flatRows,
+        theme: 'grid'
+    });
+    doc.save(`Curriculum_${selectedKey}.pdf`);
 };
 
 window.facultyFilterAndSort = function() {
@@ -1987,7 +2065,7 @@ window.facultyFilterAndSort = function() {
             <td style="padding:12px;">${esc(s.name)}</td>
             <td style="padding:12px; font-weight:bold; color:#3b82f6;">${cFormatted}</td>
             <td style="padding:12px; font-weight:bold;">${s.totalCredits || '0'}</td>
-            <td style="padding:12px; text-align:right;"><button style="background:#0ea5e9; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-weight:bold;" onclick="window.openFacultyStudentView('${esc(s.sen)}')">Details</button>
+            <td style="padding:12px; text-align:right;"><button style="background:#0ea5e9; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-weight:bold;" onclick="window.openFacultyStudentView('${esc(s.sen)}')">Details</button></td>
         </tr>`;
     }).join('');
 };
@@ -1997,20 +2075,19 @@ window.openFacultyStudentView = function(sen) {
     if (!student) { alert("Student not found."); return; }
     window.loadStudentDashboard(student);
 
-    // Inject "← Back to Directory" button into student dashboard view
+    // FIX: Properly wire "← Back to Directory" button
     setTimeout(() => {
         let dash = document.getElementById('student-dash') || document.getElementById('student-dashboard');
         if (dash && !document.getElementById('back-to-directory-btn')) {
-            let topBar = dash.querySelector('div') || dash;
             let backBtn = document.createElement('button');
             backBtn.id = 'back-to-directory-btn';
             backBtn.innerHTML = '← Back to Directory';
-            backBtn.style.cssText = 'margin-bottom:15px; background:#475569; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer; display:inline-block;';
+            backBtn.style.cssText = 'margin:15px 0 0 20px; background:#475569; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer; display:inline-block; z-index:999; position:relative;';
             backBtn.onclick = function() {
                 dash.style.display = 'none';
                 if (typeof window.renderFacultyPortal === 'function') window.renderFacultyPortal();
             };
-            topBar.insertBefore(backBtn, topBar.firstChild);
+            dash.insertBefore(backBtn, dash.firstChild);
         }
     }, 100);
 };

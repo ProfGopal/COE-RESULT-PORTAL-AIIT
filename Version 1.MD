@@ -1,228 +1,64 @@
 ```python
-# Analyzing user requirements for Ver 1.6 / Ver 18.0:
-# 1. Admin Panel Filter: Fix filtering and dropdown selection so filtering by batch, program, credits, and search works smoothly.
-# 2. Admin Panel Export: Provide Export PDF and Export Excel buttons across all admin screens and individual student details views.
-# 3. Faculty Portal Dropdown Filter: Fix filter dropdowns (years/programs) in faculty login.
-# 4. Faculty Portal Navigation: Add a clear "← Back to Directory" button when viewing individual student profiles in the faculty portal instead of only having logout.
-# 5. Faculty Portal Navigation & Curriculum View: In the faculty login, keep buttons for Student Results and Curriculum View. In Curriculum View, display all batch and programs updated in admin login in a read-only mode with download options.
+# Analyzing requirements for Ver 1.7 / Ver 19.0:
+# 1. Faculty Portal Curriculum Viewer: Match the admin panel format exactly—displaying Main Category, Sub-Category, Course Code, Course Name, and Credits in a clean table structure (read-only for faculty).
+# 2. Add a dropdown in the faculty curriculum viewer to select the year/batch and program (e.g., 2024 MCA), exactly like the admin panel.
+# 3. Add a "Download PDF" option for the faculty curriculum view (using jsPDF and autoTable).
+# 4. Fix the "← Back to Directory" button in the faculty portal student details view so it properly re-renders the directory table instead of failing.
 
-print("Designing Ver 1.6 Comprehensive Admin Filters, Faculty Navigation & Curriculum View Suite")
+print("Designing Ver 1.7 Master Faculty Curriculum Table Viewer & Navigation Repair")
 
 
 ```
 
 ```text
-Designing Ver 1.6 Comprehensive Admin Filters, Faculty Navigation & Curriculum View Suite
+Designing Ver 1.7 Master Faculty Curriculum Table Viewer & Navigation Repair
 
 
 ```
 
-# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 1.6 (Admin Filters, Faculty Back Navigation & Curriculum Viewer Suite)
+# MASTER ARCHITECTURE BLUEPRINT: AIIT Version 1.7 (Faculty Curriculum Table Viewer & Navigation Fix)
 
-You are updating a static GitHub Pages site (`script.js`, `admin-hidden.html`, `index.html`). We are fixing the **Admin panel filters** (batch, program, and credits search), adding **Export PDF and Excel** buttons to all admin screens and individual student profile views, fixing the **Faculty portal filter dropdowns**, adding a **"← Back to Directory"** button on individual student views in the faculty portal, and implementing the **Faculty Curriculum Viewer** displaying all cloud-synced batches and programs in read-only mode with download options.
+You are updating a static GitHub Pages site (`script.js`). We are rebuilding the **Faculty Curriculum Viewer** to match the admin table format (Main Category, Sub-Category, Course Code, Course Name, and Credits), adding a batch/program dropdown selector, adding a **"Download PDF"** export button, and fixing the **"← Back to Directory"** navigation handler when viewing individual student profiles in the faculty portal, updating version tags to **Ver 1.7**, and creating `VERSION17.1.md`.
 
 Please execute the following strict updates:
 
 ## 1. Global Versioning Update
 
 * **File:** `index.html`, `admin-hidden.html`
-* Change all version tags in the top left corners to **Ver 1.6**.
+* Change all version tags in the top left corners to **Ver 1.7**.
 
 
 
-## 2. Complete Unified Frontend Engine (`script.js`)
+## 2. Faculty Curriculum Table & Navigation Repair Engine (`script.js`)
 
 * **File:** `script.js`
-* Replace your filter handlers, student view navigation, export utilities, and faculty curriculum viewer with this complete version:
+* Replace your faculty curriculum tab renderer, course lookup helper, and student profile back navigation with this polished version:
 
 
 
 ```javascript
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 1.6 - Admin Filters, Faculty Navigation & Curriculum Viewer Suite)
+ * Master Script Engine (Ver 1.7 - Faculty Curriculum Table & Navigation Fix)
  */
 
 'use strict';
 
-const scriptURL = "https://script.google.com/macros/s/AKfycby0xTAEjyfcN-IrEVaEzQuFFAfCQD1wWhpTJ5dlv9S7jBIT48RY8PxH76mW2Mci0rCGCw/exec";
-
-window.STUDENTS = [];
-window.CURRICULUM_RULES = {};
-window.SYSTEM_PROGRAMS = [];
-
-function sanitize(str) {
-  return String(str || '').replace(/[<>"'`;\\&\/]/g, '').trim().substring(0, 200);
-}
-
-function esc(str) {
-  if (str === null || str === undefined) return '';
-  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
-}
-window.esc = esc;
-
-// --- 1. CLOUD BOOTLOADER ---
-window.initializeCloudPortal = async function() {
-    try {
-        let [stuRes, curRes] = await Promise.all([
-            fetch(scriptURL + "?action=load"),
-            fetch(scriptURL + "?action=getCurriculum")
-        ]);
-        
-        let stuData = await stuRes.json();
-        window.STUDENTS = Array.isArray(stuData) ? stuData : (stuData.students || []);
-        
-        let progMap = new Map();
-        window.STUDENTS.forEach(s => {
-            if (s.batch && s.program) {
-                progMap.set(`${s.batch}_${s.program}`, { batch: s.batch, program: s.program });
-            }
-        });
-        window.SYSTEM_PROGRAMS = Array.from(progMap.values());
-        if (window.SYSTEM_PROGRAMS.length === 0) {
-            window.SYSTEM_PROGRAMS = [
-                { batch: "2024", program: "MCA" }, 
-                { batch: "2025", program: "MCA" }, 
-                { batch: "2024", program: "B.C.A" }, 
-                { batch: "2025", program: "B.C.A" }
-            ];
-        }
-
-        let curText = await curRes.text();
-        if (curText && curText.trim().startsWith("{")) {
-            let parsed = JSON.parse(curText);
-            window.CURRICULUM_RULES = parsed.rules || parsed;
-            if (parsed.courses) window.CUSTOM_COURSE_DICT = parsed.courses;
-        }
-    } catch (err) {
-        console.warn("Cloud sync warning:", err);
+// --- 1. COURSE INFO HELPER ---
+window.getCourseInfo = function(code) {
+    if (!code) return { name: "Course Title", credits: 3 };
+    let cleanCode = String(code).toUpperCase().trim();
+    if (window.CUSTOM_COURSE_DICT && window.CUSTOM_COURSE_DICT[cleanCode]) {
+        let item = window.CUSTOM_COURSE_DICT[cleanCode];
+        return {
+            name: item.name || cleanCode,
+            credits: (item.credits !== undefined && !isNaN(item.credits)) ? parseFloat(item.credits) : 3
+        };
     }
-
-    if (typeof window.renderSystemPrograms === 'function') window.renderSystemPrograms();
-    if (typeof window.applyAdminFilters === 'function') window.applyAdminFilters();
-    if (typeof window.loadCurriculumEditor === 'function') window.loadCurriculumEditor();
+    return { name: cleanCode, credits: 3 };
 };
 
-// --- 2. ADMIN FILTERS & EXPORT UTILITIES ---
-window.applyAdminFilters = async function() {
-    var tbody = document.getElementById('admin-tbody');
-    var totalStu = document.getElementById('total-stu');
-    if (!tbody) return;
-
-    if (window.STUDENTS.length === 0) {
-        await window.initializeCloudPortal();
-    }
-
-    const searchInput = document.querySelector('input[placeholder*="sunil"], input[placeholder*="Search"], #admin-search-input');
-    const searchTxt = searchInput ? searchInput.value.toLowerCase().trim() : "";
-
-    const batchSelects = document.querySelectorAll('select');
-    let batchSel = "", progSel = "";
-    batchSelects.forEach(sel => {
-        let val = sel.value.trim();
-        if (val && val !== "All Years" && val !== "All Programs" && val !== "All Credits" && !val.includes("Sort")) {
-            if (window.SYSTEM_PROGRAMS.some(p => String(p.batch) === val)) batchSel = val;
-            if (window.SYSTEM_PROGRAMS.some(p => String(p.program) === val)) progSel = val;
-        }
-    });
-
-    let filtered = window.STUDENTS.filter(s => {
-        let matchSearch = !searchTxt || String(s.sen || '').toLowerCase().includes(searchTxt) || String(s.name || '').toLowerCase().includes(searchTxt);
-        let matchBatch = !batchSel || String(s.batch || '').trim() === batchSel;
-        let matchProg = !progSel || String(s.program || '').trim() === progSel;
-        return matchSearch && matchBatch && matchProg;
-    });
-
-    if (totalStu) totalStu.textContent = filtered.length;
-
-    tbody.innerHTML = filtered.map((s, i) => {
-        let cRaw = parseFloat(s.cgpa);
-        let cFormatted = !isNaN(cRaw) ? cRaw.toFixed(2) : 'N/A';
-        return `
-        <tr style="border-bottom:1px solid #e2e8f0;">
-            <td style="padding:10px;">${i + 1}</td>
-            <td style="font-weight:bold;">${esc(s.sen)}</td>
-            <td>${esc(s.name)}</td>
-            <td>${esc(s.program || 'N/A')}</td>
-            <td style="font-weight:bold; color:#3b82f6;">${cFormatted}</td>
-            <td>${s.totalCredits || '0'}</td>
-            <td><button style="background:#0ea5e9; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer;" onclick="window.openAdminStudentView('${esc(s.sen)}')">Details</button></td>
-        </tr>`;
-    }).join('');
-
-    // Ensure Export Buttons are present on Admin Student Directory
-    let container = tbody.closest('.admin-section') || tbody.parentElement;
-    if (container && !document.getElementById('admin-export-bar')) {
-        let bar = document.createElement('div');
-        bar.id = 'admin-export-bar';
-        bar.style.cssText = 'margin-bottom:15px; display:flex; gap:10px;';
-        bar.innerHTML = `
-            <button onclick="window.exportAdminCSV()" style="background:#10b981; color:white; border:none; padding:6px 14px; border-radius:4px; font-weight:bold; cursor:pointer;">📥 Export Excel / CSV</button>
-            <button onclick="window.exportAdminPDF()" style="background:#dc2626; color:white; border:none; padding:6px 14px; border-radius:4px; font-weight:bold; cursor:pointer;">📄 Export PDF</button>
-        `;
-        container.insertBefore(bar, tbody.closest('table'));
-    }
-};
-
-window.exportAdminCSV = function() {
-    let csv = "SEN,Name,Program,Batch,CGPA,Total Credits\n";
-    window.STUDENTS.forEach(s => {
-        csv += `"${s.sen}","${s.name}","${s.program}","${s.batch}","${s.cgpa}","${s.totalCredits}"\n`;
-    });
-    let blob = new Blob([csv], { type: 'text/csv' });
-    let url = URL.createObjectURL(blob);
-    let a = document.createElement('a');
-    a.href = url;
-    a.download = 'Admin_Student_Directory.csv';
-    a.click();
-};
-
-window.exportAdminPDF = function() {
-    if (!window.jspdf || !window.jspdf.jsPDF) { alert("PDF library loading..."); return; }
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    doc.setFontSize(14);
-    doc.text("Amity University - Admin Student Directory Report", 14, 20);
-    let body = window.STUDENTS.map(s => [s.sen, s.name, s.program, s.batch, s.cgpa, s.totalCredits]);
-    doc.autoTable({ startY: 28, head: [['SEN', 'Name', 'Program', 'Batch', 'CGPA', 'Credits']], body: body, theme: 'grid' });
-    doc.save('Admin_Student_Directory.pdf');
-};
-
-// --- 3. FACULTY PORTAL (Back to Directory & Curriculum View) ---
-window.renderFacultyPortal = async function(email) {
-    let facultyDash = document.getElementById('faculty-dash') || document.querySelector('.faculty-section') || document.getElementById('faculty-dashboard');
-    
-    document.querySelectorAll('.page, .login-container, #student-login-container, .landing-container, #faculty-login-container').forEach(el => {
-        if (el) el.style.display = 'none';
-    });
-
-    if (!facultyDash) {
-        facultyDash = document.createElement('div');
-        facultyDash.id = 'faculty-dash';
-        facultyDash.style.cssText = 'padding:20px; background:#f8fafc; min-height:100vh;';
-        document.body.appendChild(facultyDash);
-    }
-    facultyDash.style.display = 'block';
-
-    if (window.STUDENTS.length === 0) await window.initializeCloudPortal();
-
-    facultyDash.innerHTML = `
-        <div style="max-width:1200px; margin:0 auto;">
-            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #cbd5e1; padding-bottom:12px; margin-bottom:20px;">
-                <h2 style="color:#0f172a; margin:0;">👨‍🏫 Faculty Portal: Student Analytics & Curriculum Viewer</h2>
-                <div style="display:flex; gap:10px;">
-                    <button onclick="window.switchFacultyTab('directory')" id="fac-tab-dir" style="background:#2563eb; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer;">Student Results & Directory</button>
-                    <button onclick="window.switchFacultyTab('curriculum')" id="fac-tab-curr" style="background:#f1f5f9; color:#475569; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer;">Curriculum View</button>
-                    <button onclick="window.logoutPortal()" style="background:#ef4444; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer;">Logout</button>
-                </div>
-            </div>
-            <div id="faculty-tab-content-area"></div>
-        </div>
-    `;
-
-    window.switchFacultyTab('directory');
-};
-
+// --- 2. FACULTY CURRICULUM TAB VIEWER (Matching Admin Table Format & Dropdown) ---
 window.switchFacultyTab = function(tabName) {
     let area = document.getElementById('faculty-tab-content-area');
     if (!area) return;
@@ -266,103 +102,136 @@ window.switchFacultyTab = function(tabName) {
         `;
         window.facultyFilterAndSort();
     } else if (tabName === 'curriculum') {
-        let keys = Object.keys(window.CURRICULUM_RULES || {});
-        if (keys.length === 0) keys = ["2024_MCA"];
+        let sysProgs = window.SYSTEM_PROGRAMS.length > 0 ? window.SYSTEM_PROGRAMS : [{ batch: "2024", program: "MCA" }];
+        let defaultKey = `${sysProgs[0].batch}_${sysProgs[0].program}`;
 
-        let html = `<div style="background:white; padding:20px; border-radius:8px; border:1px solid #cbd5e1;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                <h3 style="margin:0; color:#0f172a;">📚 Official Curriculum Viewer (Read-Only)</h3>
-                <button onclick="window.exportCurriculumJSON()" style="background:#10b981; color:white; border:none; padding:6px 14px; border-radius:6px; font-weight:bold; cursor:pointer;">📥 Download Curriculum</button>
-            </div>`;
-
-        keys.forEach(k => {
-            html += `<div style="margin-bottom:20px; border:1px solid #cbd5e1; border-radius:6px; padding:15px; background:#f8fafc;">
-                <h4 style="color:#2563eb; margin-top:0;">Program/Batch: ${k.replace('_', ' ')}</h4>`;
-            (window.CURRICULUM_RULES[k] || []).forEach(main => {
-                html += `<div style="margin-bottom:12px;"><strong style="color:#1e293b;">📁 ${esc(main.category)} (Min Credits: ${main.minCredits})</strong>`;
-                (main.subCategories || []).forEach(sub => {
-                    html += `<div style="margin-left:15px; color:#475569; font-size:0.9rem; margin-top:4px;">• <strong>${esc(sub.name)}</strong> (Min: ${sub.minCredits} Cr) — Courses: ${(sub.codes || []).join(', ')}</div>`;
-                });
-                html += `</div>`;
-            });
-            html += `</div>`;
-        });
-        html += `</div>`;
-        area.innerHTML = html;
+        area.innerHTML = `
+            <div style="background:white; padding:20px; border-radius:8px; border:1px solid #cbd5e1;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <label style="font-weight:bold; color:#334155;">Select Batch & Program:</label>
+                        <select id="faculty-curr-select" onchange="window.renderFacultyCurriculumTable()" style="padding:8px 12px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold;">
+                            ${sysProgs.map(p => `<option value="${p.batch}_${p.program}">${p.batch} ${p.program}</option>`).join('')}
+                        </select>
+                    </div>
+                    <button onclick="window.exportFacultyCurriculumPDF()" style="background:#dc2626; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer;">📄 Download PDF</button>
+                </div>
+                <div id="faculty-curriculum-table-container"></div>
+            </div>
+        `;
+        window.renderFacultyCurriculumTable();
     }
 };
 
-window.facultyFilterAndSort = function() {
-    let students = window.STUDENTS || [];
-    const searchInput = document.getElementById('faculty-search-input');
-    const searchTxt = searchInput ? searchInput.value.toLowerCase().trim() : "";
-    const batchSel = document.getElementById('filter-batch') ? document.getElementById('filter-batch').value.trim() : "";
-    const progSel = document.getElementById('filter-program') ? document.getElementById('filter-program').value.trim() : "";
+window.renderFacultyCurriculumTable = function() {
+    let dropdown = document.getElementById('faculty-curr-select');
+    let container = document.getElementById('faculty-curriculum-table-container');
+    if (!container) return;
 
-    let filtered = students.filter(s => {
-        let matchSearch = !searchTxt || String(s.sen || '').toLowerCase().includes(searchTxt) || String(s.name || '').toLowerCase().includes(searchTxt);
-        let matchBatch = !batchSel || String(s.batch || '').trim() === batchSel;
-        let matchProg = !progSel || String(s.program || '').trim() === progSel;
-        return matchSearch && matchBatch && matchProg;
-    });
+    let selectedKey = dropdown ? dropdown.value : "2024_MCA";
+    let rules = window.CURRICULUM_RULES[selectedKey] || [];
 
-    let tbody = document.getElementById('faculty-directory-tbody');
-    if (!tbody) return;
-
-    if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px; color:#64748b;">No matching students found.</td></tr>`;
+    if (rules.length === 0) {
+        container.innerHTML = `<p style="color:#64748b; text-align:center; padding:20px;">No curriculum rules found for ${selectedKey.replace('_', ' ')}.</p>`;
         return;
     }
 
-    tbody.innerHTML = filtered.map(s => {
-        let cRaw = parseFloat(s.cgpa);
-        let cFormatted = !isNaN(cRaw) ? cRaw.toFixed(2) : 'N/A';
-        return `
-        <tr style="border-bottom:1px solid #e2e8f0;">
-            <td style="padding:12px; font-weight:bold;">${esc(s.sen)}</td>
-            <td style="padding:12px;">${esc(s.name)}</td>
-            <td style="padding:12px; font-weight:bold; color:#3b82f6;">${cFormatted}</td>
-            <td style="padding:12px; font-weight:bold;">${s.totalCredits || '0'}</td>
-            <td style="padding:12px; text-align:right;"><button style="background:#0ea5e9; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-weight:bold;" onclick="window.openFacultyStudentView('${esc(s.sen)}')">Details</button></td>
-        </tr>`;
-    }).join('');
+    let html = `<h4 style="color:#0f172a; margin-top:0;">📋 Curriculum Overview: ${selectedKey.replace('_', ' ')}</h4>`;
+
+    rules.forEach((main) => {
+        html += `
+        <div style="margin-bottom:25px; border:1px solid #cbd5e1; border-radius:8px; overflow:hidden; background:white;">
+            <div style="background:#f8fafc; padding:12px 15px; border-bottom:1px solid #cbd5e1;">
+                <strong style="color:#1e293b; font-size:1.05rem;">📁 ${esc(main.category)} (Min Credits: ${main.minCredits})</strong>
+            </div>`;
+
+        (main.subCategories || []).forEach((sub) => {
+            html += `
+            <div style="padding:15px; background:white; border-bottom:1px solid #e2e8f0;">
+                <div style="font-weight:bold; color:#334155; margin-bottom:8px;">📄 Sub-Category: ${esc(sub.name)} (Min: ${sub.minCredits} Cr)</div>
+                <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                    <thead>
+                        <tr style="background:#f1f5f9; color:#475569; text-align:left;">
+                            <th style="padding:8px;">Course Code</th>
+                            <th style="padding:8px;">Course Name</th>
+                            <th style="padding:8px; text-align:right;">Credits</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${(sub.codes || []).length > 0 ? (sub.codes || []).map((code) => {
+                            let info = window.getCourseInfo(code);
+                            return `
+                            <tr style="border-bottom:1px solid #f1f5f9;">
+                                <td style="padding:8px; font-weight:bold; color:#0f172a;">${esc(code)}</td>
+                                <td style="padding:8px; color:#334155;">${esc(info.name)}</td>
+                                <td style="padding:8px; text-align:right; font-weight:bold; color:#2563eb;">${info.credits} Cr</td>
+                            </tr>`;
+                        }).join('') : `<tr><td colspan="3" style="padding:10px; color:#64748b; text-align:center;">No courses in this sub-category.</td></tr>`}
+                    </tbody>
+                </table>
+            </div>`;
+        });
+        html += `</div>`;
+    });
+
+    container.innerHTML = html;
 };
 
+window.exportFacultyCurriculumPDF = function() {
+    if (!window.jspdf || !window.jspdf.jsPDF) { alert("PDF library loading..."); return; }
+    let dropdown = document.getElementById('faculty-curr-select');
+    let selectedKey = dropdown ? dropdown.value : "2024_MCA";
+    let rules = window.CURRICULUM_RULES[selectedKey] || [];
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    doc.setFontSize(14);
+    doc.text(`Amity University - Curriculum Report (${selectedKey.replace('_', ' ')})`, 14, 20);
+
+    let flatRows = [];
+    rules.forEach(main => {
+        (main.subCategories || []).forEach(sub => {
+            (sub.codes || []).forEach(code => {
+                let info = window.getCourseInfo(code);
+                flatRows.push([main.category, sub.name, code, info.name, `${info.credits} Cr`]);
+            });
+        });
+    });
+
+    doc.autoTable({
+        startY: 28,
+        head: [['Main Category', 'Sub Category', 'Code', 'Course Name', 'Credits']],
+        body: flatRows,
+        theme: 'grid'
+    });
+    doc.save(`Curriculum_${selectedKey}.pdf`);
+};
+
+// --- 3. BACK TO DIRECTORY NAVIGATION FIX ---
 window.openFacultyStudentView = function(sen) {
     let student = window.STUDENTS.find(s => String(s.sen).toUpperCase() === String(sen).toUpperCase());
     if (!student) { alert("Student not found."); return; }
     window.loadStudentDashboard(student);
 
-    // Inject "← Back to Directory" button into student dashboard view
+    // FIX: Properly wire "← Back to Directory" button
     setTimeout(() => {
         let dash = document.getElementById('student-dash') || document.getElementById('student-dashboard');
         if (dash && !document.getElementById('back-to-directory-btn')) {
-            let topBar = dash.querySelector('div') || dash;
             let backBtn = document.createElement('button');
             backBtn.id = 'back-to-directory-btn';
             backBtn.innerHTML = '← Back to Directory';
-            backBtn.style.cssText = 'margin-bottom:15px; background:#475569; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer; display:inline-block;';
+            backBtn.style.cssText = 'margin:15px 0 0 20px; background:#475569; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer; display:inline-block; z-index:999; position:relative;';
             backBtn.onclick = function() {
                 dash.style.display = 'none';
                 if (typeof window.renderFacultyPortal === 'function') window.renderFacultyPortal();
             };
-            topBar.insertBefore(backBtn, topBar.firstChild);
+            dash.insertBefore(backBtn, dash.firstChild);
         }
     }, 100);
 };
 
-window.exportCurriculumJSON = function() {
-    let dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(window.CURRICULUM_RULES, null, 2));
-    let dlAnchor = document.createElement('a');
-    dlAnchor.setAttribute("href", dataStr);
-    dlAnchor.setAttribute("download", "AIIT_Curriculum_Rules.json");
-    document.body.appendChild(dlAnchor);
-    dlAnchor.click();
-    dlAnchor.remove();
-};
-
 ```
 
-## 3. Create `VERSION1.6.md`
+## 3. Create `VERSION17.1.md`
 
-* Create a file named `VERSION1.6.md` in your project root containing the release notes for Ver 1.6.
+* Create a file named `VERSION17.1.md` in your project root containing the release notes for Ver 1.7.

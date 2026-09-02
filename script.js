@@ -605,7 +605,7 @@ window.showCoeDashboard = function() {
     coeDash.innerHTML = `
         <div style="max-width:1200px; margin:0 auto;">
             <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #cbd5e1; padding-bottom:15px; margin-bottom:25px;">
-                <h2 style="color:#0f172a; margin:0;">📋 COE Examination & Seating Management Portal (Ver 1.5.1)</h2>
+                <h2 style="color:#0f172a; margin:0;">📋 COE Examination & Seating Management Portal (Ver 2.0)</h2>
                 <button onclick="window.logoutPortal()" style="background:#ef4444; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer;">Logout COE</button>
             </div>
 

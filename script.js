@@ -1,16 +1,15 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 2.4 - Cloud Sync Upsert & Logout Prevention Fix)
+ * Master Script Engine (Ver 2.5 - Universal BCA & MCA Parser + Multi-File Staging)
  */
 
 'use strict';
 
-window.PORTAL_VERSION = "Ver 2.4";
+window.PORTAL_VERSION = "Ver 2.5";
 
 const scriptURL = "https://script.google.com/macros/s/AKfycby0xTAEjyfcN-IrEVaEzQuFFAfCQD1wWhpTJ5dlv9S7jBIT48RY8PxH76mW2Mci0rCGCw/exec";
 const GAS_URL = scriptURL;
 
-// --- 1. ROBUST EXCEL RESULT UPLOADER & PER-FILE STAGING ---
 window.initializeResultUploader = function() {
     let fileInput = document.getElementById('master-result-excel-input');
     if (!fileInput) {
@@ -104,25 +103,6 @@ window.handleStagedExcelFiles = function(files) {
     `;
 };
 
-window.handleFileDrop = function(e) {
-    e.preventDefault();
-    if (e.dataTransfer && e.dataTransfer.files) {
-        window.handleStagedExcelFiles(e.dataTransfer.files);
-    }
-};
-
-window.triggerTaggedUpload = function() {
-    let input = document.getElementById('excel-upload') || document.getElementById('master-result-excel-input');
-    if (input && input.files) {
-        window.handleStagedExcelFiles(input.files);
-    }
-};
-
-window.uploadStagedFiles = function() {
-    window.processAndSyncStagedResults();
-};
-
-// --- 2. UNIVERSAL BCA & MCA COURSE PARSER ---
 window.processAndSyncStagedResults = async function() {
     if (!window.STAGED_RESULT_FILES || window.STAGED_RESULT_FILES.length === 0) {
         alert("No files staged for upload.");
@@ -148,45 +128,108 @@ window.processAndSyncStagedResults = async function() {
             let workbook = XLSX.read(data, { type: 'array' });
             let sheetName = workbook.SheetNames[0];
             let sheet = workbook.Sheets[sheetName];
-            let rows = XLSX.utils.sheet_to_json(sheet);
+            
+            // Convert sheet to json array of arrays to handle both BCA tabular format and MCA flat format
+            let rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+            if (!rawRows || rawRows.length === 0) continue;
 
-            rows.forEach(row => {
-                let clean = {};
-                for (let k in row) {
-                    clean[k.toString().replace(/[^a-zA-Z0-9]/g, '').toLowerCase()] = row[k];
-                }
+            let header = rawRows[0].map(h => String(h || '').trim().toLowerCase().replace(/[^a-z0-9]/g, ''));
+            let isBcaFormat = header.some(h => h.includes('1coursecode') || h.includes('coursecode')) && rawRows.length > 2;
 
-                // Universal key lookup supporting BCA, MCA, and all program formats
-                let sen = String(clean['sen'] || clean['enrollmentno'] || clean['studentid'] || clean['enrollmentnumber'] || clean['id'] || "").trim().toUpperCase();
-                let name = String(clean['name'] || clean['studentname'] || clean['student'] || "").trim();
-                let code = String(clean['coursecode'] || clean['code'] || clean['subjectcode'] || clean['course'] || "").trim().toUpperCase();
-                let courseName = String(clean['coursename'] || clean['subjectname'] || clean['title'] || "").trim();
-                let credits = parseFloat(clean['credits'] || clean['credit'] || clean['cr'] || 3);
-                let marks = clean['marks'] || clean['totalmarks'] || clean['score'] || 0;
-                let grade = String(clean['grade'] || clean['gr'] || "A").trim().toUpperCase();
+            if (isBcaFormat) {
+                // Parse BCA institutional tabular multi-row format
+                let studentsMap = {};
+                let currentSen = null;
+                let currentName = null;
 
-                if (sen) {
-                    let existing = allParsedStudents.find(s => s.sen === sen);
-                    let courseObj = { code: code || "SUB101", name: courseName || code || "Course Title", credits: isNaN(credits) ? 3 : credits, marks, grade, type: "Core" };
+                for (let i = 1; i < rawRows.length; i++) {
+                    let r = rawRows[i];
+                    let sen = String(r[0] || '').trim().toUpperCase();
+                    if (sen && sen !== 'NAN' && sen !== 'SEN') {
+                        currentSen = sen;
+                        currentName = String(r[1] || '').trim();
+                    }
+                    if (!currentSen || currentSen === 'SEN') continue;
 
-                    if (existing) {
-                        // Prevent duplicate course entries per student
-                        if (!existing.courses.some(c => c.code === courseObj.code)) {
-                            existing.courses.push(courseObj);
-                        }
-                    } else {
-                        allParsedStudents.push({
-                            sen,
-                            name: name || sen,
+                    if (!studentsMap[currentSen]) {
+                        studentsMap[currentSen] = {
+                            sen: currentSen,
+                            name: currentName || currentSen,
                             program: targetProgram,
                             batch: targetBatch,
-                            cgpa: clean['cgpa'] || clean['gpa'] || "8.50",
-                            totalCredits: clean['totalcredits'] || clean['earnedcredits'] || "20",
-                            courses: [courseObj]
-                        });
+                            cgpa: "8.50",
+                            totalCredits: "20",
+                            courses: []
+                        };
                     }
+
+                    let code = String(r[5] || '').trim().toUpperCase();
+                    if (!code || code === 'NAN') {
+                        let cgpaVal = r[14];
+                        let credVal = r[13];
+                        if (cgpaVal !== undefined && !isNaN(parseFloat(cgpaVal))) studentsMap[currentSen].cgpa = String(cgpaVal);
+                        if (credVal !== undefined && !isNaN(parseInt(credVal))) studentsMap[currentSen].totalCredits = String(credVal);
+                        continue;
+                    }
+
+                    let courseName = String(r[6] || '').trim();
+                    let courseType = String(r[7] || '').trim();
+                    let credits = parseFloat(r[8]);
+                    let marks = r[9] !== undefined ? r[9] : 0;
+                    let grade = String(r[10] || 'A').trim().toUpperCase();
+
+                    studentsMap[currentSen].courses.push({
+                        code: code,
+                        name: courseName && courseName !== 'NAN' ? courseName : code,
+                        credits: isNaN(credits) ? 3 : credits,
+                        marks: marks,
+                        grade: grade && grade !== 'NAN' ? grade : 'A',
+                        type: courseType && courseType !== 'NAN' ? courseType : 'Core'
+                    });
                 }
-            });
+
+                for (let s in studentsMap) {
+                    allParsedStudents.push(studentsMap[s]);
+                }
+            } else {
+                // Parse standard flat row format (MCA / generic)
+                let rows = XLSX.utils.sheet_to_json(sheet);
+                rows.forEach(row => {
+                    let clean = {};
+                    for (let k in row) {
+                        clean[k.toString().replace(/[^a-zA-Z0-9]/g, '').toLowerCase()] = row[k];
+                    }
+
+                    let sen = String(clean['sen'] || clean['enrollmentno'] || clean['studentid'] || clean['id'] || "").trim().toUpperCase();
+                    let name = String(clean['name'] || clean['studentname'] || "").trim();
+                    let code = String(clean['coursecode'] || clean['code'] || clean['subjectcode'] || "").trim().toUpperCase();
+                    let courseName = String(clean['coursename'] || clean['subjectname'] || "").trim();
+                    let credits = parseFloat(clean['credits'] || clean['credit'] || 3);
+                    let marks = clean['marks'] || clean['totalmarks'] || 0;
+                    let grade = String(clean['grade'] || "A").trim().toUpperCase();
+
+                    if (sen) {
+                        let existing = allParsedStudents.find(s => s.sen === sen);
+                        let courseObj = { code: code || "SUB101", name: courseName || code || "Course Title", credits: isNaN(credits) ? 3 : credits, marks, grade, type: "Core" };
+
+                        if (existing) {
+                            if (!existing.courses.some(c => c.code === courseObj.code)) {
+                                existing.courses.push(courseObj);
+                            }
+                        } else {
+                            allParsedStudents.push({
+                                sen,
+                                name: name || sen,
+                                program: targetProgram,
+                                batch: targetBatch,
+                                cgpa: clean['cgpa'] || "8.50",
+                                totalCredits: clean['totalcredits'] || "20",
+                                courses: [courseObj]
+                            });
+                        }
+                    }
+                });
+            }
         } catch (err) {
             console.error("Error parsing file:", file.name, err);
         }
@@ -207,7 +250,6 @@ window.processAndSyncStagedResults = async function() {
         let json = await res.json();
         if (json.status === 'success') {
             alert(`✅ SUCCESS! ${allParsedStudents.length} student records successfully synced to Google Sheets.`);
-            // FIX: Removed window.location.reload() to prevent logout. Instead, refresh student cache in background.
             window.STAGED_RESULT_FILES = [];
             let stagingArea = document.getElementById('staged-preview-container');
             if (stagingArea) stagingArea.innerHTML = `<p style="color:#16a34a; font-weight:bold; text-align:center; padding:15px; margin:0;">✅ All staged files successfully processed and synced to Cloud DB!</p>`;

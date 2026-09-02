@@ -6,7 +6,7 @@
 'use strict';
 
 // --- 1. GLOBAL VERSIONING ---
-window.PORTAL_VERSION = "Ver 2.1";
+window.PORTAL_VERSION = "Ver 2.2";
 
 const scriptURL = "https://script.google.com/macros/s/AKfycby0xTAEjyfcN-IrEVaEzQuFFAfCQD1wWhpTJ5dlv9S7jBIT48RY8PxH76mW2Mci0rCGCw/exec";
 const GAS_URL = scriptURL;
@@ -61,47 +61,50 @@ window.handleStagedExcelFiles = function(files) {
     if (!files || files.length === 0) return;
     window.STAGED_RESULT_FILES = Array.from(files);
 
-    let container = document.getElementById('file-staging-area') || document.querySelector('div[style*="border"]') || document.querySelector('.upload-container');
-    if (!container) return;
+    // Find staging area or create one below upload box
+    let stagingArea = document.getElementById('staged-preview-container');
+    if (!stagingArea) {
+        let uploadBox = document.querySelector('div[style*="border"]') || document.querySelector('.upload-container');
+        if (uploadBox && uploadBox.parentNode) {
+            stagingArea = document.createElement('div');
+            stagingArea.id = 'staged-preview-container';
+            stagingArea.style.cssText = 'margin-top:20px; background:white; padding:20px; border-radius:8px; border:1px solid #cbd5e1; box-shadow:0 1px 3px rgba(0,0,0,0.05);';
+            uploadBox.parentNode.insertBefore(stagingArea, uploadBox.nextSibling);
+        }
+    }
+    if (!stagingArea) return;
 
     let fileNames = window.STAGED_RESULT_FILES.map(f => f.name).join(', ');
     
-    // Extract unique batches and programs from SYSTEM_PROGRAMS
     let batches = [...new Set((window.SYSTEM_PROGRAMS || []).map(p => p.batch))];
-    if (batches.length === 0) batches = ["2024", "2025"];
+    if (batches.length === 0) batches = ["2024", "2025", "2026"];
 
     let programs = [...new Set((window.SYSTEM_PROGRAMS || []).map(p => p.program))];
     if (programs.length === 0) programs = ["MCA", "B.C.A", "MSc (Data Science)", "MSc (Cyber Security)"];
 
-    // Render Staged Preview with Universal Linked Dropdowns for Batch and Program
-    let previewHTML = `
-        <div style="text-align:center; padding:20px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; margin-top: 15px;">
-            <div style="font-size:2rem; margin-bottom:5px;">📄</div>
-            <h4 style="color:#0f172a; margin:0 0 5px 0;">Staged Files: ${typeof esc === 'function' ? esc(fileNames) : fileNames}</h4>
-            <p style="color:#16a34a; font-size:0.9rem; font-weight:bold; margin-bottom:15px;">✓ File pulled successfully. Select target Batch and Program below to prevent overlap.</p>
+    stagingArea.innerHTML = `
+        <div style="text-align:left;">
+            <h4 style="color:#0f172a; margin-top:0;">📂 Staged Result Files: <span style="color:#2563eb;">${typeof esc === 'function' ? esc(fileNames) : fileNames}</span></h4>
+            <p style="color:#475569; font-size:0.9rem; margin-bottom:15px;">Select the target Batch and Program below to ensure results map accurately without cross-batch overlaps.</p>
             
-            <div style="display:flex; justify-content:center; gap:15px; margin-bottom:20px; flex-wrap:wrap;">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:20px;">
                 <div>
-                    <label style="display:block; font-weight:bold; font-size:0.85rem; color:#334155; margin-bottom:5px; text-align:left;">TARGET BATCH / YEAR</label>
-                    <select id="staged-batch-select" style="padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold; min-width:160px; background:white;">
+                    <label style="display:block; font-weight:bold; font-size:0.85rem; color:#334155; margin-bottom:5px;">🎯 TARGET BATCH (YEAR)</label>
+                    <select id="staged-batch-select" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold; background:white;">
                         ${batches.map(b => `<option value="${b}">${b}</option>`).join('')}
                     </select>
                 </div>
                 <div>
-                    <label style="display:block; font-weight:bold; font-size:0.85rem; color:#334155; margin-bottom:5px; text-align:left;">TARGET PROGRAM</label>
-                    <select id="staged-program-select" style="padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold; min-width:200px; background:white;">
+                    <label style="display:block; font-weight:bold; font-size:0.85rem; color:#334155; margin-bottom:5px;">🎯 TARGET PROGRAM</label>
+                    <select id="staged-program-select" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold; background:white;">
                         ${programs.map(p => `<option value="${p}">${p}</option>`).join('')}
                     </select>
                 </div>
             </div>
 
-            <button onclick="window.processAndSyncStagedResults()" style="background:#2563eb; color:white; border:none; padding:12px 28px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1rem;">🚀 Process & Sync Results to Cloud</button>
+            <button onclick="window.processAndSyncStagedResults()" style="width:100%; background:#2563eb; color:white; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1rem;">🚀 Process & Sync Results to Cloud DB</button>
         </div>
     `;
-    container.innerHTML = previewHTML;
-
-    let processBtn = document.getElementById('process-uploads-btn');
-    if (processBtn) processBtn.style.display = 'block';
 };
 
 window.handleFileDrop = function(e) {
@@ -627,7 +630,7 @@ window.showCoeDashboard = function() {
     coeDash.innerHTML = `
         <div style="max-width:1200px; margin:0 auto;">
             <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #cbd5e1; padding-bottom:15px; margin-bottom:25px;">
-                <h2 style="color:#0f172a; margin:0;">📋 COE Examination & Seating Management Portal (Ver 2.1)</h2>
+                <h2 style="color:#0f172a; margin:0;">📋 COE Examination & Seating Management Portal (Ver 2.2)</h2>
                 <button onclick="window.logoutPortal()" style="background:#ef4444; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer;">Logout COE</button>
             </div>
 

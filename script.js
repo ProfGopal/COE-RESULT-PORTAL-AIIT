@@ -6,7 +6,7 @@
 'use strict';
 
 // --- 1. GLOBAL VERSIONING ---
-window.PORTAL_VERSION = "Ver 2.0";
+window.PORTAL_VERSION = "Ver 2.1";
 
 const scriptURL = "https://script.google.com/macros/s/AKfycby0xTAEjyfcN-IrEVaEzQuFFAfCQD1wWhpTJ5dlv9S7jBIT48RY8PxH76mW2Mci0rCGCw/exec";
 const GAS_URL = scriptURL;
@@ -66,13 +66,36 @@ window.handleStagedExcelFiles = function(files) {
 
     let fileNames = window.STAGED_RESULT_FILES.map(f => f.name).join(', ');
     
-    // Render staged files preview and Sync button
+    // Extract unique batches and programs from SYSTEM_PROGRAMS
+    let batches = [...new Set((window.SYSTEM_PROGRAMS || []).map(p => p.batch))];
+    if (batches.length === 0) batches = ["2024", "2025"];
+
+    let programs = [...new Set((window.SYSTEM_PROGRAMS || []).map(p => p.program))];
+    if (programs.length === 0) programs = ["MCA", "B.C.A", "MSc (Data Science)", "MSc (Cyber Security)"];
+
+    // Render Staged Preview with Universal Linked Dropdowns for Batch and Program
     let previewHTML = `
-        <div style="text-align:center; padding:15px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; margin-top: 15px;">
+        <div style="text-align:center; padding:20px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; margin-top: 15px;">
             <div style="font-size:2rem; margin-bottom:5px;">📄</div>
-            <h4 style="color:#0f172a; margin:0 0 5px 0;">Staged Files: ${esc(fileNames)}</h4>
-            <p style="color:#16a34a; font-size:0.9rem; font-weight:bold; margin-bottom:15px;">✓ Ready to process and sync with Google Sheet Database.</p>
-            <button onclick="window.processAndSyncStagedResults()" style="background:#2563eb; color:white; border:none; padding:10px 24px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1rem;">🚀 Process & Sync Results to Cloud</button>
+            <h4 style="color:#0f172a; margin:0 0 5px 0;">Staged Files: ${typeof esc === 'function' ? esc(fileNames) : fileNames}</h4>
+            <p style="color:#16a34a; font-size:0.9rem; font-weight:bold; margin-bottom:15px;">✓ File pulled successfully. Select target Batch and Program below to prevent overlap.</p>
+            
+            <div style="display:flex; justify-content:center; gap:15px; margin-bottom:20px; flex-wrap:wrap;">
+                <div>
+                    <label style="display:block; font-weight:bold; font-size:0.85rem; color:#334155; margin-bottom:5px; text-align:left;">TARGET BATCH / YEAR</label>
+                    <select id="staged-batch-select" style="padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold; min-width:160px; background:white;">
+                        ${batches.map(b => `<option value="${b}">${b}</option>`).join('')}
+                    </select>
+                </div>
+                <div>
+                    <label style="display:block; font-weight:bold; font-size:0.85rem; color:#334155; margin-bottom:5px; text-align:left;">TARGET PROGRAM</label>
+                    <select id="staged-program-select" style="padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold; min-width:200px; background:white;">
+                        ${programs.map(p => `<option value="${p}">${p}</option>`).join('')}
+                    </select>
+                </div>
+            </div>
+
+            <button onclick="window.processAndSyncStagedResults()" style="background:#2563eb; color:white; border:none; padding:12px 28px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1rem;">🚀 Process & Sync Results to Cloud</button>
         </div>
     `;
     container.innerHTML = previewHTML;
@@ -105,6 +128,9 @@ window.processAndSyncStagedResults = async function() {
         return;
     }
 
+    let targetBatch = document.getElementById('staged-batch-select') ? document.getElementById('staged-batch-select').value : "2024";
+    let targetProgram = document.getElementById('staged-program-select') ? document.getElementById('staged-program-select').value : "MCA";
+
     if (!window.XLSX) {
         alert("Excel parser library loading...");
         return;
@@ -120,7 +146,6 @@ window.processAndSyncStagedResults = async function() {
             let sheet = workbook.Sheets[sheetName];
             let rows = XLSX.utils.sheet_to_json(sheet);
 
-            // Parse student result rows
             rows.forEach(row => {
                 let clean = {};
                 for (let k in row) {
@@ -129,8 +154,6 @@ window.processAndSyncStagedResults = async function() {
 
                 let sen = String(clean['sen'] || clean['enrollmentno'] || clean['studentid'] || "").trim().toUpperCase();
                 let name = String(clean['name'] || clean['studentname'] || "").trim();
-                let program = String(clean['program'] || clean['programme'] || clean['course'] || "").trim();
-                let batch = String(clean['batch'] || clean['year'] || "2024").trim();
                 let code = String(clean['coursecode'] || clean['code'] || "").trim().toUpperCase();
                 let courseName = String(clean['coursename'] || "").trim();
                 let credits = parseFloat(clean['credits'] || clean['credit'] || 3);
@@ -147,8 +170,8 @@ window.processAndSyncStagedResults = async function() {
                         allParsedStudents.push({
                             sen,
                             name: name || sen,
-                            program: program || "MCA",
-                            batch: batch,
+                            program: targetProgram,
+                            batch: targetBatch,
                             cgpa: clean['cgpa'] || "8.50",
                             totalCredits: clean['totalcredits'] || "20",
                             courses: [courseObj]
@@ -166,7 +189,6 @@ window.processAndSyncStagedResults = async function() {
         return;
     }
 
-    // Send to Google Apps Script Backend
     try {
         let res = await fetch(scriptURL, {
             method: 'POST',
@@ -175,7 +197,7 @@ window.processAndSyncStagedResults = async function() {
         });
         let json = await res.json();
         if (json.status === 'success') {
-            alert(`✅ SUCCESS! ${allParsedStudents.length} student records successfully synced to Google Sheets.`);
+            alert(`✅ SUCCESS! ${allParsedStudents.length} student records for ${targetBatch} ${targetProgram} synced to Google Sheets.`);
             window.location.reload();
         } else {
             alert(`❌ Cloud Sync Error: ${json.message}`);
@@ -605,7 +627,7 @@ window.showCoeDashboard = function() {
     coeDash.innerHTML = `
         <div style="max-width:1200px; margin:0 auto;">
             <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #cbd5e1; padding-bottom:15px; margin-bottom:25px;">
-                <h2 style="color:#0f172a; margin:0;">📋 COE Examination & Seating Management Portal (Ver 2.0)</h2>
+                <h2 style="color:#0f172a; margin:0;">📋 COE Examination & Seating Management Portal (Ver 2.1)</h2>
                 <button onclick="window.logoutPortal()" style="background:#ef4444; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer;">Logout COE</button>
             </div>
 

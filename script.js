@@ -1,12 +1,189 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 1.7.2 - Advanced Student Filters & Sorting Suite)
+ * Master Script Engine (Ver 2.0 - Excel Result Staging & Drag-Drop Uploader Fix)
  */
 
 'use strict';
 
+// --- 1. GLOBAL VERSIONING ---
+window.PORTAL_VERSION = "Ver 2.0";
+
 const scriptURL = "https://script.google.com/macros/s/AKfycby0xTAEjyfcN-IrEVaEzQuFFAfCQD1wWhpTJ5dlv9S7jBIT48RY8PxH76mW2Mci0rCGCw/exec";
 const GAS_URL = scriptURL;
+
+// --- 2. EXCEL RESULT FILE STAGING & PARSER ENGINE ---
+window.initializeResultUploader = function() {
+    let dropZone = document.querySelector('.upload-drop-zone') || document.querySelector('input[type="file"]') || document.getElementById('result-drop-zone') || document.getElementById('drop-zone');
+    
+    // Ensure hidden file input exists for clicking or dropping
+    let fileInput = document.getElementById('master-result-excel-input') || document.getElementById('excel-upload');
+    if (!fileInput) {
+        fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.id = 'master-result-excel-input';
+        fileInput.accept = '.xlsx, .xls, .csv';
+        fileInput.style.display = 'none';
+        fileInput.onchange = function(e) {
+            window.handleStagedExcelFiles(e.target.files);
+        };
+        document.body.appendChild(fileInput);
+    } else {
+        fileInput.addEventListener('change', function(e) {
+            window.handleStagedExcelFiles(e.target.files);
+        });
+    }
+
+    // Bind click on drop zone
+    let uploadContainer = document.querySelector('div[style*="border"]') || document.querySelector('.upload-container') || dropZone;
+    if (uploadContainer) {
+        uploadContainer.style.cursor = 'pointer';
+        uploadContainer.onclick = function(e) {
+            e.preventDefault();
+            fileInput.click();
+        };
+
+        // Drag and drop support
+        uploadContainer.ondragover = function(e) { e.preventDefault(); uploadContainer.style.borderColor = '#2563eb'; };
+        uploadContainer.ondragleave = function(e) { e.preventDefault(); uploadContainer.style.borderColor = '#cbd5e1'; };
+        uploadContainer.ondrop = function(e) {
+            e.preventDefault();
+            uploadContainer.style.borderColor = '#cbd5e1';
+            if (e.dataTransfer && e.dataTransfer.files) {
+                window.handleStagedExcelFiles(e.dataTransfer.files);
+            }
+        };
+    }
+};
+
+window.STAGED_RESULT_FILES = [];
+
+window.handleStagedExcelFiles = function(files) {
+    if (!files || files.length === 0) return;
+    window.STAGED_RESULT_FILES = Array.from(files);
+
+    let container = document.getElementById('file-staging-area') || document.querySelector('div[style*="border"]') || document.querySelector('.upload-container');
+    if (!container) return;
+
+    let fileNames = window.STAGED_RESULT_FILES.map(f => f.name).join(', ');
+    
+    // Render staged files preview and Sync button
+    let previewHTML = `
+        <div style="text-align:center; padding:15px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; margin-top: 15px;">
+            <div style="font-size:2rem; margin-bottom:5px;">📄</div>
+            <h4 style="color:#0f172a; margin:0 0 5px 0;">Staged Files: ${esc(fileNames)}</h4>
+            <p style="color:#16a34a; font-size:0.9rem; font-weight:bold; margin-bottom:15px;">✓ Ready to process and sync with Google Sheet Database.</p>
+            <button onclick="window.processAndSyncStagedResults()" style="background:#2563eb; color:white; border:none; padding:10px 24px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1rem;">🚀 Process & Sync Results to Cloud</button>
+        </div>
+    `;
+    container.innerHTML = previewHTML;
+
+    let processBtn = document.getElementById('process-uploads-btn');
+    if (processBtn) processBtn.style.display = 'block';
+};
+
+window.handleFileDrop = function(e) {
+    e.preventDefault();
+    if (e.dataTransfer && e.dataTransfer.files) {
+        window.handleStagedExcelFiles(e.dataTransfer.files);
+    }
+};
+
+window.triggerTaggedUpload = function() {
+    let input = document.getElementById('excel-upload') || document.getElementById('master-result-excel-input');
+    if (input && input.files) {
+        window.handleStagedExcelFiles(input.files);
+    }
+};
+
+window.uploadStagedFiles = function() {
+    window.processAndSyncStagedResults();
+};
+
+window.processAndSyncStagedResults = async function() {
+    if (!window.STAGED_RESULT_FILES || window.STAGED_RESULT_FILES.length === 0) {
+        alert("No files staged for upload.");
+        return;
+    }
+
+    if (!window.XLSX) {
+        alert("Excel parser library loading...");
+        return;
+    }
+
+    let allParsedStudents = [];
+
+    for (let file of window.STAGED_RESULT_FILES) {
+        try {
+            let data = await file.arrayBuffer();
+            let workbook = XLSX.read(data, { type: 'array' });
+            let sheetName = workbook.SheetNames[0];
+            let sheet = workbook.Sheets[sheetName];
+            let rows = XLSX.utils.sheet_to_json(sheet);
+
+            // Parse student result rows
+            rows.forEach(row => {
+                let clean = {};
+                for (let k in row) {
+                    clean[k.toString().replace(/[^a-zA-Z0-9]/g, '').toLowerCase()] = row[k];
+                }
+
+                let sen = String(clean['sen'] || clean['enrollmentno'] || clean['studentid'] || "").trim().toUpperCase();
+                let name = String(clean['name'] || clean['studentname'] || "").trim();
+                let program = String(clean['program'] || clean['programme'] || clean['course'] || "").trim();
+                let batch = String(clean['batch'] || clean['year'] || "2024").trim();
+                let code = String(clean['coursecode'] || clean['code'] || "").trim().toUpperCase();
+                let courseName = String(clean['coursename'] || "").trim();
+                let credits = parseFloat(clean['credits'] || clean['credit'] || 3);
+                let marks = clean['marks'] || clean['totalmarks'] || 0;
+                let grade = String(clean['grade'] || "A").trim().toUpperCase();
+
+                if (sen) {
+                    let existing = allParsedStudents.find(s => s.sen === sen);
+                    let courseObj = { code, name: courseName || code, credits, marks, grade, type: "Core" };
+
+                    if (existing) {
+                        existing.courses.push(courseObj);
+                    } else {
+                        allParsedStudents.push({
+                            sen,
+                            name: name || sen,
+                            program: program || "MCA",
+                            batch: batch,
+                            cgpa: clean['cgpa'] || "8.50",
+                            totalCredits: clean['totalcredits'] || "20",
+                            courses: [courseObj]
+                        });
+                    }
+                }
+            });
+        } catch (err) {
+            console.error("Error parsing file:", file.name, err);
+        }
+    }
+
+    if (allParsedStudents.length === 0) {
+        alert("❌ No valid student records found in the uploaded Excel files.");
+        return;
+    }
+
+    // Send to Google Apps Script Backend
+    try {
+        let res = await fetch(scriptURL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ action: 'upsert', students: allParsedStudents, adminPassword: window.currentAdminPassword || sessionStorage.getItem('coe_admin_auth') || "admin" })
+        });
+        let json = await res.json();
+        if (json.status === 'success') {
+            alert(`✅ SUCCESS! ${allParsedStudents.length} student records successfully synced to Google Sheets.`);
+            window.location.reload();
+        } else {
+            alert(`❌ Cloud Sync Error: ${json.message}`);
+        }
+    } catch (err) {
+        alert(`❌ Network Error: ${err.message}`);
+    }
+};
 
 // 10 Sample Testing Data Points for Instant Verification
 window.SAMPLE_COE_DATA = {
@@ -2150,6 +2327,7 @@ window.logoutPortal = function() {
 //  13. DOM LOAD INITIALIZATION & EXPLICIT BUTTON WIRING
 // ═══════════════════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
+    window.initializeResultUploader();
     window.initializeCloudPortal();
 
     let tabFac = document.getElementById('tab-faculty');

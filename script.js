@@ -1,11 +1,11 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 2.3 - Multi-File Per-File Staging Dropdowns & BCA Parser Fix)
+ * Master Script Engine (Ver 2.4 - Cloud Sync Upsert & Logout Prevention Fix)
  */
 
 'use strict';
 
-window.PORTAL_VERSION = "Ver 2.3";
+window.PORTAL_VERSION = "Ver 2.4";
 
 const scriptURL = "https://script.google.com/macros/s/AKfycby0xTAEjyfcN-IrEVaEzQuFFAfCQD1wWhpTJ5dlv9S7jBIT48RY8PxH76mW2Mci0rCGCw/exec";
 const GAS_URL = scriptURL;
@@ -198,15 +198,20 @@ window.processAndSyncStagedResults = async function() {
     }
 
     try {
+        let adminPass = window.currentAdminPassword || sessionStorage.getItem('coe_admin_auth') || prompt("Enter Admin Password to authorize cloud sync:") || "admin";
         let res = await fetch(scriptURL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({ action: 'upsert', students: allParsedStudents, adminPassword: window.currentAdminPassword || sessionStorage.getItem('coe_admin_auth') || "admin" })
+            body: JSON.stringify({ action: 'upsert', students: allParsedStudents, adminPassword: adminPass })
         });
         let json = await res.json();
         if (json.status === 'success') {
             alert(`✅ SUCCESS! ${allParsedStudents.length} student records successfully synced to Google Sheets.`);
-            window.location.reload();
+            // FIX: Removed window.location.reload() to prevent logout. Instead, refresh student cache in background.
+            window.STAGED_RESULT_FILES = [];
+            let stagingArea = document.getElementById('staged-preview-container');
+            if (stagingArea) stagingArea.innerHTML = `<p style="color:#16a34a; font-weight:bold; text-align:center; padding:15px; margin:0;">✅ All staged files successfully processed and synced to Cloud DB!</p>`;
+            if (typeof window.initializeCloudPortal === 'function') window.initializeCloudPortal();
         } else {
             alert(`❌ Cloud Sync Error: ${json.message}`);
         }
@@ -635,7 +640,7 @@ window.showCoeDashboard = function() {
     coeDash.innerHTML = `
         <div style="max-width:1200px; margin:0 auto;">
             <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #cbd5e1; padding-bottom:15px; margin-bottom:25px;">
-                <h2 style="color:#0f172a; margin:0;">📋 COE Examination & Seating Management Portal (Ver 2.3)</h2>
+                <h2 style="color:#0f172a; margin:0;">📋 COE Examination & Seating Management Portal (Ver 2.4)</h2>
                 <button onclick="window.logoutPortal()" style="background:#ef4444; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer;">Logout COE</button>
             </div>
 

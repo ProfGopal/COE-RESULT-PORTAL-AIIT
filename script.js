@@ -1,40 +1,32 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 2.0 - Excel Result Staging & Drag-Drop Uploader Fix)
+ * Master Script Engine (Ver 2.3 - Multi-File Per-File Staging Dropdowns & BCA Parser Fix)
  */
 
 'use strict';
 
-// --- 1. GLOBAL VERSIONING ---
-window.PORTAL_VERSION = "Ver 2.2";
+window.PORTAL_VERSION = "Ver 2.3";
 
 const scriptURL = "https://script.google.com/macros/s/AKfycby0xTAEjyfcN-IrEVaEzQuFFAfCQD1wWhpTJ5dlv9S7jBIT48RY8PxH76mW2Mci0rCGCw/exec";
 const GAS_URL = scriptURL;
 
-// --- 2. EXCEL RESULT FILE STAGING & PARSER ENGINE ---
+// --- 1. ROBUST EXCEL RESULT UPLOADER & PER-FILE STAGING ---
 window.initializeResultUploader = function() {
-    let dropZone = document.querySelector('.upload-drop-zone') || document.querySelector('input[type="file"]') || document.getElementById('result-drop-zone') || document.getElementById('drop-zone');
-    
-    // Ensure hidden file input exists for clicking or dropping
-    let fileInput = document.getElementById('master-result-excel-input') || document.getElementById('excel-upload');
+    let fileInput = document.getElementById('master-result-excel-input');
     if (!fileInput) {
         fileInput = document.createElement('input');
         fileInput.type = 'file';
         fileInput.id = 'master-result-excel-input';
+        fileInput.multiple = true;
         fileInput.accept = '.xlsx, .xls, .csv';
         fileInput.style.display = 'none';
         fileInput.onchange = function(e) {
             window.handleStagedExcelFiles(e.target.files);
         };
         document.body.appendChild(fileInput);
-    } else {
-        fileInput.addEventListener('change', function(e) {
-            window.handleStagedExcelFiles(e.target.files);
-        });
     }
 
-    // Bind click on drop zone
-    let uploadContainer = document.querySelector('div[style*="border"]') || document.querySelector('.upload-container') || dropZone;
+    let uploadContainer = document.querySelector('div[style*="border"]') || document.querySelector('.upload-container');
     if (uploadContainer) {
         uploadContainer.style.cursor = 'pointer';
         uploadContainer.onclick = function(e) {
@@ -42,7 +34,6 @@ window.initializeResultUploader = function() {
             fileInput.click();
         };
 
-        // Drag and drop support
         uploadContainer.ondragover = function(e) { e.preventDefault(); uploadContainer.style.borderColor = '#2563eb'; };
         uploadContainer.ondragleave = function(e) { e.preventDefault(); uploadContainer.style.borderColor = '#cbd5e1'; };
         uploadContainer.ondrop = function(e) {
@@ -61,7 +52,6 @@ window.handleStagedExcelFiles = function(files) {
     if (!files || files.length === 0) return;
     window.STAGED_RESULT_FILES = Array.from(files);
 
-    // Find staging area or create one below upload box
     let stagingArea = document.getElementById('staged-preview-container');
     if (!stagingArea) {
         let uploadBox = document.querySelector('div[style*="border"]') || document.querySelector('.upload-container');
@@ -74,35 +64,42 @@ window.handleStagedExcelFiles = function(files) {
     }
     if (!stagingArea) return;
 
-    let fileNames = window.STAGED_RESULT_FILES.map(f => f.name).join(', ');
-    
     let batches = [...new Set((window.SYSTEM_PROGRAMS || []).map(p => p.batch))];
     if (batches.length === 0) batches = ["2024", "2025", "2026"];
 
     let programs = [...new Set((window.SYSTEM_PROGRAMS || []).map(p => p.program))];
     if (programs.length === 0) programs = ["MCA", "B.C.A", "MSc (Data Science)", "MSc (Cyber Security)"];
 
-    stagingArea.innerHTML = `
-        <div style="text-align:left;">
-            <h4 style="color:#0f172a; margin-top:0;">📂 Staged Result Files: <span style="color:#2563eb;">${typeof esc === 'function' ? esc(fileNames) : fileNames}</span></h4>
-            <p style="color:#475569; font-size:0.9rem; margin-bottom:15px;">Select the target Batch and Program below to ensure results map accurately without cross-batch overlaps.</p>
-            
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:20px;">
+    let filesHTML = window.STAGED_RESULT_FILES.map((file, idx) => `
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:10px; flex-wrap:wrap; gap:10px;">
+            <div style="font-weight:bold; color:#0f172a; flex:1; min-width:180px;">
+                📄 ${typeof esc === 'function' ? esc(file.name) : file.name}
+            </div>
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                 <div>
-                    <label style="display:block; font-weight:bold; font-size:0.85rem; color:#334155; margin-bottom:5px;">🎯 TARGET BATCH (YEAR)</label>
-                    <select id="staged-batch-select" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold; background:white;">
+                    <label style="font-size:0.75rem; font-weight:bold; color:#64748b; display:block;">BATCH</label>
+                    <select id="file-batch-${idx}" style="padding:6px 10px; border:1px solid #cbd5e1; border-radius:4px; font-weight:bold; background:white;">
                         ${batches.map(b => `<option value="${b}">${b}</option>`).join('')}
                     </select>
                 </div>
                 <div>
-                    <label style="display:block; font-weight:bold; font-size:0.85rem; color:#334155; margin-bottom:5px;">🎯 TARGET PROGRAM</label>
-                    <select id="staged-program-select" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold; background:white;">
+                    <label style="font-size:0.75rem; font-weight:bold; color:#64748b; display:block;">PROGRAM</label>
+                    <select id="file-prog-${idx}" style="padding:6px 10px; border:1px solid #cbd5e1; border-radius:4px; font-weight:bold; background:white;">
                         ${programs.map(p => `<option value="${p}">${p}</option>`).join('')}
                     </select>
                 </div>
             </div>
+        </div>
+    `).join('');
 
-            <button onclick="window.processAndSyncStagedResults()" style="width:100%; background:#2563eb; color:white; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1rem;">🚀 Process & Sync Results to Cloud DB</button>
+    stagingArea.innerHTML = `
+        <div style="text-align:left;">
+            <h4 style="color:#0f172a; margin-top:0;">📂 Staged Result Files (${window.STAGED_RESULT_FILES.length})</h4>
+            <p style="color:#475569; font-size:0.9rem; margin-bottom:15px;">Assign individual Batch and Program options for each file to ensure precise database mapping.</p>
+            <div style="max-height:250px; overflow-y:auto; margin-bottom:15px;">
+                ${filesHTML}
+            </div>
+            <button onclick="window.processAndSyncStagedResults()" style="width:100%; background:#2563eb; color:white; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1rem;">🚀 Process & Sync All Files to Cloud DB</button>
         </div>
     `;
 };
@@ -125,14 +122,12 @@ window.uploadStagedFiles = function() {
     window.processAndSyncStagedResults();
 };
 
+// --- 2. UNIVERSAL BCA & MCA COURSE PARSER ---
 window.processAndSyncStagedResults = async function() {
     if (!window.STAGED_RESULT_FILES || window.STAGED_RESULT_FILES.length === 0) {
         alert("No files staged for upload.");
         return;
     }
-
-    let targetBatch = document.getElementById('staged-batch-select') ? document.getElementById('staged-batch-select').value : "2024";
-    let targetProgram = document.getElementById('staged-program-select') ? document.getElementById('staged-program-select').value : "MCA";
 
     if (!window.XLSX) {
         alert("Excel parser library loading...");
@@ -141,7 +136,13 @@ window.processAndSyncStagedResults = async function() {
 
     let allParsedStudents = [];
 
-    for (let file of window.STAGED_RESULT_FILES) {
+    for (let idx = 0; idx < window.STAGED_RESULT_FILES.length; idx++) {
+        let file = window.STAGED_RESULT_FILES[idx];
+        let batchSel = document.getElementById(`file-batch-${idx}`);
+        let progSel = document.getElementById(`file-prog-${idx}`);
+        let targetBatch = batchSel ? batchSel.value : "2024";
+        let targetProgram = progSel ? progSel.value : "B.C.A";
+
         try {
             let data = await file.arrayBuffer();
             let workbook = XLSX.read(data, { type: 'array' });
@@ -155,28 +156,32 @@ window.processAndSyncStagedResults = async function() {
                     clean[k.toString().replace(/[^a-zA-Z0-9]/g, '').toLowerCase()] = row[k];
                 }
 
-                let sen = String(clean['sen'] || clean['enrollmentno'] || clean['studentid'] || "").trim().toUpperCase();
-                let name = String(clean['name'] || clean['studentname'] || "").trim();
-                let code = String(clean['coursecode'] || clean['code'] || "").trim().toUpperCase();
-                let courseName = String(clean['coursename'] || "").trim();
-                let credits = parseFloat(clean['credits'] || clean['credit'] || 3);
-                let marks = clean['marks'] || clean['totalmarks'] || 0;
-                let grade = String(clean['grade'] || "A").trim().toUpperCase();
+                // Universal key lookup supporting BCA, MCA, and all program formats
+                let sen = String(clean['sen'] || clean['enrollmentno'] || clean['studentid'] || clean['enrollmentnumber'] || clean['id'] || "").trim().toUpperCase();
+                let name = String(clean['name'] || clean['studentname'] || clean['student'] || "").trim();
+                let code = String(clean['coursecode'] || clean['code'] || clean['subjectcode'] || clean['course'] || "").trim().toUpperCase();
+                let courseName = String(clean['coursename'] || clean['subjectname'] || clean['title'] || "").trim();
+                let credits = parseFloat(clean['credits'] || clean['credit'] || clean['cr'] || 3);
+                let marks = clean['marks'] || clean['totalmarks'] || clean['score'] || 0;
+                let grade = String(clean['grade'] || clean['gr'] || "A").trim().toUpperCase();
 
                 if (sen) {
                     let existing = allParsedStudents.find(s => s.sen === sen);
-                    let courseObj = { code, name: courseName || code, credits, marks, grade, type: "Core" };
+                    let courseObj = { code: code || "SUB101", name: courseName || code || "Course Title", credits: isNaN(credits) ? 3 : credits, marks, grade, type: "Core" };
 
                     if (existing) {
-                        existing.courses.push(courseObj);
+                        // Prevent duplicate course entries per student
+                        if (!existing.courses.some(c => c.code === courseObj.code)) {
+                            existing.courses.push(courseObj);
+                        }
                     } else {
                         allParsedStudents.push({
                             sen,
                             name: name || sen,
                             program: targetProgram,
                             batch: targetBatch,
-                            cgpa: clean['cgpa'] || "8.50",
-                            totalCredits: clean['totalcredits'] || "20",
+                            cgpa: clean['cgpa'] || clean['gpa'] || "8.50",
+                            totalCredits: clean['totalcredits'] || clean['earnedcredits'] || "20",
                             courses: [courseObj]
                         });
                     }
@@ -200,7 +205,7 @@ window.processAndSyncStagedResults = async function() {
         });
         let json = await res.json();
         if (json.status === 'success') {
-            alert(`✅ SUCCESS! ${allParsedStudents.length} student records for ${targetBatch} ${targetProgram} synced to Google Sheets.`);
+            alert(`✅ SUCCESS! ${allParsedStudents.length} student records successfully synced to Google Sheets.`);
             window.location.reload();
         } else {
             alert(`❌ Cloud Sync Error: ${json.message}`);
@@ -630,7 +635,7 @@ window.showCoeDashboard = function() {
     coeDash.innerHTML = `
         <div style="max-width:1200px; margin:0 auto;">
             <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #cbd5e1; padding-bottom:15px; margin-bottom:25px;">
-                <h2 style="color:#0f172a; margin:0;">📋 COE Examination & Seating Management Portal (Ver 2.2)</h2>
+                <h2 style="color:#0f172a; margin:0;">📋 COE Examination & Seating Management Portal (Ver 2.3)</h2>
                 <button onclick="window.logoutPortal()" style="background:#ef4444; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer;">Logout COE</button>
             </div>
 

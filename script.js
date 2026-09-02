@@ -1,11 +1,11 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 2.5 - Universal BCA & MCA Parser + Multi-File Staging)
+ * Master Script Engine (Ver 2.6 - Universal BCA & MCA Parser, Per-File Staging & Drag-Drop Uploader Fix)
  */
 
 'use strict';
 
-window.PORTAL_VERSION = "Ver 2.5";
+window.PORTAL_VERSION = "Ver 2.6";
 
 const scriptURL = "https://script.google.com/macros/s/AKfycby0xTAEjyfcN-IrEVaEzQuFFAfCQD1wWhpTJ5dlv9S7jBIT48RY8PxH76mW2Mci0rCGCw/exec";
 const GAS_URL = scriptURL;
@@ -19,30 +19,33 @@ window.initializeResultUploader = function() {
         fileInput.multiple = true;
         fileInput.accept = '.xlsx, .xls, .csv';
         fileInput.style.display = 'none';
-        fileInput.onchange = function(e) {
-            window.handleStagedExcelFiles(e.target.files);
-        };
         document.body.appendChild(fileInput);
     }
+    
+    fileInput.onchange = function(e) {
+        if (e.target.files && e.target.files.length > 0) {
+            window.handleStagedExcelFiles(e.target.files);
+        }
+    };
 
-    let uploadContainer = document.querySelector('div[style*="border"]') || document.querySelector('.upload-container');
-    if (uploadContainer) {
-        uploadContainer.style.cursor = 'pointer';
-        uploadContainer.onclick = function(e) {
+    let containers = document.querySelectorAll('.upload-drop-zone, .upload-container, div[style*="border"], #drop-zone, #result-drop-zone');
+    containers.forEach(container => {
+        container.style.cursor = 'pointer';
+        container.onclick = function(e) {
             e.preventDefault();
             fileInput.click();
         };
 
-        uploadContainer.ondragover = function(e) { e.preventDefault(); uploadContainer.style.borderColor = '#2563eb'; };
-        uploadContainer.ondragleave = function(e) { e.preventDefault(); uploadContainer.style.borderColor = '#cbd5e1'; };
-        uploadContainer.ondrop = function(e) {
+        container.ondragover = function(e) { e.preventDefault(); container.style.borderColor = '#2563eb'; };
+        container.ondragleave = function(e) { e.preventDefault(); container.style.borderColor = '#cbd5e1'; };
+        container.ondrop = function(e) {
             e.preventDefault();
-            uploadContainer.style.borderColor = '#cbd5e1';
+            container.style.borderColor = '#cbd5e1';
             if (e.dataTransfer && e.dataTransfer.files) {
                 window.handleStagedExcelFiles(e.dataTransfer.files);
             }
         };
-    }
+    });
 };
 
 window.STAGED_RESULT_FILES = [];

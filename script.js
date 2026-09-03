@@ -1,11 +1,11 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 2.7 - Student Password Reset Repair)
+ * Master Script Engine (Ver 2.9 - Faculty Curriculum Dual Dropdowns & View Fix)
  */
 
 'use strict';
 
-window.PORTAL_VERSION = "Ver 2.7";
+window.PORTAL_VERSION = "Ver 2.9";
 
 const scriptURL = "https://script.google.com/macros/s/AKfycby0xTAEjyfcN-IrEVaEzQuFFAfCQD1wWhpTJ5dlv9S7jBIT48RY8PxH76mW2Mci0rCGCw/exec";
 const GAS_URL = scriptURL;
@@ -2349,24 +2349,139 @@ window.switchFacultyTab = function(tabName) {
         `;
         window.facultyFilterAndSort();
     } else if (tabName === 'curriculum') {
-        let sysProgs = window.SYSTEM_PROGRAMS.length > 0 ? window.SYSTEM_PROGRAMS : [{ batch: "2024", program: "MCA" }];
+        window.renderFacultyCurriculumTab(area);
+    }
+};
 
-        area.innerHTML = `
-            <div style="background:white; padding:25px; border-radius:8px; border:1px solid #cbd5e1; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:15px;">
-                    <div style="display:flex; align-items:center; gap:12px;">
-                        <label style="font-weight:bold; color:#1e293b;">Select Batch & Program:</label>
-                        <select id="faculty-curr-select" onchange="window.renderFacultyCurriculumTable()" style="padding:8px 14px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold; background:#f8fafc;">
-                            ${sysProgs.map(p => `<option value="${p.batch}_${p.program}">${p.batch} ${p.program}</option>`).join('')}
+window.renderFacultyCurriculumTab = function(area) {
+    let batches = [...new Set((window.SYSTEM_PROGRAMS || []).map(p => p.batch))];
+    if (batches.length === 0) batches = ["2024", "2025", "2026"];
+
+    let programs = [...new Set((window.SYSTEM_PROGRAMS || []).map(p => p.program))];
+    if (programs.length === 0) programs = ["MCA", "B.C.A", "MSc (Data Science)", "MSc (Cyber Security)"];
+
+    area.innerHTML = `
+        <div style="background:white; padding:25px; border-radius:8px; border:1px solid #cbd5e1; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:15px;">
+                <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                    <div>
+                        <label style="display:block; font-size:0.75rem; font-weight:bold; color:#64748b; margin-bottom:3px;">BATCH / YEAR</label>
+                        <select id="faculty-batch-select" style="padding:8px 12px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold; background:white;">
+                            ${batches.map(b => `<option value="${b}">${b}</option>`).join('')}
                         </select>
                     </div>
-                    <button onclick="window.exportFacultyCurriculumPDF()" style="background:#dc2626; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer;">📄 Download Curriculum PDF</button>
+                    <div>
+                        <label style="display:block; font-size:0.75rem; font-weight:bold; color:#64748b; margin-bottom:3px;">PROGRAM</label>
+                        <select id="faculty-prog-select" style="padding:8px 12px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold; background:white;">
+                            ${programs.map(p => `<option value="${p}">${p}</option>`).join('')}
+                        </select>
+                    </div>
+                    <button onclick="window.renderFacultyCurriculumTable()" style="background:#2563eb; color:white; border:none; padding:9px 18px; border-radius:6px; font-weight:bold; cursor:pointer; margin-top:16px;">🔍 View Curriculum</button>
                 </div>
-                <div id="faculty-curriculum-table-container"></div>
+                <button onclick="window.exportFacultyCurriculumPDF()" style="background:#dc2626; color:white; border:none; padding:9px 18px; border-radius:6px; font-weight:bold; cursor:pointer; margin-top:16px;">📄 Download PDF</button>
             </div>
-        `;
-        window.renderFacultyCurriculumTable();
+            <div id="faculty-curriculum-table-container"></div>
+        </div>
+    `;
+    window.renderFacultyCurriculumTable();
+};
+
+window.renderFacultyCurriculumTable = function() {
+    let batchSel = document.getElementById('faculty-batch-select');
+    let progSel = document.getElementById('faculty-prog-select');
+    let container = document.getElementById('faculty-curriculum-table-container');
+    if (!container) return;
+
+    let batch = batchSel ? batchSel.value : "2024";
+    let program = progSel ? progSel.value : "B.C.A";
+    let key1 = `${batch}_${program}`;
+    let key2 = `${batch}_${program.replace('.', '')}`;
+    let key3 = Object.keys(window.CURRICULUM_RULES || {})[0] || "";
+
+    let rules = window.CURRICULUM_RULES[key1] || window.CURRICULUM_RULES[key2] || window.CURRICULUM_RULES[batch + "_" + program] || window.CURRICULUM_RULES[key3] || [];
+
+    if (!rules || rules.length === 0) {
+        container.innerHTML = `<p style="color:#64748b; text-align:center; padding:30px;">No curriculum rules found for ${batch} ${program}. Please ensure curriculum is uploaded in the Admin Panel.</p>`;
+        return;
     }
+
+    let html = `<h4 style="color:#0f172a; margin-top:0; margin-bottom:20px;">📋 Read-Only Curriculum: <span style="color:#2563eb;">${batch} ${program}</span></h4>`;
+
+    rules.forEach((main) => {
+        html += `
+        <div style="margin-bottom:25px; border:1px solid #cbd5e1; border-radius:8px; overflow:hidden; background:white;">
+            <div style="background:#f8fafc; padding:14px 18px; border-bottom:1px solid #cbd5e1; display:flex; justify-content:space-between; align-items:center;">
+                <strong style="color:#1e293b; font-size:1.1rem;">📁 ${esc(main.category)}</strong>
+                <span style="background:#e0f2fe; color:#0369a1; padding:3px 10px; border-radius:4px; font-weight:bold; font-size:0.85rem;">Min Credits: ${main.minCredits}</span>
+            </div>`;
+
+        (main.subCategories || []).forEach((sub) => {
+            html += `
+            <div style="padding:15px; background:white; border-bottom:1px solid #e2e8f0;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <span style="font-weight:bold; color:#334155; font-size:0.95rem;">📄 Sub-Category: ${esc(sub.name)}</span>
+                    <span style="color:#64748b; font-size:0.85rem; font-weight:bold;">Min Credits: ${sub.minCredits} Cr</span>
+                </div>
+                <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                    <thead>
+                        <tr style="background:#f1f5f9; color:#475569; text-align:left;">
+                            <th style="padding:9px 12px; border-bottom:1px solid #cbd5e1;">Course Code</th>
+                            <th style="padding:9px 12px; border-bottom:1px solid #cbd5e1;">Course Name</th>
+                            <th style="padding:9px 12px; border-bottom:1px solid #cbd5e1; text-align:right;">Credits</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${(sub.codes || []).length > 0 ? (sub.codes || []).map((code) => {
+                            let info = window.getCourseInfo(code);
+                            return `
+                            <tr style="border-bottom:1px solid #f8fafc;">
+                                <td style="padding:9px 12px; font-weight:bold; color:#0f172a;">${esc(code)}</td>
+                                <td style="padding:9px 12px; color:#334155;">${esc(info.name)}</td>
+                                <td style="padding:9px 12px; text-align:right; font-weight:bold; color:#2563eb;">${info.credits} Cr</td>
+                            </tr>`;
+                        }).join('') : `<tr><td colspan="3" style="padding:10px; color:#64748b; text-align:center;">No courses in this sub-category.</td></tr>`}
+                    </tbody>
+                </table>
+            </div>`;
+        });
+        html += `</div>`;
+    });
+
+    container.innerHTML = html;
+};
+
+window.exportFacultyCurriculumPDF = function() {
+    if (!window.jspdf || !window.jspdf.jsPDF) { alert("PDF library loading..."); return; }
+    let batchSel = document.getElementById('faculty-batch-select');
+    let progSel = document.getElementById('faculty-prog-select');
+    let batch = batchSel ? batchSel.value : "2024";
+    let program = progSel ? progSel.value : "B.C.A";
+    let key = `${batch}_${program}`;
+
+    let rules = window.CURRICULUM_RULES[key] || window.CURRICULUM_RULES[batch + "_" + program.replace('.', '')] || Object.values(window.CURRICULUM_RULES)[0] || [];
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    doc.setFontSize(14);
+    doc.text(`Amity University - Curriculum Report (${batch} ${program})`, 14, 20);
+
+    let flatRows = [];
+    rules.forEach(main => {
+        (main.subCategories || []).forEach(sub => {
+            (sub.codes || []).forEach(code => {
+                let info = window.getCourseInfo(code);
+                flatRows.push([main.category, sub.name, code, info.name, `${info.credits} Cr`]);
+            });
+        });
+    });
+
+    doc.autoTable({
+        startY: 28,
+        head: [['Main Category', 'Sub Category', 'Code', 'Course Name', 'Credits']],
+        body: flatRows,
+        theme: 'grid'
+    });
+    doc.save(`Curriculum_${batch}_${program}.pdf`);
 };
 
 window.facultyFilterAndSort = function() {

@@ -1,14 +1,76 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 2.6 - Universal BCA & MCA Parser, Per-File Staging & Drag-Drop Uploader Fix)
+ * Master Script Engine (Ver 2.7 - Student Password Reset Repair)
  */
 
 'use strict';
 
-window.PORTAL_VERSION = "Ver 2.6";
+window.PORTAL_VERSION = "Ver 2.7";
 
 const scriptURL = "https://script.google.com/macros/s/AKfycby0xTAEjyfcN-IrEVaEzQuFFAfCQD1wWhpTJ5dlv9S7jBIT48RY8PxH76mW2Mci0rCGCw/exec";
 const GAS_URL = scriptURL;
+
+window.adminClearStudentPassword = async function(senInputId) {
+    let inputElem = typeof senInputId === 'string' ? document.getElementById(senInputId) : senInputId;
+    if (!inputElem) {
+        inputElem = document.querySelector('input[placeholder*="SEN"], input[id*="sen"], input[type="text"]');
+    }
+    let sen = inputElem ? inputElem.value.trim().toUpperCase() : (typeof senInputId === 'string' && senInputId.length > 3 ? senInputId.trim().toUpperCase() : "");
+
+    if (!sen) {
+        alert("Please enter a valid Student Enrollment Number (SEN).");
+        return;
+    }
+
+    if (!confirm(`Are you sure you want to clear/reset the password for student ${sen}?`)) return;
+
+    let adminPass = window.currentAdminPassword || sessionStorage.getItem('coe_admin_auth') || prompt("Enter Admin Password to confirm password reset:") || "admin";
+
+    try {
+        let res = await fetch(scriptURL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ action: 'clearpassword', sen: sen, adminPassword: adminPass })
+        });
+        let json = await res.json();
+        if (json.status === 'success') {
+            alert(`✅ ${json.message}`);
+            if (inputElem && inputElem.value) inputElem.value = "";
+            let statusEl = document.getElementById('reset-status');
+            if (statusEl) statusEl.innerHTML = `<span style="color:#4ade80">✓ ${json.message}</span>`;
+        } else {
+            alert(`❌ Error: ${json.message}`);
+            let statusEl = document.getElementById('reset-status');
+            if (statusEl) statusEl.innerHTML = `<span style="color:#f87171">⚠ ${json.message}</span>`;
+        }
+    } catch (err) {
+        alert(`❌ Network error: ${err.message}`);
+    }
+};
+
+window.clearStudentPassword = window.adminClearStudentPassword;
+
+window.adminClearAllPasswords = async function() {
+    if (!confirm("⚠️ WARNING: Are you sure you want to permanently reset ALL student passwords? This cannot be undone.")) return;
+
+    let adminPass = window.currentAdminPassword || sessionStorage.getItem('coe_admin_auth') || prompt("Enter Admin Password to confirm global password reset:") || "admin";
+
+    try {
+        let res = await fetch(scriptURL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ action: 'clearallpasswords', adminPassword: adminPass })
+        });
+        let json = await res.json();
+        if (json.status === 'success') {
+            alert(`✅ ${json.message}`);
+        } else {
+            alert(`❌ Error: ${json.message}`);
+        }
+    } catch (err) {
+        alert(`❌ Network error: ${err.message}`);
+    }
+};
 
 window.initializeResultUploader = function() {
     let fileInput = document.getElementById('master-result-excel-input');
@@ -2440,6 +2502,17 @@ document.addEventListener('DOMContentLoaded', () => {
             b.onclick = function(e) {
                 e.preventDefault();
                 window.resetCurriculumEditor();
+            };
+        } else if (txt.includes('CLEAR PASSWORD') && !b.onclick) {
+            b.onclick = function(e) {
+                e.preventDefault();
+                let input = b.previousElementSibling;
+                if (input && input.tagName === 'INPUT') {
+                    window.adminClearStudentPassword(input.id || (input.id = 'dynamic-sen-input-' + Math.random().toString(36).substring(7)));
+                } else {
+                    let nearbyInput = document.querySelector('input[type="text"]');
+                    if (nearbyInput) window.adminClearStudentPassword(nearbyInput.id || (nearbyInput.id = 'dynamic-sen-input'));
+                }
             };
         }
     });

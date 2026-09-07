@@ -1,11 +1,11 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 3.1 - Faculty Filtered PDF Export & Version Badge Fix)
+ * Master Script Engine (Ver 3.2 - Faculty Back-to-Directory Navigation Repair)
  */
 
 'use strict';
 
-window.PORTAL_VERSION = "Ver 3.1";
+window.PORTAL_VERSION = "Ver 3.2";
 
 const scriptURL = "https://script.google.com/macros/s/AKfycby0xTAEjyfcN-IrEVaEzQuFFAfCQD1wWhpTJ5dlv9S7jBIT48RY8PxH76mW2Mci0rCGCw/exec";
 const GAS_URL = scriptURL;
@@ -2719,24 +2719,49 @@ window.facultyFilterAndSort = function() {
 
 window.openFacultyStudentView = function(sen) {
     let student = window.STUDENTS.find(s => String(s.sen).toUpperCase() === String(sen).toUpperCase());
-    if (!student) { alert("Student not found."); return; }
-    window.loadStudentDashboard(student);
+    if (!student) {
+        alert("Student records not found.");
+        return;
+    }
 
-    // FIX: Properly wire "← Back to Directory" button
+    // Hide faculty dashboard container
+    let facultyDash = document.getElementById('faculty-dash') || document.querySelector('.faculty-section');
+    if (facultyDash) facultyDash.style.display = 'none';
+
+    // Load student result dashboard
+    if (typeof window.loadStudentDashboard === 'function') {
+        window.loadStudentDashboard(student);
+    }
+
+    // Inject or wire "← Back to Directory" button into student view
     setTimeout(() => {
-        let dash = document.getElementById('student-dash') || document.getElementById('student-dashboard');
-        if (dash && !document.getElementById('back-to-directory-btn')) {
+        let dash = document.getElementById('student-dash') || document.getElementById('student-dashboard') || document.querySelector('.student-dashboard-container');
+        if (dash) {
+            let existingBtn = document.getElementById('back-to-directory-btn');
+            if (existingBtn) existingBtn.remove();
+
             let backBtn = document.createElement('button');
             backBtn.id = 'back-to-directory-btn';
             backBtn.innerHTML = '← Back to Directory';
-            backBtn.style.cssText = 'margin:15px 0 0 20px; background:#475569; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer; display:inline-block; z-index:999; position:relative;';
-            backBtn.onclick = function() {
-                dash.style.display = 'none';
-                if (typeof window.renderFacultyPortal === 'function') window.renderFacultyPortal();
+            backBtn.style.cssText = 'margin:15px 0 10px 20px; background:#475569; color:white; border:none; padding:9px 18px; border-radius:6px; font-weight:bold; cursor:pointer; display:inline-block; z-index:9999; position:relative; box-shadow:0 1px 3px rgba(0,0,0,0.1);';
+            
+            backBtn.onclick = function(e) {
+                e.preventDefault();
+                // Hide all student dashboards
+                document.querySelectorAll('#student-dash, #student-dashboard, .student-dashboard-container, div[id*="student"]').forEach(el => {
+                    if (el && el.id !== 'faculty-dash') el.style.display = 'none';
+                });
+                // Restore faculty dashboard and portal view
+                if (typeof window.renderFacultyPortal === 'function') {
+                    window.renderFacultyPortal();
+                } else {
+                    window.location.reload();
+                }
             };
+
             dash.insertBefore(backBtn, dash.firstChild);
         }
-    }, 100);
+    }, 150);
 };
 
 window.exportCurriculumJSON = function() {

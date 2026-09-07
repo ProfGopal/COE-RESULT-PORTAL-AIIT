@@ -1,11 +1,11 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 2.9 - Faculty Curriculum Dual Dropdowns & View Fix)
+ * Master Script Engine (Ver 3.0 - Faculty Filtered PDF Export Suite)
  */
 
 'use strict';
 
-window.PORTAL_VERSION = "Ver 2.9";
+window.PORTAL_VERSION = "Ver 3.0";
 
 const scriptURL = "https://script.google.com/macros/s/AKfycby0xTAEjyfcN-IrEVaEzQuFFAfCQD1wWhpTJ5dlv9S7jBIT48RY8PxH76mW2Mci0rCGCw/exec";
 const GAS_URL = scriptURL;
@@ -580,20 +580,7 @@ window.renderFacultyPortal = async function(email) {
 };
 
 window.facultyFilterAndSort = function() {
-    let students = window.STUDENTS || [];
-    const searchInput = document.getElementById('faculty-search-input') || document.querySelector('input[placeholder*="Search"]');
-    const searchTxt = searchInput ? searchInput.value.toLowerCase().trim() : "";
-    
-    const batchSel = document.getElementById('filter-batch') ? document.getElementById('filter-batch').value.trim() : "";
-    const progSel = document.getElementById('filter-program') ? document.getElementById('filter-program').value.trim() : "";
-
-    let filtered = students.filter(s => {
-        const matchSearch = !searchTxt || String(s.sen || '').toLowerCase().includes(searchTxt) || String(s.name || '').toLowerCase().includes(searchTxt);
-        const matchBatch = !batchSel || String(s.batch || '').trim() === batchSel;
-        const matchProg = !progSel || String(s.program || '').trim() === progSel;
-        return matchSearch && matchBatch && matchProg;
-    });
-
+    let filtered = window.getFilteredFacultyStudents ? window.getFilteredFacultyStudents() : (window.STUDENTS || []);
     window.RENDERED_STUDENTS = filtered;
     window.renderFacultyStudentTable(filtered);
 };
@@ -605,7 +592,7 @@ window.facultyViewAll = async function() {
 };
 
 window.renderFacultyStudentTable = function(students) {
-    var tbody = document.getElementById('faculty-dir-tbody') || document.querySelector('#faculty-dash tbody') || document.querySelector('table tbody');
+    var tbody = document.getElementById('faculty-directory-tbody') || document.getElementById('faculty-dir-tbody') || document.querySelector('#faculty-dash tbody') || document.querySelector('table tbody');
     var badge = document.querySelector('#faculty-dash .badge') || document.getElementById('faculty-dir-badge') || document.querySelector('.student-count-badge');
     
     if (badge) badge.textContent = `${students.length} students`;
@@ -640,6 +627,148 @@ window.openFacultyStudentView = function(sen) {
         return;
     }
     window.loadStudentDashboard(student);
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+//  3b. FACULTY DIRECTORY TAB WITH FILTER PDF EXPORT (Ver 3.0)
+// ═══════════════════════════════════════════════════════════════════════
+window.switchFacultyTab = function(tabName) {
+    let area = document.getElementById('faculty-tab-content-area');
+    if (!area) return;
+
+    let btnDir = document.getElementById('fac-tab-dir');
+    let btnCurr = document.getElementById('fac-tab-curr');
+    if (btnDir && btnCurr) {
+        btnDir.style.background = (tabName === 'directory') ? '#2563eb' : '#f1f5f9';
+        btnDir.style.color = (tabName === 'directory') ? 'white' : '#475569';
+        btnCurr.style.background = (tabName === 'curriculum') ? '#2563eb' : '#f1f5f9';
+        btnCurr.style.color = (tabName === 'curriculum') ? 'white' : '#475569';
+    }
+
+    if (tabName === 'directory') {
+        let batches = [...new Set((window.STUDENTS || []).map(s => String(s.batch || '').trim()))].filter(Boolean);
+        if (batches.length === 0) batches = ["2024", "2025", "2026"];
+
+        let programs = [...new Set((window.STUDENTS || []).map(s => String(s.program || '').trim()))].filter(Boolean);
+        if (programs.length === 0) programs = ["MCA", "B.C.A", "MSc (Data Science)", "MSc (Cyber Security)"];
+
+        area.innerHTML = `
+            <div style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap; align-items:center;">
+                <input type="text" id="faculty-search-input" placeholder="Search SEN or Name..." oninput="window.facultyFilterAndSort()" style="flex:1; min-width:180px; padding:8px; border:1px solid #cbd5e1; border-radius:6px;" />
+                <select id="filter-batch" onchange="window.facultyFilterAndSort()" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; background:white;">
+                    <option value="">All Years / Batches</option>
+                    ${batches.map(b => `<option value="${b}">${b}</option>`).join('')}
+                </select>
+                <select id="filter-program" onchange="window.facultyFilterAndSort()" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; background:white;">
+                    <option value="">All Programs</option>
+                    ${programs.map(p => `<option value="${p}">${p}</option>`).join('')}
+                </select>
+                <select id="filter-backlog" onchange="window.facultyFilterAndSort()" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; background:white;">
+                    <option value="">All Backlog Status</option>
+                    <option value="has_backlog">⚠️ Has Backlogs / Failed</option>
+                    <option value="no_backlog">✅ Zero Backlogs (Clean)</option>
+                </select>
+                <select id="sort-credits" onchange="window.facultyFilterAndSort()" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; background:white;">
+                    <option value="">Sort: Default</option>
+                    <option value="cred_high_low">Credits: High to Low</option>
+                    <option value="cred_low_high">Credits: Low to High</option>
+                    <option value="cgpa_high_low">CGPA: High to Low</option>
+                    <option value="cgpa_low_high">CGPA: Low to High</option>
+                </select>
+                <button onclick="window.exportFacultyFilteredPDF()" style="background:#dc2626; color:white; border:none; padding:9px 16px; border-radius:6px; font-weight:bold; cursor:pointer; white-space:nowrap;">📄 Export Filtered PDF</button>
+            </div>
+            <div style="background:white; border-radius:8px; border:1px solid #cbd5e1; overflow:hidden;">
+                <table style="width:100%; border-collapse:collapse; text-align:left;">
+                    <thead>
+                        <tr style="background:#f8fafc; border-bottom:2px solid #cbd5e1; color:#334155;">
+                            <th style="padding:12px;">SEN</th>
+                            <th style="padding:12px;">Name</th>
+                            <th style="padding:12px;">CGPA</th>
+                            <th style="padding:12px;">Credits Earned</th>
+                            <th style="padding:12px;">Backlogs</th>
+                            <th style="padding:12px; text-align:right;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="faculty-directory-tbody"></tbody>
+                </table>
+            </div>
+        `;
+        window.facultyFilterAndSort();
+    } else if (tabName === 'curriculum') {
+        window.renderFacultyCurriculumTab(area);
+    }
+};
+
+// --- GET CURRENTLY FILTERED STUDENTS HELPER (Ver 3.0) ---
+window.getFilteredFacultyStudents = function() {
+    let students = window.STUDENTS || [];
+    const searchInput = document.getElementById('faculty-search-input');
+    const searchTxt = searchInput ? searchInput.value.toLowerCase().trim() : "";
+    const batchSel = document.getElementById('filter-batch') ? document.getElementById('filter-batch').value.trim() : "";
+    const progSel = document.getElementById('filter-program') ? document.getElementById('filter-program').value.trim() : "";
+    const backlogSel = document.getElementById('filter-backlog') ? document.getElementById('filter-backlog').value.trim() : "";
+    const sortSel = document.getElementById('sort-credits') ? document.getElementById('sort-credits').value.trim() : "";
+
+    let filtered = students.filter(s => {
+        let matchSearch = !searchTxt || String(s.sen || '').toLowerCase().includes(searchTxt) || String(s.name || '').toLowerCase().includes(searchTxt);
+        let matchBatch = !batchSel || String(s.batch || '').trim() === batchSel;
+        let matchProg = !progSel || String(s.program || '').trim() === progSel;
+
+        let backlogs = window.getActiveBacklogs(s.courses);
+        let matchBacklog = true;
+        if (backlogSel === 'has_backlog') matchBacklog = backlogs.length > 0;
+        else if (backlogSel === 'no_backlog') matchBacklog = backlogs.length === 0;
+
+        return matchSearch && matchBatch && matchProg && matchBacklog;
+    });
+
+    if (sortSel === 'cred_low_high') {
+        filtered.sort((a, b) => parseFloat(a.totalCredits || 0) - parseFloat(b.totalCredits || 0));
+    } else if (sortSel === 'cred_high_low') {
+        filtered.sort((a, b) => parseFloat(b.totalCredits || 0) - parseFloat(a.totalCredits || 0));
+    } else if (sortSel === 'cgpa_high_low') {
+        filtered.sort((a, b) => parseFloat(b.cgpa || 0) - parseFloat(a.cgpa || 0));
+    } else if (sortSel === 'cgpa_low_high') {
+        filtered.sort((a, b) => parseFloat(a.cgpa || 0) - parseFloat(b.cgpa || 0));
+    }
+
+    return filtered;
+};
+
+// --- FILTERED PDF EXPORT UTILITY (Ver 3.0) ---
+window.exportFacultyFilteredPDF = function() {
+    if (!window.jspdf || !window.jspdf.jsPDF) { alert("PDF library loading..."); return; }
+
+    let filteredStudents = window.getFilteredFacultyStudents();
+    if (filteredStudents.length === 0) {
+        alert("No student records available to export for the selected filter criteria.");
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    doc.setFontSize(14);
+    doc.text("Amity University - Faculty Filtered Student Report", 14, 20);
+
+    doc.setFontSize(10);
+    doc.text(`Generated on: ${new Date().toLocaleDateString()} | Total Records: ${filteredStudents.length}`, 14, 26);
+
+    let body = filteredStudents.map(s => {
+        let cRaw = parseFloat(s.cgpa);
+        let cFormatted = !isNaN(cRaw) ? cRaw.toFixed(2) : 'N/A';
+        let backlogsCount = window.getActiveBacklogs(s.courses).length;
+        return [s.sen, s.name, s.program || 'N/A', cFormatted, s.totalCredits || '0', backlogsCount];
+    });
+
+    doc.autoTable({
+        startY: 32,
+        head: [['SEN', 'Name', 'Program', 'CGPA', 'Credits Earned', 'Backlogs']],
+        body: body,
+        theme: 'grid'
+    });
+
+    doc.save('Faculty_Filtered_Student_Report.pdf');
 };
 
 // --- 1. COE LOGIN TRIGGER & HANDLER ---

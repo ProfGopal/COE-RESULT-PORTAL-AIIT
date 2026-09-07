@@ -1,11 +1,11 @@
 /**
  * script.js — AIIT COE Result Portal
- * Master Script Engine (Ver 3.0 - Faculty Filtered PDF Export Suite)
+ * Master Script Engine (Ver 3.1 - Faculty Filtered PDF Export & Version Badge Fix)
  */
 
 'use strict';
 
-window.PORTAL_VERSION = "Ver 3.0";
+window.PORTAL_VERSION = "Ver 3.1";
 
 const scriptURL = "https://script.google.com/macros/s/AKfycby0xTAEjyfcN-IrEVaEzQuFFAfCQD1wWhpTJ5dlv9S7jBIT48RY8PxH76mW2Mci0rCGCw/exec";
 const GAS_URL = scriptURL;
@@ -2403,9 +2403,12 @@ window.renderFacultyPortal = async function(email) {
     if (window.STUDENTS.length === 0) await window.initializeCloudPortal();
 
     facultyDash.innerHTML = `
-        <div style="max-width:1200px; margin:0 auto;">
-            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #cbd5e1; padding-bottom:12px; margin-bottom:20px;">
-                <h2 style="color:#0f172a; margin:0;">👨‍🏫 Faculty Portal: Student Analytics & Curriculum Viewer</h2>
+        <div style="max-width:1300px; margin:0 auto;">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #cbd5e1; padding-bottom:12px; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+                <div style="display:flex; align-items:center; gap:15px;">
+                    <h2 style="color:#0f172a; margin:0;">👨‍🏫 Faculty Portal: Student Analytics & Curriculum Viewer</h2>
+                    <span style="background:#e0f2fe; color:#0369a1; padding:4px 10px; border-radius:6px; font-weight:bold; font-size:0.85rem;">${window.PORTAL_VERSION}</span>
+                </div>
                 <div style="display:flex; gap:10px;">
                     <button onclick="window.switchFacultyTab('directory')" id="fac-tab-dir" style="background:#2563eb; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer;">Student Results & Directory</button>
                     <button onclick="window.switchFacultyTab('curriculum')" id="fac-tab-curr" style="background:#f1f5f9; color:#475569; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer;">Curriculum View</button>
@@ -2434,31 +2437,35 @@ window.switchFacultyTab = function(tabName) {
 
     if (tabName === 'directory') {
         let batches = [...new Set((window.STUDENTS || []).map(s => String(s.batch || '').trim()))].filter(Boolean);
+        if (batches.length === 0) batches = ["2024", "2025", "2026"];
+
         let programs = [...new Set((window.STUDENTS || []).map(s => String(s.program || '').trim()))].filter(Boolean);
+        if (programs.length === 0) programs = ["MCA", "B.C.A", "MSc (Data Science)", "MSc (Cyber Security)"];
 
         area.innerHTML = `
-            <div style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
-                <input type="text" id="faculty-search-input" placeholder="Search SEN or Name..." oninput="window.facultyFilterAndSort()" style="flex:1; min-width:200px; padding:8px; border:1px solid #cbd5e1; border-radius:6px;" />
-                <select id="filter-batch" onchange="window.facultyFilterAndSort()" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; background:white;">
+            <div style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap; align-items:center; background:white; padding:15px; border-radius:8px; border:1px solid #cbd5e1;">
+                <input type="text" id="faculty-search-input" placeholder="Search SEN or Name..." oninput="window.facultyFilterAndSort()" style="flex:1; min-width:180px; padding:9px; border:1px solid #cbd5e1; border-radius:6px;" />
+                <select id="filter-batch" onchange="window.facultyFilterAndSort()" style="padding:9px; border:1px solid #cbd5e1; border-radius:6px; background:white; font-weight:bold;">
                     <option value="">All Years / Batches</option>
                     ${batches.map(b => `<option value="${b}">${b}</option>`).join('')}
                 </select>
-                <select id="filter-program" onchange="window.facultyFilterAndSort()" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; background:white;">
+                <select id="filter-program" onchange="window.facultyFilterAndSort()" style="padding:9px; border:1px solid #cbd5e1; border-radius:6px; background:white; font-weight:bold;">
                     <option value="">All Programs</option>
                     ${programs.map(p => `<option value="${p}">${p}</option>`).join('')}
                 </select>
-                <select id="filter-backlog" onchange="window.facultyFilterAndSort()" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; background:white;">
+                <select id="filter-backlog" onchange="window.facultyFilterAndSort()" style="padding:9px; border:1px solid #cbd5e1; border-radius:6px; background:white; font-weight:bold;">
                     <option value="">All Backlog Status</option>
                     <option value="has_backlog">⚠️ Has Backlogs / Failed</option>
                     <option value="no_backlog">✅ Zero Backlogs (Clean)</option>
                 </select>
-                <select id="sort-credits" onchange="window.facultyFilterAndSort()" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; background:white;">
+                <select id="sort-credits" onchange="window.facultyFilterAndSort()" style="padding:9px; border:1px solid #cbd5e1; border-radius:6px; background:white; font-weight:bold;">
                     <option value="">Sort: Default</option>
                     <option value="cred_high_low">Credits: High to Low</option>
                     <option value="cred_low_high">Credits: Low to High</option>
                     <option value="cgpa_high_low">CGPA: High to Low</option>
                     <option value="cgpa_low_high">CGPA: Low to High</option>
                 </select>
+                <button onclick="window.exportFacultyFilteredPDF()" style="background:#dc2626; color:white; border:none; padding:10px 18px; border-radius:6px; font-weight:bold; cursor:pointer; white-space:nowrap; display:flex; align-items:center; gap:5px;">📄 Export Filtered PDF</button>
             </div>
             <div style="background:white; border-radius:8px; border:1px solid #cbd5e1; overflow:hidden;">
                 <table style="width:100%; border-collapse:collapse; text-align:left;">
@@ -2480,6 +2487,41 @@ window.switchFacultyTab = function(tabName) {
     } else if (tabName === 'curriculum') {
         window.renderFacultyCurriculumTab(area);
     }
+};
+
+window.exportFacultyFilteredPDF = function() {
+    if (!window.jspdf || !window.jspdf.jsPDF) { alert("PDF library loading..."); return; }
+    
+    let filteredStudents = window.getFilteredFacultyStudents ? window.getFilteredFacultyStudents() : (window.STUDENTS || []);
+    if (filteredStudents.length === 0) {
+        alert("No student records available to export for the selected filter criteria.");
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    doc.setFontSize(14);
+    doc.text("Amity University - Faculty Filtered Student Report", 14, 20);
+    
+    doc.setFontSize(10);
+    doc.text(`Generated on: ${new Date().toLocaleDateString()} | Total Records: ${filteredStudents.length}`, 14, 26);
+
+    let body = filteredStudents.map(s => {
+        let cRaw = parseFloat(s.cgpa);
+        let cFormatted = !isNaN(cRaw) ? cRaw.toFixed(2) : 'N/A';
+        let backlogsCount = typeof window.getActiveBacklogs === 'function' ? window.getActiveBacklogs(s.courses).length : 0;
+        return [s.sen, s.name, s.program || 'N/A', cFormatted, s.totalCredits || '0', backlogsCount];
+    });
+
+    doc.autoTable({
+        startY: 32,
+        head: [['SEN', 'Name', 'Program', 'CGPA', 'Credits Earned', 'Backlogs']],
+        body: body,
+        theme: 'grid'
+    });
+
+    doc.save('Faculty_Filtered_Student_Report.pdf');
 };
 
 window.renderFacultyCurriculumTab = function(area) {
@@ -2613,7 +2655,7 @@ window.exportFacultyCurriculumPDF = function() {
     doc.save(`Curriculum_${batch}_${program}.pdf`);
 };
 
-window.facultyFilterAndSort = function() {
+window.getFilteredFacultyStudents = function() {
     let students = window.STUDENTS || [];
     const searchInput = document.getElementById('faculty-search-input');
     const searchTxt = searchInput ? searchInput.value.toLowerCase().trim() : "";
@@ -2627,7 +2669,7 @@ window.facultyFilterAndSort = function() {
         let matchBatch = !batchSel || String(s.batch || '').trim() === batchSel;
         let matchProg = !progSel || String(s.program || '').trim() === progSel;
         
-        let backlogs = window.getActiveBacklogs(s.courses);
+        let backlogs = typeof window.getActiveBacklogs === 'function' ? window.getActiveBacklogs(s.courses) : [];
         let matchBacklog = true;
         if (backlogSel === 'has_backlog') matchBacklog = backlogs.length > 0;
         else if (backlogSel === 'no_backlog') matchBacklog = backlogs.length === 0;
@@ -2644,6 +2686,11 @@ window.facultyFilterAndSort = function() {
     } else if (sortSel === 'cgpa_low_high') {
         filtered.sort((a, b) => parseFloat(a.cgpa || 0) - parseFloat(b.cgpa || 0));
     }
+    return filtered;
+};
+
+window.facultyFilterAndSort = function() {
+    let filtered = window.getFilteredFacultyStudents();
 
     let tbody = document.getElementById('faculty-directory-tbody');
     if (!tbody) return;
@@ -2656,7 +2703,7 @@ window.facultyFilterAndSort = function() {
     tbody.innerHTML = filtered.map(s => {
         let cRaw = parseFloat(s.cgpa);
         let cFormatted = !isNaN(cRaw) ? cRaw.toFixed(2) : 'N/A';
-        let backlogsCount = window.getActiveBacklogs(s.courses).length;
+        let backlogsCount = typeof window.getActiveBacklogs === 'function' ? window.getActiveBacklogs(s.courses).length : 0;
 
         return `
         <tr style="border-bottom:1px solid #e2e8f0;">
